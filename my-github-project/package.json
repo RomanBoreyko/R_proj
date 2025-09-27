@@ -1,0 +1,20 @@
+{
+  "name": "my-github-project",
+  "version": "1.0.0",
+  "description": "A sample project for demonstration purposes",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/my-github-project.git"
+  },
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^4.0.0"
+  }
+}

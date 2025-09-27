@@ -1,0 +1,240 @@
+{
+  "main": {
+    "id": "57fb997bd5fd45d8",
+    "type": "split",
+    "children": [
+      {
+        "id": "7754d1fa5fab153d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "16d1835bbed0001b",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Добро пожаловать.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Добро пожаловать"
+            }
+          }
+        ]
+      },
+      {
+        "id": "220beada44d6847b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "afa9795e30604b6d",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Граф"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "cd0085c311a26376",
+    "type": "split",
+    "children": [
+      {
+        "id": "c4aff7ef0744ae8f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "90fde2c7b71d3c1e",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Файловый менеджер"
+            }
+          },
+          {
+            "id": "085827cf353b96b4",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Поиск"
+            }
+          },
+          {
+            "id": "c75452400a44fe68",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Закладки"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "28ec361599b9fb65",
+    "type": "split",
+    "children": [
+      {
+        "id": "cd846477d1b96c9d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "e2fd9367b25b4178",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Добро пожаловать.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Обратные ссылки для Добро пожаловать"
+            }
+          },
+          {
+            "id": "6c522d4bec103ba2",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Добро пожаловать.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Исходящие ссылки из Добро пожаловать"
+            }
+          },
+          {
+            "id": "849544f4dbd630c3",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Теги"
+            }
+          },
+          {
+            "id": "c6ca1f1f638d1229",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Добро пожаловать.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Структура Добро пожаловать"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false,
+      "bases:Создать новую базу": false
+    }
+  },
+  "active": "16d1835bbed0001b",
+  "lastOpenFiles": [
+    "my-github-project/src/index.ts",
+    "my-github-project/src",
+    "my-github-project/README.md",
+    "my-github-project/tsconfig.json",
+    "my-github-project/package.json",
+    "my-github-project",
+    "r_cod2/academy/salesForce/avenga/R-sf-av-test-002/R-sf-av-test-002/force-app/main/default/classes/r2.cls",
+    "r_cod2/academy/salesForce/avenga/R-sf-av-test-002/R-sf-av-test-002/force-app/main/default/classes/r2.cls-meta.xml",
+    "r_cod2/academy/salesForce/avenga/R-sf-av-test-002/R-sf-av-test-002/force-app/main/default/classes/R1.cls-meta.xml",
+    "r_cod2/academy/salesForce/avenga/R-sf-av-test-002/R-sf-av-test-002/force-app/main/default/classes/R1.cls",
+    "r_cod2/academy/salesForce/avenga/R-sf-av-test-001/R-sf-av-test-001/force-app/main/default/classes/R-0.json",
+    "r_cod2/academy/salesForce/avenga/R-sf-av-test-002/R-sf-av-test-002/force-app/main/default/classes",
+    "r_cod2/pattern/r0_js/js/func/arrou-func/js_func.md",
+    "r_cod2/pattern/r0_js/js/arr/r0_arr/По парам.md",
+    "r_cod2/pattern/r0_js/js/arr/r0_arr/Сравнение ел.масс 1..md",
+    "r_cod2/pattern/r0_js/js/arr/r0_arr/Преобразовать в массив пар, без пробелов..md",
+    "r_cod2/pattern/r0_js/js/func/arrou-func/arrow-func_examples.md",
+    "r_cod2/pattern/C++/design-patterns/StructuralPatterns/proxy/README.md",
+    "r_cod2/pattern/C++/design-patterns/StructuralPatterns/flyweight/README.md",
+    "r_cod2/pattern/C++/design-patterns/StructuralPatterns/facade/README.md",
+    "r_cod2/pattern/C++/design-patterns/StructuralPatterns/decorator/README.md",
+    "r_cod2/pattern/C++/design-patterns/StructuralPatterns/composite/README.md",
+    "r_cod2/pattern/C++/design-patterns/StructuralPatterns/bridge/README.md",
+    "r_cod2/pattern/C++/design-patterns/StructuralPatterns/adapter/README.md",
+    "r_cod2/pattern/C++/design-patterns/CreationalPatterns/singleton/README.md",
+    "r_cod2/pattern/C++/design-patterns/CreationalPatterns/prototype/README.md",
+    "r_cod2/pattern/C++/design-patterns/CreationalPatterns/abstract-factory/README.md",
+    "r_cod2/pattern/C++/design-patterns/CreationalPatterns/factory-method/README.md",
+    "r_cod2/pattern/C++/design-patterns/CreationalPatterns/builder/README.md",
+    "r_cod2/pattern/C++/design-patterns/BehaviroalPatterns/visitor/README.md",
+    "r_cod2/pattern/C++/design-patterns/BehaviroalPatterns/state/README.md",
+    "r_cod2/pattern/C++/design-patterns/BehaviroalPatterns/strategy/README.md",
+    "r_cod2/pattern/C++/design-patterns/BehaviroalPatterns/template-method/README.md",
+    "r_cod2/pattern/C++/design-patterns/BehaviroalPatterns/observer/README.md",
+    "r_cod2/pattern/C++/design-patterns/BehaviroalPatterns/memento/README.md",
+    "r_cod2/pattern/C++/design-patterns/BehaviroalPatterns/mediator/README.md",
+    "r_cod2/academy/salesForce/sf-noltic_/lecture/hw2/unnamed3.png",
+    "r_cod2/academy/salesForce/sf-noltic_/lecture/hw2/unnamed1.png",
+    "r_cod2/academy/salesForce/sf-noltic_/lecture/hw2/unnamed2.png",
+    "r_cod2/academy/salesForce/sf-noltic_/lecture/hw2/unnamed.png",
+    "r_cod2/pattern/C++/design-patterns/images/Strategy.PNG",
+    "r_cod2/pattern/C++/design-patterns/images/Visitor.PNG",
+    "r_cod2/pattern/C++/design-patterns/images/TemplateMethod.png",
+    "r_cod2/pattern/C++/design-patterns/images/State.PNG",
+    "r_cod2/pattern/C++/design-patterns/images/SingletonPattern.png",
+    "r_cod2/pattern/C++/design-patterns/images/Proxy.png",
+    "R_tail04/old_5-3-25/ДоХХХХоrm/old/4_core/мех/Мех Чучело Домовцев.canvas",
+    "R_tail04/old_5-3-25/ДоХХХХоrm/old/2Бек/img/Untitled.canvas",
+    "R_tail04/old_5-3-25/ДоХХХХоrm/old/2Бек/img/Untitled 1.canvas"
+  ]
+}
