@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+dist/
+
+# Claude Code / Claudesidian / Smart Connections (session & cache data)
+.claude/
+.claudian/
+.smart-env/
+
+# Obsidian local workspace/cache (keep shared config, ignore per-machine state)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/graph.json
+
+# Secrets — never commit API keys
+.bybit/
+credentials.json
+config.json
+*.key
+.env
+
+# OS / misc
+desktop.ini
+*.log
