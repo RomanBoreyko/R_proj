@@ -1,0 +1,55 @@
+//@version=5
+// =============================================================================
+// СПРЕД-РЕВЕРСИЯ — скальп
+// Вешать на график-спред/ratio (символ = XAUTUSDT.P/XAUUSDT.P или ...-...).
+// `close` уже есть значение спреда/ratio → request.security не нужен.
+// Логика: отклонение от скользящего среднего на ±kσ → вход на возврат к среднему.
+// КРИТИЧНО: входить ТОЛЬКО лимитом (post-only). Тейкер съест эдж (4 исполнения/круг).
+// =============================================================================
+indicator("Спред-реверсия скальп", overlay=true)
+
+len   = input.int(60,   "Окно среднего (баров)", minval=5)
+kEnt  = input.float(2.0, "σ вход",  step=0.25)
+kStop = input.float(3.5, "σ стоп",  step=0.25)
+feeRT = input.float(0.10,"Косты round-trip, %", step=0.01,
+     tooltip="Мейкер×4 ≈ 0.08% · Тейкер×4 ≈ 0.22%. Вход разрешён, только если отклонение > этого.")
+
+m   = ta.sma(close, len)
+sg  = ta.stdev(close, len)
+z   = sg > 0 ? (close - m) / sg : 0.0
+dev = m != 0 ? (close - m) / m * 100.0 : 0.0     // отклонение в %
+
+upEnt = m + kEnt*sg,  dnEnt = m - kEnt*sg
+upStp = m + kStop*sg, dnStp = m - kStop*sg
+
+plot(m,     "среднее", color=color.new(color.gray, 0))
+plot(upEnt, "+вход",   color=color.new(color.orange, 20))
+plot(dnEnt, "−вход",   color=color.new(color.orange, 20))
+plot(upStp, "+стоп",   color=color.new(color.red, 45))
+plot(dnStp, "−стоп",   color=color.new(color.red, 45))
+
+// эдж покрывает косты?
+edgeOK = math.abs(dev) > feeRT
+
+// сигналы реверсии (на касании ±σ)
+shortSig = ta.crossover(close, upEnt)  and edgeOK   // ratio высоко → шорт XAUT / лонг XAU
+longSig  = ta.crossunder(close, dnEnt) and edgeOK   // ratio низко  → лонг XAUT / шорт XAU
+
+plotshape(longSig,  "long",  shape.triangleup,   location.belowbar, color=color.lime, size=size.tiny)
+plotshape(shortSig, "short", shape.triangledown, location.abovebar, color=color.red,  size=size.tiny)
+bgcolor(longSig  ? color.new(color.lime, 85) : na)
+bgcolor(shortSig ? color.new(color.red,  85) : na)
+
+// выход — возврат к среднему (для ориентира)
+plotshape(ta.cross(close, m), "exit", shape.circle, location.absolute, color=color.new(color.aqua,40), size=size.tiny)
+
+alertcondition(longSig,  "Reversion LONG  (лонг XAUT / шорт XAU)",  "Спред нырнул ниже −σ — лонг XAUT, шорт XAU, выход у среднего")
+alertcondition(shortSig, "Reversion SHORT (шорт XAUT / лонг XAU)",  "Спред выскочил выше +σ — шорт XAUT, лонг XAU, выход у среднего")
+
+// инфо-метка
+var label lb = na
+if barstate.islast
+    label.delete(lb)
+    txt = "Z=" + str.tostring(z, "#.##") + "   dev=" + str.tostring(dev, "#.###") + "%   косты=" + str.tostring(feeRT, "#.##") + "%" + (edgeOK ? "  ✓ эдж>кост" : "  ✗ мелко")
+    lb := label.new(bar_index, m, txt, style=label.style_label_left,
+         color=color.new(color.gray, 15), textcolor=color.white, size=size.small)
