@@ -59,7 +59,8 @@ graph TD
 
 ### Анализ и визуализация
 - **TradingView** (платная подписка) — графики, разметка, **Pine-скрипты**. Источник данных для обучения Pine — сама подписка (API не нужен). Десктопы на TV для золота/крипты.
-- **Локальный калькулятор** [[scripts/webapp/README]] — один HTML-файл, 7 вкладок: Живые данные, Синт-спред/стат-арб, Вол-арб (IV/RV), Календари, **Структура** (condor payoff + карта гаммы), Сайзинг, **Портфель 🔒** (read-only ключ, мета-спред/греки/$-дельта/спот/структуры/графики). Запуск на `localhost:8777`. См. [[03-STRATEGIES/portfolio-operating-plan]].
+- **Локальный калькулятор** [[scripts/webapp/README]] — один HTML-файл, **8 вкладок**: Живые данные, Синт-спред/стат-арб, Вол-арб (IV/RV), Календари, **Gold/Silver** (ratio XAUT/XAG, h*, Z, RV, корреляция, сайзинг), **Структура** (condor payoff + карта гаммы), Сайзинг, **Портфель 🔒** (read-only ключ, мета-спред/греки/$-дельта/спот/структуры/графики). Запуск: `python -m http.server 8777 -d <webapp>` → `localhost:8777`. Конфиг: `.claude/launch.json` → `gold-calc`. См. [[03-STRATEGIES/portfolio-operating-plan]].
+- **TRADING_BOOK.xlsx** — учётная книга 5 конструктов (C1–C5), 8 листов. Генератор: `scripts/gen_excel.py`. Заполнение из API: `scripts/fill_book.py` (читает `C:\Users\DoOs\.bybit\credentials.json`, read-only ключи).
 
 ### Знания и журнал
 - **Obsidian Vault** (`R_trade_proj_sin-arb`) — единая база: концепция, стратегии, формулы, риски, инфраструктура (этот файл). См. [[00-INDEX]].

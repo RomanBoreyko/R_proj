@@ -70,6 +70,7 @@ TRADING-SYSTEM/
 | XAU синт-спред + вола | [[03-STRATEGIES/xau-synthetic-spread]] |
 | Опционный кондор + зонный хедж | [[03-STRATEGIES/options-condor-zone-hedge]] |
 | Портфель — операционный план | [[03-STRATEGIES/portfolio-operating-plan]] |
+| Мультиактивная опц. книга (C5) | [[03-STRATEGIES/multi-asset-options]] |
 | Формулы прибыли | [[04-FORMULAS/profit-formulas]] |
 | Excel мастер-лог | [[05-EXCEL/master-log]] |
 | Правила риска | [[06-RISK/risk-rules]] |
