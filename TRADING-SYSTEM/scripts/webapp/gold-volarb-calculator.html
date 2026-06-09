@@ -3,24 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gold Vol-Arb / Stat-Arb Calculator</title>
+<title>Trading Book — R-Trade</title>
 <style>
-  :root{
-    --bg:#0e1116; --panel:#161b22; --panel2:#1c232c; --line:#2a323d;
-    --txt:#e6edf3; --mut:#8b97a7; --accent:#f0b429; --aqua:#39d0d8;
-    --green:#3fb950; --red:#f85149; --orange:#e3933c;
-  }
+  :root{--bg:#0e1116;--panel:#161b22;--panel2:#1c232c;--line:#2a323d;
+    --txt:#e6edf3;--mut:#8b97a7;--accent:#f0b429;--aqua:#39d0d8;
+    --green:#3fb950;--red:#f85149;--orange:#e3933c;}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.5 "Segoe UI",system-ui,sans-serif}
-  header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-  header h1{font-size:16px;margin:0;font-weight:600}
-  header .badge{font-size:11px;color:var(--mut)}
-  #status{font-size:11px;margin-left:auto}
+  header{padding:10px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header h1{font-size:15px;margin:0;font-weight:600}
+  .ticker-bar{display:flex;gap:16px;flex-wrap:wrap;margin-left:auto}
+  .ticker-item{font-size:12px;display:flex;flex-direction:column;align-items:flex-end}
+  .ticker-item .sym{color:var(--mut);font-size:10px}
+  .ticker-item .px{font-weight:600;font-variant-numeric:tabular-nums}
+  #status{font-size:11px;margin-left:8px}
   .ok{color:var(--green)} .err{color:var(--red)} .load{color:var(--orange)}
   .tabs{display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-  .tab{padding:9px 16px;cursor:pointer;color:var(--mut);border-bottom:2px solid transparent;font-weight:500}
+  .tab{padding:9px 16px;cursor:pointer;color:var(--mut);border-bottom:2px solid transparent;font-weight:500;font-size:13px}
   .tab.active{color:var(--accent);border-color:var(--accent)}
-  main{padding:20px;max-width:1200px}
+  main{padding:20px;max-width:1280px}
   .view{display:none} .view.active{display:block}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
@@ -28,650 +29,379 @@
   .row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1f2630}
   .row:last-child{border:0}
   .row .k{color:var(--mut)} .row .v{font-variant-numeric:tabular-nums;font-weight:500}
-  .ctrl{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:14px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px}
   .fld{display:flex;flex-direction:column;gap:3px}
   .fld label{font-size:11px;color:var(--mut)}
-  .fld input,.fld select{background:#0c0f14;border:1px solid var(--line);color:var(--txt);border-radius:5px;padding:6px 8px;font:13px inherit;min-width:90px}
-  button{background:var(--accent);color:#1a1a1a;border:0;border-radius:6px;padding:8px 16px;font-weight:600;cursor:pointer}
+  .fld input,.fld select{background:#0c0f14;border:1px solid var(--line);color:var(--txt);
+    border-radius:5px;padding:6px 8px;font:13px inherit;min-width:90px}
+  button{background:var(--accent);color:#1a1a1a;border:0;border-radius:6px;padding:7px 14px;font-weight:600;cursor:pointer}
   button:hover{filter:brightness(1.1)} button.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
   .pos{color:var(--green)} .neg{color:var(--red)} .neu{color:var(--mut)}
-  .hint{font-size:11px;color:var(--mut);margin-top:8px}
+  .hint{font-size:11px;color:var(--mut);margin-top:6px}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  th,td{text-align:right;padding:6px 8px;border-bottom:1px solid #1f2630}
+  th,td{text-align:right;padding:5px 8px;border-bottom:1px solid #1f2630;font-size:12px}
   th{color:var(--mut);font-weight:500;font-size:11px} td:first-child,th:first-child{text-align:left}
   .tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px}
   .tag.cheap{background:#13311c;color:var(--green)} .tag.rich{background:#3a1416;color:var(--red)} .tag.neu{background:#23262d;color:var(--mut)}
   .big{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
-  details.info{background:#11202b;border:1px solid #1f3a48;border-radius:8px;margin-bottom:16px}
-  details.info>summary{cursor:pointer;padding:10px 14px;color:var(--aqua);font-weight:600;list-style:none;user-select:none}
+  /* TradingView container */
+  .tv-wrap{position:relative;width:100%;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+  .tv-wrap iframe{display:block}
+  .tv-custom{display:flex;gap:8px;margin-bottom:14px;align-items:flex-end}
+  .tv-custom input{flex:1;background:#0c0f14;border:1px solid var(--line);color:var(--txt);
+    border-radius:5px;padding:6px 8px;font:12px inherit}
+  /* 2-col layout for construct tabs */
+  .two-col{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+  @media(max-width:900px){.two-col{grid-template-columns:1fr}}
+  details.info{background:#11202b;border:1px solid #1f3a48;border-radius:8px;margin-bottom:14px}
+  details.info>summary{cursor:pointer;padding:9px 14px;color:var(--aqua);font-weight:600;list-style:none;user-select:none}
   details.info>summary::before{content:"ℹ  "}
   details.info[open]>summary{border-bottom:1px solid #1f3a48}
-  details.info .body{padding:12px 16px;color:#c5d0dc}
+  details.info .body{padding:10px 14px;color:#c5d0dc;font-size:12px}
   details.info .body b{color:var(--txt)}
-  details.info .body ul{margin:6px 0 6px 18px;padding:0}
-  details.info .body li{margin:3px 0}
-  details.info .body code{background:#0c0f14;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--accent);font-size:12px}
 </style>
 </head>
 <body>
 <header>
-  <h1>🥇 Gold Vol-Arb / Stat-Arb</h1>
-  <span class="badge">XAUUSDT · XAUTUSDT · spot · futures — Bybit live</span>
-  <span id="status" class="load">загрузка…</span>
+  <h1>⚡ R-Trade — Trading Book</h1>
+  <span style="font-size:11px;color:var(--mut)">Bybit live · C1–C5</span>
+  <div class="ticker-bar" id="tickerBar"></div>
+  <span id="status" class="load">…</span>
 </header>
+
 <div class="tabs">
-  <div class="tab active" data-v="live">Живые данные</div>
-  <div class="tab" data-v="spread">Синт-спред / стат-арб</div>
-  <div class="tab" data-v="volarb">Вол-арб (IV/RV)</div>
-  <div class="tab" data-v="cal">Календари</div>
-  <div class="tab" data-v="gs">Gold/Silver</div>
+  <div class="tab active" data-v="port">Портфель 🔒</div>
+  <div class="tab" data-v="c1">C1 — Locked Spread</div>
+  <div class="tab" data-v="c2">C2 — Стат-арб XAU/XAG</div>
+  <div class="tab" data-v="c3">C3 — Ratio + Опции</div>
+  <div class="tab" data-v="c4">C4 — Календарь</div>
   <div class="tab" data-v="struct">Структура</div>
-  <div class="tab" data-v="size">Сайзинг / риск</div>
-  <div class="tab" data-v="port">Портфель 🔒</div>
 </div>
+
 <main>
-  <!-- ============ LIVE ============ -->
-  <section class="view active" id="v-live">
-    <details class="info"><summary>Что это и как читать</summary><div class="body">
-      Снимок рынка золота на Bybit в реальном времени.
-      <ul>
-        <li><b>Last / Mark / Index</b> — последняя сделка / маркировка (по ней считается PnL и ликвидация) / индексная (внешняя) цена золота.</li>
-        <li><b>Фандинг/период</b> — ставка перпа за период (обычно 8ч). Положительный → лонги платят шортам (выгодно нашему перп-шорту).</li>
-        <li><b>Базис XAUT: перп − спот</b> — насколько перп дороже/дешевле спота. Основа кэрри-трейда (спот-лонг / перп-шорт).</li>
-        <li><b>Синт-спред XAUT − XAU</b> — расхождение двух золотых перпов. Его волатильность торгуем стренглами.</li>
-      </ul>
-      Обновляется автоматически каждые 15с, либо кнопкой «Обновить».
-    </div></details>
-    <div class="ctrl">
-      <button onclick="loadLive()">↻ Обновить</button>
-      <span class="hint">Тикеры, базис спот↔перп, фандинг. Авто-обновление каждые 15с.</span>
-    </div>
-    <div class="grid" id="liveCards"></div>
-  </section>
 
-  <!-- ============ SPREAD / STAT-ARB ============ -->
-  <section class="view" id="v-spread">
-    <details class="info"><summary>Что это и как читать</summary><div class="body">
-      Анализ спреда между двумя ногами (<b>A − B</b>) для торговли его волатильностью и возврата к среднему.
-      <ul>
-        <li><b>Настройка:</b> выбери ноги A (лонг) и B (шорт), таймфрейм и окно для статистики. Любая пара: перп↔перп, перп↔спот, фьюч↔спот.</li>
-        <li><b>Z-score</b> — на сколько σ спред отклонён от среднего. <code>|Z|&gt;2</code> — растянут (вход на возврат), <code>|Z|&lt;0.5</code> — у среднего.</li>
-        <li><b>Уровни стренгла</b> — где ставить проданные страйки (центр ±1σ) и крылья (±2σ) по спреду.</li>
-        <li><b>Перцентиль волы</b> — насколько текущая вола спреда дешева/дорога относительно истории. «Дёшево» = выгодно продавать волу.</li>
-        <li><b>Полужизнь возврата</b> — за сколько баров спред в среднем проходит половину пути назад к среднему (AR(1)). Меньше = быстрее отрабатывает.</li>
-        <li><b>Корреляция ног</b> — близость к 1.0 = ноги ходят вместе, спред устойчив (хорошо для стат-арба).</li>
-      </ul>
-      <b>Классический вход стат-арба:</b> <code>|Z|&gt;2</code> + конечная (небольшая) полужизнь + высокая корреляция.
-    </div></details>
-    <div class="ctrl">
-      <div class="fld"><label>Нога A (лонг)</label><select id="legA"></select></div>
-      <div class="fld"><label>Нога B (шорт)</label><select id="legB"></select></div>
+<!-- ══════════════ PORTFOLIO ══════════════ -->
+<section class="view active" id="v-port">
+<details class="info"><summary>Портфель 🔒 — как пользоваться</summary><div class="body">
+  <b>Ключи</b> — вводятся один раз, хранятся в <code>localStorage</code> браузера, нигде не передаются. Нужен <b>read-only</b> ключ Bybit (без прав Trade/Withdraw).<br>
+  <b>Мета-спред</b> — вся книга как один позиция: Δ$ (направление), Γ, Θ $/день, Vega. Сценарий: изменение рынка + IV → P&L оценка.<br>
+  <b>Δ$</b> = Σ(delta × price актива) — сумма голых дельт разных активов смысла не имеет.
+</div></details>
+
+<div class="ctrl">
+  <div class="fld"><label>API Key (read-only)</label><input id="apiKey" type="password" placeholder="вставь один раз" style="min-width:200px"></div>
+  <div class="fld"><label>API Secret</label><input id="apiSecret" type="password" placeholder="вставь один раз" style="min-width:200px"></div>
+  <button onclick="saveKeys()">Сохранить</button>
+  <button class="sec" onclick="forgetKeys()">Забыть</button>
+  <button onclick="loadPortfolio()">🔄 Обновить портфель</button>
+  <span id="keyState" class="hint" style="margin-left:4px"></span>
+</div>
+
+<div class="grid" id="portCards"></div>
+<div id="spreadStateCard" style="display:none;margin-top:14px">
+  <div class="card"><h3>uPnL по структурам (бар)</h3>
+    <canvas id="spreadStateChart" style="width:100%;height:160px"></canvas>
+    <p class="hint" id="spreadStateNote"></p></div></div>
+<div id="portSpreadsCard" style="display:none;margin-top:14px">
+  <div class="card"><h3>Спреды портфеля — графики (canvas)</h3><div id="portSpreads"></div></div></div>
+<div id="portPositions" style="margin-top:14px"></div>
+<div id="portChartCard" style="display:none;margin-top:14px">
+  <div class="card"><h3>История баланса USDT</h3>
+    <canvas id="portChart" style="width:100%;height:160px"></canvas>
+    <p class="hint" id="portChartNote"></p></div></div>
+<button class="sec" onclick="loadBalanceChart()" style="margin-top:8px">📈 История баланса</button>
+</section>
+
+<!-- ══════════════ C1 — LOCKED SPREAD ══════════════ -->
+<section class="view" id="v-c1">
+<details class="info"><summary>C1 — Locked Spread: XAUTUSDT спот (long) + XAUTUSDT перп (short)</summary><div class="body">
+  <b>Конструкт:</b> лонг спот + шорт перп одного актива = locked spread. Доход: базис спот↔перп + декорреляция волатильности XAUT.<br>
+  <b>P&L:</b> при схождении basis → 0 фиксируем. Фандинг перп-шорта добавляет (или вычитает) carry.<br>
+  <b>Риск:</b> locked spread разъедется при делистинге или экстремальном событии. Маржа занята полным ноционалом спота.<br>
+  <b>TradingView:</b> стандартный виджет показывает live-свечи. Для своего сохранённого графика — вставь URL (Share → Published chart URL).
+</div></details>
+
+<div class="two-col">
+  <div>
+    <div class="ctrl" style="margin-bottom:8px">
+      <div class="fld"><label>Символ TV</label>
+        <select id="c1TvSym" onchange="reloadTV('c1')">
+          <option value="BYBIT:XAUTUSDT">XAUTUSDT (спот)</option>
+          <option value="BYBIT:XAUTUSDT.P">XAUTUSDT.P (перп)</option>
+          <option value="BYBIT:XAUUSDT">XAUUSDT</option>
+        </select></div>
       <div class="fld"><label>Интервал</label>
-        <select id="interval"><option>5</option><option>15</option><option>30</option><option selected>60</option><option>240</option><option>D</option></select></div>
-      <div class="fld"><label>Окно</label><input id="window" type="number" value="200"></div>
-      <div class="fld"><label>k центр</label><input id="kIn" type="number" step="0.25" value="1"></div>
-      <div class="fld"><label>k крылья</label><input id="kOut" type="number" step="0.25" value="2"></div>
-      <div class="fld"><label>Спред в %</label><select id="pct"><option value="false" selected>USD</option><option value="true">%</option></select></div>
-      <button onclick="calcSpread()">Рассчитать</button>
+        <select id="c1TvInt" onchange="reloadTV('c1')">
+          <option value="1">1m</option><option value="5">5m</option>
+          <option value="15">15m</option><option value="60" selected>1h</option>
+          <option value="240">4h</option><option value="D">1D</option>
+        </select></div>
     </div>
-    <div class="card" id="spreadChartCard" style="display:none;margin-bottom:16px"><h3>График спреда</h3>
-      <canvas id="spreadChart" style="width:100%;height:260px"></canvas></div>
-    <div class="grid" id="spreadCards"></div>
-  </section>
+    <div class="tv-wrap" id="tv_c1" style="height:420px"></div>
+    <div class="tv-custom">
+      <input id="c1_url" placeholder="Или вставь URL своего опубликованного графика TV (Share → Published)">
+      <button class="sec" onclick="loadCustomTV('c1_url','tv_c1')">Загрузить</button>
+    </div>
+  </div>
+  <div>
+    <div class="card"><h3>Базис XAUTUSDT</h3>
+      <div id="c1Metrics"><p class="hint">Загрузи портфель или нажми «Обновить»</p></div>
+      <button onclick="loadC1()" style="margin-top:8px;width:100%">🔄 Обновить</button>
+    </div>
+    <div class="card" style="margin-top:14px" id="c1PosCard">
+      <h3>Позиция C1 (из портфеля)</h3>
+      <div id="c1PosData"><p class="hint">Нажми «Обновить» или загрузи портфель</p></div>
+    </div>
+  </div>
+</div>
+</section>
 
-  <!-- ============ VOL-ARB ============ -->
-  <section class="view" id="v-volarb">
-    <details class="info"><summary>Что это и как читать</summary><div class="body">
-      Сравнение <b>реализованной</b> волатильности (RV, по факту цены) с <b>подразумеваемой</b> (IV, заложенной в опционы).
-      <ul>
-        <li><b>RV</b> считается автоматически по klines выбранного символа (годовая, в %).</li>
-        <li><b>IV</b> вводишь вручную — на Bybit нет опционов на золото, бери IV с площадки своих XAUT-опционов.</li>
-        <li><b>IV/RV &gt; порога</b> (по умолч. 1.15) → опционы дороги → <b>продавать волу</b> (стрэнгл/стредл).</li>
-        <li><b>IV/RV &lt; 1/порога</b> → опционы дёшевы → <b>покупать волу</b> и гамма-скальпить.</li>
-      </ul>
-      Премия <code>IV − RV</code> в среднем положительна (опционы переоценены) — потому база стратегии в продаже волы.
-    </div></details>
-    <div class="ctrl">
-      <div class="fld"><label>Символ (RV)</label><select id="rvSym"></select></div>
+<!-- ══════════════ C2 — STAT-ARB ══════════════ -->
+<section class="view" id="v-c2">
+<details class="info"><summary>C2 — Стат-арб XAU реверсия + XAG трендовый хедж</summary><div class="body">
+  <b>Реверсионная нога:</b> XAUUSDT перп, входим по Z-score ≥ k (среднее возврата по AR(1), полужизнь ~38 баров).<br>
+  <b>Трендовая нога (хедж):</b> XAGUSDT перп. При тренде золота уходит в просадку реверсия → серебряная нога компенсирует.<br>
+  <b>h* = ρ × σ_XAU / σ_XAG ≈ 0.41</b> — min-variance hedge ratio. На $1 ноционала XAU → $0.41 XAG.<br>
+  <b>XAUT/XAG ratio Z = +2.86</b> (на 2026-06-10) — золото дорого к серебру, входной сигнал C2/C3.
+</div></details>
+
+<div class="two-col">
+  <div>
+    <div class="ctrl" style="margin-bottom:8px">
+      <div class="fld"><label>Символ TV</label>
+        <select id="c2TvSym" onchange="reloadTV('c2')">
+          <option value="BYBIT:XAUUSDT">XAUUSDT (реверсия)</option>
+          <option value="BYBIT:XAGUSDT">XAGUSDT (тренд/хедж)</option>
+          <option value="BYBIT:XAUTUSDT/BYBIT:XAGUSDT">XAUT/XAG ratio</option>
+        </select></div>
       <div class="fld"><label>Интервал</label>
-        <select id="rvInt"><option>60</option><option selected>240</option><option>D</option></select></div>
-      <div class="fld"><label>Окно RV</label><input id="rvWin" type="number" value="120"></div>
-      <div class="fld"><label>IV рынка, % годовых</label><input id="ivInput" type="number" step="0.5" value="22"></div>
-      <div class="fld"><label>Порог IV/RV</label><input id="ivrvTh" type="number" step="0.05" value="1.15"></div>
-      <button onclick="calcVolArb()">Рассчитать</button>
+        <select id="c2TvInt" onchange="reloadTV('c2')">
+          <option value="1">1m</option><option value="5">5m</option>
+          <option value="15">15m</option><option value="60" selected>1h</option>
+          <option value="240">4h</option><option value="D">1D</option>
+        </select></div>
+      <div class="fld"><label>Окно (баров)</label><input id="gsWin" type="number" value="200" style="min-width:70px"></div>
+      <button onclick="calcC2()">🔄 Считать</button>
     </div>
-    <div class="grid" id="volarbCards"></div>
-    <p class="hint">RV считается по klines (live). IV вводится вручную — на Bybit нет опционов на золото; бери IV с площадки, где торгуешь XAUT-опционы.</p>
-  </section>
+    <div class="tv-wrap" id="tv_c2" style="height:360px"></div>
+    <div class="tv-custom">
+      <input id="c2_url" placeholder="URL своего графика TV">
+      <button class="sec" onclick="loadCustomTV('c2_url','tv_c2')">Загрузить</button>
+    </div>
+    <div style="margin-top:14px" id="c2RatioCard" style="display:none">
+      <div class="card"><h3>Ratio XAUT/XAG — Z-score</h3>
+        <canvas id="c2RatioChart" style="width:100%;height:180px"></canvas></div>
+      <div class="card" style="margin-top:10px"><h3>Корреляция (скользящая 50 баров)</h3>
+        <canvas id="c2CorrChart" style="width:100%;height:120px"></canvas></div>
+    </div>
+  </div>
+  <div>
+    <div id="c2Cards"><p class="hint" style="padding:8px">Нажми «Считать»</p></div>
+  </div>
+</div>
+</section>
 
-  <!-- ============ CALENDARS ============ -->
-  <section class="view" id="v-cal">
-    <details class="info"><summary>Что это и как читать</summary><div class="body">
-      Два вида календарных спредов — на разнице по времени до экспирации.
-      <ul>
-        <li><b>Фьючерсный календарь (live):</b> выбери ближний и дальний датированные фьючи XAUTUSDT. Спред <code>far − near</code> и <b>roll yield годовых</b> считаются из живых марк-цен и дат экспирации.</li>
-        <li><b>Контанго</b> (far &gt; near, +%) → продать дальний / купить ближний; на схождении к экспирации спред стягивается — это и есть доход.</li>
-        <li><b>Опционный календарь (ручной):</b> данные опционов вводишь сам (IV/тета/вега/премия ближней и дальней серии). Продаём ближнюю (тета+), покупаем дальнюю (вега+).</li>
-        <li><b>APR / макс прибыль</b> опционного — оценка при цене у страйка к экспирации ближней. Плюс растёт при тихом рынке и повышении IV дальней.</li>
-      </ul>
-    </div></details>
-    <div class="card" style="margin-bottom:16px">
-      <h3>Фьючерсный календарь (live)</h3>
-      <div class="ctrl" style="margin:0">
-        <div class="fld"><label>Ближняя нога</label><select id="calNear"></select></div>
-        <div class="fld"><label>Дальняя нога</label><select id="calFar"></select></div>
-        <button onclick="calcFutCal()">Рассчитать</button>
+<!-- ══════════════ C3 — RATIO + OPTIONS ══════════════ -->
+<section class="view" id="v-c3">
+<details class="info"><summary>C3 — Synth Ratio XAUT/XAG + опционная обёртка</summary><div class="body">
+  <b>Ноги:</b> лонг XAUTUSDT перп + шорт XAGUSDT перп (по h*) = ratio convergence к μ.<br>
+  <b>Опционная обёртка:</b> купленные OTM XAUT-опционы (защита) + проданные OTM (cover, тета).<br>
+  <b>Синт-фьюч (C4-связь):</b> long call(K) + short put(K) ATM = эквивалент фьючу, страйк ≈ near forward.<br>
+  <b>Вол-арб:</b> продаём волу когда IV/RV > 1.2 (20% premium к реализованной).
+</div></details>
+
+<div class="two-col">
+  <div>
+    <div class="ctrl" style="margin-bottom:8px">
+      <div class="fld"><label>Символ TV</label>
+        <select id="c3TvSym" onchange="reloadTV('c3')">
+          <option value="BYBIT:XAUTUSDT/BYBIT:XAGUSDT">XAUT/XAG ratio</option>
+          <option value="BYBIT:XAUTUSDT">XAUTUSDT</option>
+          <option value="BYBIT:XAGUSDT">XAGUSDT</option>
+        </select></div>
+      <div class="fld"><label>Интервал</label>
+        <select id="c3TvInt" onchange="reloadTV('c3')">
+          <option value="60" selected>1h</option><option value="240">4h</option><option value="D">1D</option>
+        </select></div>
+    </div>
+    <div class="tv-wrap" id="tv_c3" style="height:380px"></div>
+    <div class="tv-custom">
+      <input id="c3_url" placeholder="URL своего графика TV">
+      <button class="sec" onclick="loadCustomTV('c3_url','tv_c3')">Загрузить</button>
+    </div>
+  </div>
+  <div>
+    <div class="card"><h3>C3 опционы (из портфеля)</h3>
+      <div id="c3OptionsData"><p class="hint">Загрузи портфель</p></div></div>
+    <div class="card" style="margin-top:14px"><h3>IV / RV арбитраж</h3>
+      <div class="ctrl" style="background:none;border:0;padding:0;margin:0 0 8px">
+        <div class="fld"><label>IV вручную %</label><input id="rvIV" type="number" value="25" style="min-width:70px"></div>
+        <div class="fld"><label>Символ</label>
+          <select id="rvSym">
+            <option value="XAUTUSDT">XAUTUSDT</option>
+            <option value="XAUUSDT">XAUUSDT</option>
+          </select></div>
+        <div class="fld"><label>Период (баров)</label><input id="rvWin" type="number" value="200" style="min-width:70px"></div>
+        <button class="sec" onclick="calcVolArb()">Считать</button>
       </div>
-      <div id="futCalOut" style="margin-top:12px"></div>
-    </div>
-    <div class="card">
-      <h3>Опционный календарь (ручной ввод)</h3>
-      <div class="ctrl" style="margin:0;flex-wrap:wrap">
-        <div class="fld"><label>Near IV %</label><input id="oNearIV" type="number" value="24"></div>
-        <div class="fld"><label>Near тета $/д</label><input id="oNearTh" type="number" value="3.5"></div>
-        <div class="fld"><label>Near вега</label><input id="oNearVe" type="number" value="2.1"></div>
-        <div class="fld"><label>Near дней</label><input id="oNearD" type="number" value="7"></div>
-        <div class="fld"><label>Near премия</label><input id="oNearP" type="number" value="18"></div>
-        <div class="fld"><label>Far IV %</label><input id="oFarIV" type="number" value="22"></div>
-        <div class="fld"><label>Far тета $/д</label><input id="oFarTh" type="number" value="1.4"></div>
-        <div class="fld"><label>Far вега</label><input id="oFarVe" type="number" value="4.8"></div>
-        <div class="fld"><label>Far дней</label><input id="oFarD" type="number" value="30"></div>
-        <div class="fld"><label>Far премия</label><input id="oFarP" type="number" value="34"></div>
-        <div class="fld"><label>Лотов</label><input id="oLots" type="number" value="1"></div>
-        <button onclick="calcOptCal()">Рассчитать</button>
-      </div>
-      <div id="optCalOut" style="margin-top:12px"></div>
-    </div>
-  </section>
+      <div id="rvOut"></div></div>
+  </div>
+</div>
+</section>
 
-  <!-- ============ GOLD/SILVER ============ -->
-  <section class="view" id="v-gs">
-    <details class="info"><summary>Что это и как читать</summary><div class="body">
-      Монитор пары <b>XAUT (спот) ↔ XAGUSDT (серебро перп)</b> — основа для двух встречных сеток.
-      <ul>
-        <li><b>Ratio</b> XAUT/XAG — сколько унций серебра стоит одна унция золота (gold/silver ratio). Историческое среднее ~70–85, сейчас ~60–65. Z>2 = золото дорогое к серебру.</li>
-        <li><b>Реверсионная сетка (спот XAUT)</b> — long-only spot grid: покупает провалы, продаёт отскоки. Вогнутая (шорт-гамма): в тренде вниз докупает → накапливает просадку.</li>
-        <li><b>Трендовая нога (XAGUSDT перп)</b> — выпуклый хедж к реверсии: следует за движением. В тренде вниз идёт в шорт → компенсирует просадку спота.</li>
-        <li><b>Хедж-коэффициент h*</b> = ρ·σ_gold/σ_silver — сколько $ серебра на $1 золота (мин-вариансный). При текущих данных ≈ 0.39.</li>
-        <li><b>Нетто-дельта $</b> пары: при правильном сайзинге ≈ 0 (движение золота нейтрализовано).</li>
-      </ul>
-      Важно: нативного «трендового грида» у Bybit нет — серебряная нога требует кастомного исполнения (MetaScalp SDK / ребалансировка).
-    </div></details>
-    <div class="ctrl">
+<!-- ══════════════ C4 — CALENDAR ══════════════ -->
+<section class="view" id="v-c4">
+<details class="info"><summary>C4 — Опц. календарь XAUTUSDT (ATM синт-фьюч)</summary><div class="body">
+  <b>Синт-фьюч:</b> long call(K) + short put(K), K ≈ ATM forward. Near/far экспирация → calendar spread.<br>
+  <b>P&L:</b> near converges to spot at expiry → basis collapses → собираем carry. Плюс при тихом рынке (тета near &gt; тета far).<br>
+  <b>Страйк:</b> ATM forward (≈ текущий near-фьюч). OTM добавляет skew-экспозицию, усложняет учёт.<br>
+  <b>XAUTUSDT фьючи на Bybit:</b> 12JUN26, 19JUN26, 26JUN26, 31JUL26. Спред 0.53% — не гридить, только calendar до схождения.
+</div></details>
+
+<div class="two-col">
+  <div>
+    <div class="ctrl" style="margin-bottom:8px">
+      <div class="fld"><label>Символ TV</label>
+        <select id="c4TvSym" onchange="reloadTV('c4')">
+          <option value="BYBIT:XAUTUSDT">XAUTUSDT перп</option>
+          <option value="BYBIT:XAUTUSDT1!">XAUTUSDT фьюч (конт.)</option>
+        </select></div>
       <div class="fld"><label>Интервал</label>
-        <select id="gsInt"><option>60</option><option selected>240</option><option>D</option></select></div>
-      <div class="fld"><label>Окно корреляции/RV</label><input id="gsWin" type="number" value="120"></div>
-      <div class="fld"><label>Ноционал XAUT спот, $</label><input id="gsNotXaut" type="number" value="1000"></div>
-      <button onclick="calcGS()">Рассчитать</button>
-      <button class="sec" onclick="calcGS()">↻ Обновить</button>
+        <select id="c4TvInt" onchange="reloadTV('c4')">
+          <option value="60" selected>1h</option><option value="240">4h</option><option value="D">1D</option>
+        </select></div>
     </div>
-    <div class="grid" id="gsCards"></div>
-    <div class="card" id="gsRatioCard" style="display:none;margin-top:16px">
-      <h3>Gold/Silver ratio (XAUT/XAG)</h3>
-      <canvas id="gsRatioChart" style="width:100%;height:220px"></canvas>
+    <div class="tv-wrap" id="tv_c4" style="height:360px"></div>
+    <div class="tv-custom">
+      <input id="c4_url" placeholder="URL своего графика TV">
+      <button class="sec" onclick="loadCustomTV('c4_url','tv_c4')">Загрузить</button>
     </div>
-    <div class="card" id="gsSpreadCard" style="display:none;margin-top:16px">
-      <h3>Корреляция доходностей (скользящая)</h3>
-      <canvas id="gsSpreadChart" style="width:100%;height:180px"></canvas>
-    </div>
-  </section>
+  </div>
+  <div>
+    <div class="card"><h3>Фьючерсный спред (live)</h3>
+      <div class="ctrl" style="background:none;border:0;padding:0;margin:0 0 8px">
+        <div class="fld"><label>Near</label><select id="calNear" style="min-width:160px"></select></div>
+        <div class="fld"><label>Far</label><select id="calFar" style="min-width:160px"></select></div>
+        <button class="sec" onclick="calcFutCal()">Считать</button>
+      </div>
+      <div id="futCalOut"></div></div>
+    <div class="card" style="margin-top:14px"><h3>Опц. синт-фьюч (ATM, вручную)</h3>
+      <div class="ctrl" style="background:none;border:0;padding:0;margin:0 0 8px;flex-wrap:wrap;gap:8px">
+        <div class="fld"><label>Ближняя (дней)</label><input id="oNearD" type="number" value="7" style="min-width:60px"></div>
+        <div class="fld"><label>Near IV%</label><input id="oNearIV" type="number" value="22" style="min-width:60px"></div>
+        <div class="fld"><label>Near цена</label><input id="oNearP" type="number" value="45" style="min-width:60px"></div>
+        <div class="fld"><label>Near тета</label><input id="oNearTh" type="number" value="2.5" style="min-width:60px"></div>
+        <div class="fld"><label>Near вега</label><input id="oNearVe" type="number" value="3" style="min-width:60px"></div>
+        <div class="fld"><label>Far IV%</label><input id="oFarIV" type="number" value="20" style="min-width:60px"></div>
+        <div class="fld"><label>Far цена</label><input id="oFarP" type="number" value="80" style="min-width:60px"></div>
+        <div class="fld"><label>Far тета</label><input id="oFarTh" type="number" value="1.2" style="min-width:60px"></div>
+        <div class="fld"><label>Far вега</label><input id="oFarVe" type="number" value="6" style="min-width:60px"></div>
+        <div class="fld"><label>Лотов</label><input id="oLots" type="number" value="1" style="min-width:50px"></div>
+        <button class="sec" onclick="calcOptCal()">Считать</button>
+      </div>
+      <div id="optCalOut"></div></div>
+  </div>
+</div>
+</section>
 
-  <!-- ============ STRUCTURE ============ -->
-  <section class="view" id="v-struct">
-    <details class="info"><summary>Что это и как читать</summary><div class="body">
-      Reverse iron condor (long iron condor): <b>куплен центр</b> (ближние страйки ±N) + <b>проданы крылья</b> (дальние).
-      Длинная вола/гамма в теле, короткие крылья её финансируют и кэпируют хвост.
-      <ul>
-        <li><b>Payoff</b> — профиль на экспирацию (центр = дебет/потеря, у крыльев — максимум, за крылом — кэп).</li>
-        <li><b>Карта гаммы</b> — нетто-гамма по цене. <span style="color:var(--green)">Зелёные зоны</span> = +гамма → <b>реверсия</b> (гамма-скальп купленного центра). <span style="color:var(--red)">Красные</span> = −гамма → <b>продолжение</b> (трендовый грид, перекрывающий риск проданного края).</li>
-        <li><b>Точки переключения</b> — ближние страйки (вертикальные линии). Вокруг них дедбенд, чтобы гриды не «дрались».</li>
-        <li><b>Кэп</b> — за внешним страйком опционы плоские → трендовый грид ОБЯЗАН остановиться (иначе голая дельта).</li>
-      </ul>
-      Греки по Блэку-Шоулзу (r=0). Премии оцениваются моделью — для ориентира зон, не для котировки.
-    </div></details>
-    <div class="ctrl">
-      <div class="fld"><label>Спот (XAUT)</label><input id="stSpot" type="number" value="4320" style="min-width:90px"></div>
-      <div class="fld"><label>Шаг страйка $</label><input id="stStep" type="number" value="25"></div>
-      <div class="fld"><label>Внутр. лонг (страйков)</label><input id="stInner" type="number" value="2"></div>
-      <div class="fld"><label>Внешн. шорт (страйков)</label><input id="stOuter" type="number" value="4"></div>
-      <div class="fld"><label>IV %</label><input id="stIV" type="number" value="22"></div>
-      <div class="fld"><label>Дней до эксп.</label><input id="stDays" type="number" value="14"></div>
-      <div class="fld"><label>Лотов</label><input id="stQty" type="number" value="1" step="0.1"></div>
-      <div class="fld"><label>Тип</label><select id="stType">
-        <option value="reverse">Long центр (reverse condor)</option>
-        <option value="condor">Short центр (iron condor)</option></select></div>
-      <button onclick="calcStructure()">Построить</button>
-      <button class="sec" onclick="(async()=>{try{stSpot.value=(await ticker('linear','XAUTUSDT')).last.toFixed(0);}catch(e){}})()">↻ спот live</button>
-    </div>
-    <div class="grid" id="structCards"></div>
-    <div class="card" id="structPayoffCard" style="display:none;margin-bottom:16px"><h3>Payoff на экспирацию</h3>
-      <canvas id="structPayoff" style="width:100%;height:240px"></canvas></div>
-    <div class="card" id="structGammaCard" style="display:none;margin-bottom:16px"><h3>Карта гаммы — зоны хеджа</h3>
-      <canvas id="structGamma" style="width:100%;height:240px"></canvas></div>
-    <div id="structZones"></div>
-  </section>
+<!-- ══════════════ STRUCTURE ══════════════ -->
+<section class="view" id="v-struct">
+<details class="info"><summary>Структура — payoff + карта гаммы + зоны хеджа</summary><div class="body">
+  <b>Reverse condor</b> (куплен центр): +γ на всём теле → реверсионный грид. За крыльями — кэп, опционы плоские.<br>
+  <b>Iron condor</b> (продан центр): −γ в теле (трендовый грид) → +γ у крыльев (реверсия). Точки переключения = нули гаммы.<br>
+  <b>Дедбенд</b> у точек переключения обязателен — иначе гриды пилят на костах.
+</div></details>
 
-  <!-- ============ SIZING ============ -->
-  <section class="view" id="v-size">
-    <details class="info"><summary>Что это и как читать</summary><div class="body">
-      Расчёт размеров ног под <b>дельта-нейтральную</b> позицию и занятого капитала.
-      <ul>
-        <li><b>Ноционал на ногу</b> — целевой размер каждой ноги в $. Количество = ноционал / цена ноги.</li>
-        <li>Ноги совмещены по ноционалу → чистая дельта по золоту ≈ 0 (направление захеджировано).</li>
-        <li><b>Маржа перпа, %</b> — сколько занимает перп от ноционала (≈ 1/плечо). Спот занимает полный ноционал.</li>
-        <li><b>Итого занято</b> — суммарный капитал под обе ноги. Держи буфер USDT ≥10% на случай скачка маржи.</li>
-      </ul>
-    </div></details>
-    <div class="ctrl">
-      <div class="fld"><label>Нога A</label><select id="szA"></select></div>
-      <div class="fld"><label>Нога B</label><select id="szB"></select></div>
-      <div class="fld"><label>Ноционал на ногу, $</label><input id="szNot" type="number" value="1000"></div>
-      <div class="fld"><label>Маржа перпа, %</label><input id="szMar" type="number" value="5"></div>
-      <button onclick="calcSize()">Рассчитать</button>
-    </div>
-    <div class="grid" id="sizeCards"></div>
-  </section>
+<div class="ctrl">
+  <div class="fld"><label>Спот / ATM</label><input id="stSpot" type="number" value="4245"></div>
+  <div class="fld"><label>Шаг (страйк)</label><input id="stStep" type="number" value="50"></div>
+  <div class="fld"><label>Внутр. страйк (×шаг)</label><input id="stInner" type="number" value="1"></div>
+  <div class="fld"><label>Внеш. страйк (×шаг)</label><input id="stOuter" type="number" value="2"></div>
+  <div class="fld"><label>IV %</label><input id="stIV" type="number" value="22"></div>
+  <div class="fld"><label>Дней до эксп.</label><input id="stDays" type="number" value="14"></div>
+  <div class="fld"><label>Лотов</label><input id="stQty" type="number" value="1"></div>
+  <div class="fld"><label>Тип</label>
+    <select id="stType"><option value="reverse">Reverse condor (куплен центр)</option><option value="condor">Iron condor (продан центр)</option></select></div>
+  <button onclick="calcStructure()">Считать</button>
+</div>
+<div class="grid" id="structCards"></div>
+<div id="structPayoffCard" style="display:none;margin-top:14px">
+  <div class="card"><h3>Payoff при экспирации</h3><canvas id="structPayoff" style="width:100%;height:220px"></canvas></div></div>
+<div id="structGammaCard" style="display:none;margin-top:14px">
+  <div class="card"><h3>Карта нетто-гаммы + зоны</h3><canvas id="structGamma" style="width:100%;height:200px"></canvas>
+    <p class="hint">Зелёный = +γ (реверсия), красный = −γ (продолжение), серый = кэп (за крыльями)</p></div></div>
+<div id="structZones" style="margin-top:14px"></div>
+</section>
 
-  <!-- ============ PORTFOLIO ============ -->
-  <section class="view" id="v-port">
-    <details class="info"><summary>Что это и как читать</summary><div class="body">
-      Чтение состояния твоего аккаунта Bybit (баланс, позиции) по <b>read-only</b> API-ключу.
-      <ul>
-        <li>Ключ создавай с правами <b>только на чтение</b> (Account/Position/Wallet). НИКОГДА не включай Trade и Withdraw.</li>
-        <li>Ключ хранится <b>только в localStorage этого браузера</b> — он не попадает в файл, в git или куда-либо вовне. Подпись запроса считается локально (Web Crypto HMAC-SHA256).</li>
-        <li>Запросы идут напрямую с твоего браузера на api.bybit.com. Кнопка «Забыть ключ» стирает его из localStorage.</li>
-      </ul>
-      <b>Эквити / IM / MM</b> — капитал, занятая и поддерживающая маржа. <b>Позиции</b> — открытые ноги (сторона, размер, средняя, маркировка, PnL, ликвидация). <b>Нетто-дельта по золоту</b> — сумма направлений золотых ног (≈0 = захеджировано).
-    </div></details>
-    <div class="ctrl">
-      <div class="fld"><label>API key (read-only)</label><input id="apiKey" type="password" autocomplete="off" style="min-width:220px"></div>
-      <div class="fld"><label>API secret</label><input id="apiSecret" type="password" autocomplete="off" style="min-width:220px"></div>
-      <button onclick="saveKeys()">Сохранить</button>
-      <button class="sec" onclick="loadPortfolio()">↻ Прочитать портфель</button>
-      <button class="sec" onclick="loadBalanceChart()">📈 График баланса</button>
-      <button class="sec" onclick="forgetKeys()">Забыть ключ</button>
-      <span class="hint" id="keyState"></span>
-    </div>
-    <div class="card" id="portChartCard" style="display:none;margin-bottom:16px"><h3>Баланс USDT (история сделок)</h3>
-      <canvas id="portChart" style="width:100%;height:260px"></canvas>
-      <p class="hint" id="portChartNote"></p></div>
-    <div class="card" id="spreadStateCard" style="display:none;margin-bottom:16px"><h3>Состояние спредов (uPnL по структурам)</h3>
-      <canvas id="spreadStateChart" style="width:100%"></canvas>
-      <p class="hint" id="spreadStateNote"></p></div>
-    <div class="card" id="portSpreadsCard" style="display:none;margin-bottom:16px"><h3>Спреды портфеля — графики (Bybit)</h3>
-      <div id="portSpreads"></div>
-      <p class="hint">Авто-графики по парам из позиций (синт золото, календари фьюч−перп). Золотая линия — твой уровень входа (собрано).</p></div>
-    <div class="grid" id="portCards"></div>
-    <div id="portPositions" style="margin-top:16px"></div>
-  </section>
 </main>
 
 <script>
-// ============================================================
-// Bybit v5 — клиент (браузерный fetch, публичные эндпоинты)
-// ============================================================
-const BASE = "https://api.bybit.com";
-const BPY = {"1":525600,"3":175200,"5":105120,"15":35040,"30":17520,"60":8760,"120":4380,"240":2190,"360":1460,"720":730,"D":365,"W":52,"M":12};
+// ══════════════════════════════════════════════════════════════════════════════
+// CONFIG / CONSTANTS
+// ══════════════════════════════════════════════════════════════════════════════
+const BASE="https://api.bybit.com";
+const BPY={"1":525600,"3":175200,"5":105120,"15":35040,"30":17520,"60":8760,"120":4380,"240":2190,"360":1460,"720":730,"D":365,"W":52,"M":12};
+const SYM=[
+  {id:"XAUTUSDT.P",cat:"linear",sym:"XAUTUSDT",label:"XAUTUSDT перп"},
+  {id:"XAUUSDT.P", cat:"linear",sym:"XAUUSDT", label:"XAUUSDT перп"},
+  {id:"XAGUSDT.P", cat:"linear",sym:"XAGUSDT", label:"XAGUSDT перп"},
+  {id:"XAUTUSDT.S",cat:"spot",  sym:"XAUTUSDT",label:"XAUTUSDT спот"},
+];
+let FUTURES=[];
 
-async function api(path, params){
-  const url = BASE+path+"?"+new URLSearchParams(params);
-  const r = await fetch(url);
-  if(!r.ok) throw new Error("HTTP "+r.status);
-  const j = await r.json();
-  if(j.retCode!==0) throw new Error("Bybit "+j.retCode+": "+j.retMsg);
-  return j.result;
+// ══════════════════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════════════════
+const fmt=(v,d=2)=>v==null||!Number.isFinite(+v)?"—":(+v).toLocaleString("en",{maximumFractionDigits:d,minimumFractionDigits:d});
+const sign=(v,d=2)=>{if(!Number.isFinite(+v))return"—";const s=fmt(Math.abs(v),d);return v>=0?`<span class="pos">+${s}</span>`:`<span class="neg">−${s}</span>`;};
+const rows=obj=>Object.entries(obj).map(([k,v])=>`<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("");
+const flat=(v,n)=>Array(n).fill(v);
+const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
+const stdev=a=>{if(a.length<2)return 0;const m=mean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1));};
+const corr=(a,b)=>{const n=Math.min(a.length,b.length);if(n<3)return 0;const ma=mean(a.slice(-n)),mb=mean(b.slice(-n)),aa=a.slice(-n),bb=b.slice(-n);const num=aa.reduce((s,x,i)=>s+(x-ma)*(bb[i]-mb),0);const da=Math.sqrt(aa.reduce((s,x)=>s+(x-ma)**2,0)),db=Math.sqrt(bb.reduce((s,x)=>s+(x-mb)**2,0));return da&&db?num/(da*db):0;};
+const halfLife=a=>{const n=a.length;if(n<10)return NaN;const lagged=a.slice(0,n-1),curr=a.slice(1);const ml=mean(lagged),mc=mean(curr);const b=lagged.reduce((s,x,i)=>s+(x-ml)*(curr[i]-mc),0)/lagged.reduce((s,x)=>s+(x-ml)**2,0);return b>=1||b<=0?NaN:-Math.log(2)/Math.log(b);};
+const perpBase=s=>s.replace(/USDT.*$/,"").replace(/USDC.*$/,"");
+const optBase=s=>s.split("-")[0];
+function expiryDays(sym){const m=sym.match(/(\d{2})([A-Z]{3})(\d{2})$/);if(!m)return 9999;const M={JAN:0,FEB:1,MAR:2,APR:3,MAY:4,JUN:5,JUL:6,AUG:7,SEP:8,OCT:9,NOV:10,DEC:11};return(new Date(2000+ +m[3],M[m[2]],+m[1])-Date.now())/864e5;}
+function fillSelect(sel,items,def){sel.innerHTML=items.map(i=>`<option value="${i.id}"${i.id===def?" selected":""}>${i.label}</option>`).join("");}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BYBIT API
+// ══════════════════════════════════════════════════════════════════════════════
+async function api(path,params){
+  const r=await fetch(BASE+path+"?"+new URLSearchParams(params));
+  const j=await r.json();if(j.retCode!==0)throw new Error(j.retMsg);return j.result;
 }
 async function ticker(cat,sym){
   const r=await api("/v5/market/tickers",{category:cat,symbol:sym});
-  const t=r.list[0]; if(!t) throw new Error("нет "+sym);
-  return {symbol:sym,last:+t.lastPrice,mark:+(t.markPrice||t.lastPrice),index:+(t.indexPrice||t.lastPrice),
-          funding:+(t.fundingRate||0),nextFunding:+(t.nextFundingTime||0)};
+  const t=r.list?.[0];if(!t)throw new Error("нет тикера "+sym);
+  return{last:+t.lastPrice,mark:+t.markPrice,index:+t.indexPrice,funding:+t.fundingRate,nextFunding:t.nextFundingTime};
 }
 async function candles(cat,sym,interval,limit){
-  const r=await api("/v5/market/kline",{category:cat,symbol:sym,interval,limit:String(Math.min(limit,1000))});
-  return (r.list||[]).map(x=>({ts:+x[0],close:+x[4]})).sort((a,b)=>a.ts-b.ts);
+  const r=await api("/v5/market/kline",{category:cat,symbol:sym,interval,limit:String(limit)});
+  return(r.list||[]).map(c=>({ts:+c[0],open:+c[1],high:+c[2],low:+c[3],close:+c[4],vol:+c[5]})).reverse();
 }
-
-// ============================================================
-// Реестр символов (наполняется при загрузке)
-// ============================================================
-const SYM = [
-  {id:"XAUUSDT.P",  cat:"linear", sym:"XAUUSDT",  label:"XAUUSDT перп"},
-  {id:"XAUTUSDT.P", cat:"linear", sym:"XAUTUSDT", label:"XAUTUSDT перп"},
-  {id:"XAUTUSDT.S", cat:"spot",   sym:"XAUTUSDT", label:"XAUTUSDT спот"},
-  {id:"XAUTPERP",   cat:"linear", sym:"XAUTPERP", label:"XAUTPERP"},
-];
-let FUTURES = []; // датированные фьючи XAUTUSDT-*
-const byId = id => SYM.find(s=>s.id===id) || FUTURES.find(s=>s.id===id);
-
-function fillSelect(el, list, sel){
-  el.innerHTML = list.map(s=>`<option value="${s.id}" ${s.id===sel?"selected":""}>${s.label}</option>`).join("");
+function alignSpread(ca,cb,pct=false){
+  const mb=new Map(cb.map(c=>[c.ts,c.close]));
+  return ca.filter(c=>mb.has(c.ts)).map(c=>pct?(c.close-mb.get(c.ts))/mb.get(c.ts)*100:c.close-mb.get(c.ts));
 }
-
-// ============================================================
-// Математика
-// ============================================================
-const mean = a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:NaN;
-const stdev=a=>{const n=a.length;if(n<2)return NaN;const m=mean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(n-1));};
-const pctRank=(ser,v)=>ser.length?ser.filter(x=>x<=v).length/ser.length:NaN;
-function alignSpread(a,b,pct){
-  const mb=new Map(b.map(c=>[c.ts,c.close]));const out=[];
-  for(const c of a){const pb=mb.get(c.ts);if(pb!==undefined)out.push(pct?(c.close-pb)/pb*100:c.close-pb);}
-  return out;
-}
-function corr(x,y){
-  const n=Math.min(x.length,y.length);if(n<2)return NaN;
-  const mx=mean(x.slice(-n)),my=mean(y.slice(-n));let sxy=0,sx=0,sy=0;
-  for(let i=x.length-n;i<x.length;i++){const dx=x[i]-mx,dy=y[i-(x.length-n)+(y.length-n)]-my;sxy+=dx*dy;sx+=dx*dx;sy+=dy*dy;}
-  return sxy/Math.sqrt(sx*sy);
-}
-// Полужизнь возврата к среднему (AR(1) через OLS на Δs = a + b·s_{t-1})
-function halfLife(spread){
-  const n=spread.length;if(n<10)return NaN;
-  const lag=spread.slice(0,-1), d=[];for(let i=1;i<n;i++)d.push(spread[i]-spread[i-1]);
-  const ml=mean(lag),md=mean(d);let sxy=0,sxx=0;
-  for(let i=0;i<lag.length;i++){sxy+=(lag[i]-ml)*(d[i]-md);sxx+=(lag[i]-ml)**2;}
-  const b=sxy/sxx; if(b>=0)return Infinity; // нет возврата
-  return -Math.log(2)/b; // в барах
-}
-
-// ============================================================
-// LIVE
-// ============================================================
-function setStatus(t,cls){const s=document.getElementById("status");s.textContent=t;s.className=cls;}
-function fmt(x,p=2){return Number.isFinite(x)?x.toLocaleString("en-US",{minimumFractionDigits:p,maximumFractionDigits:p}):"—";}
-function sign(x,p=2){const c=x>0?"pos":x<0?"neg":"neu";return `<span class="${c}">${x>0?"+":""}${fmt(x,p)}</span>`;}
-function rows(obj){return Object.entries(obj).map(([k,v])=>`<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("");}
-
-// Лёгкий линейный график на canvas (без зависимостей)
-function lineChart(cv, lines, opt={}){
-  const ctx=cv.getContext("2d");
-  const w=cv.width=cv.clientWidth||640, h=cv.height=opt.h||260;
-  ctx.clearRect(0,0,w,h);
-  const pad={l:62,r:12,t:14,b:22};
-  const all=lines.flatMap(l=>l.data).filter(Number.isFinite);
-  if(!all.length){ctx.fillStyle="#8b97a7";ctx.fillText("нет данных",pad.l,h/2);return;}
-  let mn=Math.min(...all), mx=Math.max(...all); if(mn===mx){mx+=1;mn-=1;}
-  const n=Math.max(...lines.map(l=>l.data.length));
-  const X=i=>pad.l+(w-pad.l-pad.r)*(n<2?0:i/(n-1));
-  const Y=v=>pad.t+(h-pad.t-pad.b)*(1-(v-mn)/(mx-mn));
-  ctx.font="11px Segoe UI,sans-serif";ctx.lineWidth=1;
-  for(let g=0;g<=4;g++){const v=mn+(mx-mn)*g/4,y=Y(v);
-    ctx.strokeStyle="#222b35";ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();
-    ctx.fillStyle="#8b97a7";ctx.fillText(fmt(v,opt.dp??2),4,y+3);}
-  for(const l of lines){
-    ctx.strokeStyle=l.color;ctx.lineWidth=l.w||1.6;ctx.setLineDash(l.dash||[]);
-    ctx.beginPath();let started=false;
-    l.data.forEach((v,i)=>{if(!Number.isFinite(v))return;const x=X(i),y=Y(v);
-      if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);});
-    ctx.stroke();}
-  ctx.setLineDash([]);
-  if(opt.xLabels){ctx.fillStyle="#8b97a7";ctx.textAlign="left";ctx.fillText(opt.xLabels[0],pad.l,h-6);
-    ctx.textAlign="right";ctx.fillText(opt.xLabels[1],w-pad.r,h-6);ctx.textAlign="left";}
-  if(opt.legend){let lx=pad.l+4;opt.legend.forEach((t,i)=>{if(!t)return;
-    ctx.fillStyle=lines[i].color;ctx.fillRect(lx,pad.t-9,12,3);
-    ctx.fillStyle="#c5d0dc";ctx.fillText(t,lx+16,pad.t-5);lx+=16+ctx.measureText(t).width+16;});}
-}
-const flat=(v,n)=>Array(n).fill(v);
-
-// Горизонтальный bar-chart uPnL по структурам (бар от нуля: + вправо зелёный, − влево красный)
-function barChart(cv, items){
-  const ctx=cv.getContext("2d");
-  const w=cv.width=cv.clientWidth||640, rowH=34, h=cv.height=Math.max(items.length*rowH+12,40);
-  ctx.clearRect(0,0,w,h);
-  if(!items.length){ctx.fillStyle="#8b97a7";ctx.font="12px sans-serif";ctx.fillText("нет данных",10,24);return;}
-  const labelW=120, rightW=78, plotL=labelW, plotR=w-rightW, half=(plotR-plotL)/2, zero=plotL+half;
-  const max=Math.max(1,...items.map(it=>Math.abs(it.value)));
-  items.forEach((it,i)=>{
-    const y=6+i*rowH, cy=y+rowH/2-3;
-    ctx.font="12px Segoe UI,sans-serif";ctx.textAlign="left";
-    ctx.fillStyle="#e6edf3";ctx.fillText(it.label,6,cy);
-    ctx.fillStyle="#8b97a7";ctx.font="10px Segoe UI,sans-serif";ctx.fillText(it.sub||"",6,cy+12);
-    ctx.strokeStyle="#2a323d";ctx.beginPath();ctx.moveTo(zero,y+3);ctx.lineTo(zero,y+rowH-5);ctx.stroke();
-    const len=(Math.abs(it.value)/max)*(half-6);
-    ctx.fillStyle=it.value>=0?"#3fb950":"#f85149";
-    ctx.fillRect(it.value>=0?zero:zero-len, cy-9, len, 13);
-    ctx.textAlign="right";ctx.font="12px Segoe UI,sans-serif";
-    ctx.fillText((it.value>=0?"+":"")+fmt(it.value,2),w-6,cy);
-  });
-  ctx.textAlign="left";
-}
-
-async function loadLive(){
-  setStatus("загрузка…","load");
-  try{
-    const want = [...SYM, ...FUTURES];
-    const data = await Promise.all(want.map(s=>ticker(s.cat,s.sym).then(t=>({s,t})).catch(()=>null)));
-    const ok = data.filter(Boolean);
-    const map = {}; ok.forEach(({s,t})=>map[s.id]=t);
-
-    const cards=[];
-    for(const {s,t} of ok){
-      const fr = t.funding*100;
-      cards.push(`<div class="card"><h3>${s.label}</h3>${rows({
-        "Last": fmt(t.last), "Mark": fmt(t.mark), "Index": fmt(t.index),
-        "Фандинг/период": s.cat==="spot"?"—":sign(fr,4)+"%",
-        "≈ годовых": s.cat==="spot"?"—":sign(t.funding*3*365*100,1)+"%"
-      })}</div>`);
-    }
-    // базисы
-    const sp=map["XAUTUSDT.S"], pp=map["XAUTUSDT.P"], xp=map["XAUUSDT.P"];
-    if(sp&&pp) cards.push(basisCard("Базис XAUT: перп − спот", pp.last, sp.last));
-    if(pp&&xp) cards.push(basisCard("Синт-спред: XAUT − XAU (перпы)", pp.last, xp.last));
-    document.getElementById("liveCards").innerHTML=cards.join("");
-    setStatus("обновлено "+new Date().toLocaleTimeString(),"ok");
-  }catch(e){
-    setStatus("ошибка: "+e.message+" (возможно CORS — см. подсказку внизу)","err");
-  }
-}
-function basisCard(title,a,b){
-  const d=a-b, p=d/b*100;
-  return `<div class="card" style="border-color:#3a4250"><h3>${title}</h3>${rows({
-    "Спред $": sign(d), "Спред %": sign(p,3)
-  })}</div>`;
-}
-
-// ============================================================
-// SPREAD / STAT-ARB
-// ============================================================
-async function calcSpread(){
-  const A=byId(legA.value), B=byId(legB.value);
-  const interval=document.getElementById("interval").value;
-  const win=+document.getElementById("window").value;
-  const kIn=+document.getElementById("kIn").value, kOut=+document.getElementById("kOut").value;
-  const pct=document.getElementById("pct").value==="true";
-  const out=document.getElementById("spreadCards"); out.innerHTML=`<div class="card">Считаю…</div>`;
-  try{
-    const lim=Math.min(1000,Math.max(win*3,300));
-    const [ca,cb]=await Promise.all([candles(A.cat,A.sym,interval,lim),candles(B.cat,B.sym,interval,lim)]);
-    const spread=alignSpread(ca,cb,pct);
-    if(spread.length<win){out.innerHTML=`<div class="card err">Мало баров: ${spread.length} < ${win}</div>`;return;}
-    const w=spread.slice(-win), m=mean(w), sg=stdev(w), cur=spread[spread.length-1];
-    const z=sg?(cur-m)/sg:NaN, u=pct?"%":"$";
-    // вола спреда
-    const ret=[];for(let i=1;i<spread.length;i++)ret.push(spread[i]-spread[i-1]);
-    const volNow=stdev(ret.slice(-win));
-    const volSer=[];for(let i=win;i<=ret.length;i++)volSer.push(stdev(ret.slice(i-win,i)));
-    const pr=pctRank(volSer,volNow); const verdict=pr<0.3?"cheap":pr>0.7?"rich":"neu";
-    const vtxt=pr<0.3?"дёшево продавать":pr>0.7?"дорого":"нейтрально";
-    // стат-арб
-    const hl=halfLife(spread);
-    const rA=[];for(let i=1;i<ca.length;i++)rA.push(Math.log(ca[i].close/ca[i-1].close));
-    const rB=[];for(let i=1;i<cb.length;i++)rB.push(Math.log(cb[i].close/cb[i-1].close));
-    const cc=corr(rA,rB);
-
-    // собранный спред из открытых позиций (если задан ключ и обе ноги — перпы/фьючи)
-    let entrySpread=null;
-    if(getKeys() && A.cat==="linear" && B.cat==="linear"){
-      try{
-        const pl=await signedGet("/v5/position/list",{category:"linear",settleCoin:"USDT"});
-        const fp=s=>(pl.list||[]).find(p=>p.symbol===s);
-        const pa=fp(A.sym), pb=fp(B.sym);
-        if(pa&&pb&&+pa.avgPrice&&+pb.avgPrice){
-          const ea=+pa.avgPrice, eb=+pb.avgPrice;
-          entrySpread=pct?(ea-eb)/eb*100:ea-eb;
-        }
-      }catch{}
-    }
-
-    // график: спред + среднее + бэнды (на последних window баров)
-    const series=spread.slice(-win), N=series.length;
-    document.getElementById("spreadChartCard").style.display="";
-    const lines=[
-      {data:series,color:"#39d0d8",w:1.8},
-      {data:flat(m,N),color:"#8b97a7",dash:[4,4]},
-      {data:flat(m+kIn*sg,N),color:"#e3933c",dash:[2,3]},
-      {data:flat(m-kIn*sg,N),color:"#e3933c",dash:[2,3]},
-      {data:flat(m+kOut*sg,N),color:"#f85149",dash:[2,3]},
-      {data:flat(m-kOut*sg,N),color:"#f85149",dash:[2,3]},
-    ];
-    const legend=["спред","среднее","±"+kIn+"σ","","±"+kOut+"σ",""];
-    if(entrySpread!==null){
-      lines.push({data:flat(entrySpread,N),color:"#f0b429",w:2});
-      legend.push("собрано @ "+fmt(entrySpread,2));
-    }
-    lineChart(document.getElementById("spreadChart"),lines,{dp:2,xLabels:["−"+N+" баров","сейчас"],legend});
-
-    out.innerHTML = `
-    <div class="card"><h3>Спред ${A.label} − ${B.label}</h3>
-      <div class="big">${sign(cur)} ${u}</div>${rows(Object.assign({
-        "Среднее":fmt(m,4)+" "+u,"Sigma":fmt(sg,4)+" "+u,
-        "Z-score":`<b>${fmt(z,2)}</b>`,
-        "Окно":win+" × "+interval },
-        entrySpread!==null?{
-          "Собрано @":`<span class="pos">${fmt(entrySpread,2)} ${u}</span>`,
-          "Δ к текущему":sign(cur-entrySpread,2)+" "+u }:{}))}
-    </div>
-    <div class="card"><h3>Уровни стренгла (по спреду)</h3>${rows({
-        ["Центр +"+kIn+"σ"]:fmt(m+kIn*sg,3),["Центр −"+kIn+"σ"]:fmt(m-kIn*sg,3),
-        ["Крыло +"+kOut+"σ"]:fmt(m+kOut*sg,3),["Крыло −"+kOut+"σ"]:fmt(m-kOut*sg,3) })}
-    </div>
-    <div class="card"><h3>Вола спреда</h3>${rows({
-        "Сигма ретёрнов":fmt(volNow,4)+" "+u,
-        "Аннуализ.":fmt(volNow*Math.sqrt(BPY[interval]||0),3)+" "+u,
-        "Перцентиль":`<span class="tag ${verdict}">${fmt(pr*100,0)}% · ${vtxt}</span>` })}
-    </div>
-    <div class="card" style="border-color:var(--aqua)"><h3>Стат-арб (возврат к среднему)</h3>${rows({
-        "Полужизнь возврата": Number.isFinite(hl)?fmt(hl,1)+" баров ("+fmt(hl*(BPY[interval]?8760/BPY[interval]:1),1)+" ч)":"нет возврата",
-        "Корреляция ног": fmt(cc,3),
-        "Сигнал": Math.abs(z)>2?`<span class="tag rich">|Z|>2 — вход</span>`:Math.abs(z)<0.5?`<span class="tag neu">у среднего</span>`:`<span class="tag neu">ждать</span>` })}
-      <p class="hint">|Z|>2 + конечная полужизнь = классический вход стат-арба; малая полужизнь = быстрый возврат.</p>
-    </div>`;
-  }catch(e){out.innerHTML=`<div class="card err">${e.message}</div>`;}
-}
-
-// ============================================================
-// VOL-ARB (IV vs RV)
-// ============================================================
-async function calcVolArb(){
-  const S=byId(rvSym.value), interval=rvInt.value, win=+rvWin.value;
-  const iv=+ivInput.value, th=+ivrvTh.value;
-  const out=document.getElementById("volarbCards"); out.innerHTML=`<div class="card">Считаю…</div>`;
-  try{
-    const c=await candles(S.cat,S.sym,interval,Math.min(1000,Math.max(win*3,300)));
-    const r=[];for(let i=1;i<c.length;i++)r.push(Math.log(c[i].close/c[i-1].close));
-    const rv=stdev(r.slice(-win))*Math.sqrt(BPY[interval]||0)*100;
-    const ratio=iv/rv, prem=iv-rv;
-    const action = ratio>th?"ПРОДАВАТЬ волу (IV завышена)":ratio<1/th?"ПОКУПАТЬ волу (IV занижена)":"вне порога";
-    const cls = ratio>th?"rich":ratio<1/th?"cheap":"neu";
-    out.innerHTML=`
-    <div class="card"><h3>${S.label} — RV (live)</h3>${rows({
-      "RV годовая":fmt(rv,1)+"%","Окно":win+" × "+interval })}</div>
-    <div class="card"><h3>IV (ввод)</h3>${rows({"IV годовая":fmt(iv,1)+"%","IV − RV (премия)":sign(prem,1)+" pp"})}</div>
-    <div class="card" style="border-color:var(--accent)"><h3>Решение</h3>
-      <div class="big">IV/RV = ${fmt(ratio,2)}</div>
-      <div class="row"><span class="k">Действие</span><span class="v"><span class="tag ${cls}">${action}</span></span></div>
-      <p class="hint">IV/RV>${th} → продаём стрэнгл/волу; IV/RV<${fmt(1/th,2)} → покупаем (гамма-скальп).</p></div>`;
-  }catch(e){out.innerHTML=`<div class="card err">${e.message}</div>`;}
-}
-
-// ============================================================
-// CALENDARS
-// ============================================================
-function expiryDays(sym){ // XAUTUSDT-12JUN26
-  const m=sym.match(/-(\d{2})([A-Z]{3})(\d{2})$/); if(!m)return NaN;
-  const mo={JAN:0,FEB:1,MAR:2,APR:3,MAY:4,JUN:5,JUL:6,AUG:7,SEP:8,OCT:9,NOV:10,DEC:11}[m[2]];
-  const exp=new Date(Date.UTC(2000+ +m[3],mo,+m[1])); return (exp-Date.now())/864e5;
-}
-async function calcFutCal(){
-  const near=byId(calNear.value), far=byId(calFar.value);
-  const out=document.getElementById("futCalOut"); out.innerHTML="Считаю…";
-  try{
-    const [tn,tf]=await Promise.all([ticker(near.cat,near.sym),ticker(far.cat,far.sym)]);
-    const dN=expiryDays(near.sym), dF=expiryDays(far.sym);
-    const spread=tf.mark-tn.mark, days=dF-dN;
-    const annual = days>0 ? (spread/tn.mark)/days*365*100 : NaN;
-    out.innerHTML=`<table>
-      <tr><th>Нога</th><th>Mark</th><th>Дней до эксп.</th></tr>
-      <tr><td>${near.label}</td><td>${fmt(tn.mark)}</td><td>${fmt(dN,1)}</td></tr>
-      <tr><td>${far.label}</td><td>${fmt(tf.mark)}</td><td>${fmt(dF,1)}</td></tr>
-      <tr><td><b>Спред (far−near)</b></td><td><b>${sign(spread)}</b></td><td>${fmt(days,1)} дн</td></tr>
-      <tr><td><b>Годовых (roll yield)</b></td><td colspan="2"><b>${sign(annual,2)}%</b></td></tr>
-    </table><p class="hint">Контанго (far>near, +%) → продать дальний / купить ближний на схождении к экспирации.</p>`;
-  }catch(e){out.innerHTML=`<div class="err">${e.message}</div>`;}
-}
-function calcOptCal(){
-  const g=id=>+document.getElementById(id).value;
-  const lots=g("oLots");
-  const ivSpread=g("oNearIV")-g("oFarIV");
-  const netDebit=(g("oFarP")-g("oNearP"))*lots;
-  const netTheta=(g("oNearTh")-g("oFarTh"))*lots;
-  const netVega=(g("oFarVe")-g("oNearVe"))*lots;
-  const maxProfit=netTheta*g("oNearD")-netDebit;
-  const apr=maxProfit>0?(maxProfit/Math.max(netDebit,1))*(365/g("oNearD"))*100:0;
-  document.getElementById("optCalOut").innerHTML=`<table>
-    <tr><th>Метрика</th><th>Значение</th></tr>
-    <tr><td>IV спред (near−far)</td><td>${sign(ivSpread,1)} pp</td></tr>
-    <tr><td>Нетто дебет входа</td><td>${fmt(netDebit)}</td></tr>
-    <tr><td>Нетто тета /день</td><td>${sign(netTheta)}</td></tr>
-    <tr><td>Нетто вега</td><td>${sign(netVega)}</td></tr>
-    <tr><td>Макс прибыль (у страйка)</td><td>${sign(maxProfit)}</td></tr>
-    <tr><td><b>APR оценка</b></td><td><b>${sign(apr,1)}%</b></td></tr>
-  </table><p class="hint">Календарь: продаём ближнюю (тета+), покупаем дальнюю (вега+). Плюс при тихом рынке у страйка и росте IV дальней.</p>`;
-}
-
-// ============================================================
-// SIZING
-// ============================================================
-async function calcSize(){
-  const A=byId(szA.value), B=byId(szB.value), not=+szNot.value, mar=+szMar.value/100;
-  const out=document.getElementById("sizeCards"); out.innerHTML=`<div class="card">Считаю…</div>`;
-  try{
-    const [ta,tb]=await Promise.all([ticker(A.cat,A.sym),ticker(B.cat,B.sym)]);
-    const qa=not/ta.last, qb=not/tb.last;
-    const marginA=A.cat==="spot"?not:not*mar, marginB=B.cat==="spot"?not:not*mar;
-    out.innerHTML=`
-    <div class="card"><h3>Ноги (дельта-нейтрально)</h3>${rows({
-      ["Лонг "+A.label]:fmt(qa,4),["Шорт "+B.label]:fmt(qb,4),
-      "Ноционал/ногу":fmt(not)+" $" })}</div>
-    <div class="card"><h3>Капитал / маржа</h3>${rows({
-      ["Маржа "+A.label]:fmt(marginA)+" $",["Маржа "+B.label]:fmt(marginB)+" $",
-      "Итого занято":fmt(marginA+marginB)+" $" })}
-      <p class="hint">Спот занимает полный ноционал; перп — по марже. Держи буфер USDT ≥10%.</p></div>`;
-  }catch(e){out.innerHTML=`<div class="card err">${e.message}</div>`;}
-}
-
-// ============================================================
-// PORTFOLIO (read-only, подпись в браузере)
-// ============================================================
+// ══════════════════════════════════════════════════════════════════════════════
+// SIGNED API (portfolio)
+// ══════════════════════════════════════════════════════════════════════════════
 const KS="bybit_ro_keys";
-function getKeys(){try{return JSON.parse(localStorage.getItem(KS)||"null");}catch{return null;}}
-function refreshKeyState(){
-  const k=getKeys();const el=document.getElementById("keyState");
-  if(k){el.innerHTML='<span class="pos">● ключ сохранён в localStorage</span>';}
-  else{el.innerHTML='<span class="neu">ключ не задан</span>';}
-}
+const getKeys=()=>{try{return JSON.parse(localStorage.getItem(KS)||"null");}catch{return null;}};
+function refreshKeyState(){const k=getKeys(),el=document.getElementById("keyState");
+  el.innerHTML=k?'<span class="pos">● ключ в localStorage</span>':'<span class="neu">ключ не задан</span>';}
 function saveKeys(){
-  const apiKey=document.getElementById("apiKey").value.trim();
-  const apiSecret=document.getElementById("apiSecret").value.trim();
-  if(!apiKey||!apiSecret){alert("Введите key и secret");return;}
-  localStorage.setItem(KS,JSON.stringify({apiKey,apiSecret}));
+  const k=document.getElementById("apiKey").value.trim(),s=document.getElementById("apiSecret").value.trim();
+  if(!k||!s){alert("Введи key и secret");return;}
+  localStorage.setItem(KS,JSON.stringify({apiKey:k,apiSecret:s}));
   document.getElementById("apiKey").value="";document.getElementById("apiSecret").value="";
   refreshKeyState();
 }
 function forgetKeys(){localStorage.removeItem(KS);refreshKeyState();
   document.getElementById("portCards").innerHTML="";document.getElementById("portPositions").innerHTML="";}
-
 async function hmacHex(secret,msg){
   const enc=new TextEncoder();
   const key=await crypto.subtle.importKey("raw",enc.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
@@ -682,372 +412,85 @@ async function signedGet(path,params){
   const k=getKeys();if(!k)throw new Error("ключ не задан");
   const ts=String(Date.now()),recv="5000";
   const qs=new URLSearchParams(params).toString();
-  const sign=await hmacHex(k.apiSecret, ts+k.apiKey+recv+qs);
-  const r=await fetch(BASE+path+"?"+qs,{headers:{
-    "X-BAPI-API-KEY":k.apiKey,"X-BAPI-TIMESTAMP":ts,"X-BAPI-RECV-WINDOW":recv,"X-BAPI-SIGN":sign}});
+  const sig=await hmacHex(k.apiSecret,ts+k.apiKey+recv+qs);
+  const r=await fetch(BASE+path+"?"+qs,{headers:{"X-BAPI-API-KEY":k.apiKey,"X-BAPI-TIMESTAMP":ts,"X-BAPI-RECV-WINDOW":recv,"X-BAPI-SIGN":sig}});
   const txt=await r.text();
-  if(!txt){ // Bybit отдаёт пустое тело на 401/403
-    if(r.status===401||r.status===403)throw new Error("HTTP "+r.status+" — ключ неверен, нет прав на чтение или IP не в белом списке");
-    throw new Error("HTTP "+r.status+" — пустой ответ");
-  }
-  let j; try{j=JSON.parse(txt);}catch{throw new Error("HTTP "+r.status+" — не-JSON ответ");}
+  if(!txt){if(r.status===401||r.status===403)throw new Error("HTTP "+r.status+" — ключ неверен или нет прав");throw new Error("HTTP "+r.status);}
+  let j;try{j=JSON.parse(txt);}catch{throw new Error("HTTP "+r.status+" — не-JSON");}
   if(j.retCode!==0)throw new Error("Bybit "+j.retCode+": "+j.retMsg);
   return j.result;
 }
 
-const perpBase=s=>s.replace(/USDT.*$/,"").replace(/USDC.*$/,""); // XAUTUSDT-19JUN26 -> XAUT
-const optBase =s=>s.split("-")[0];                               // XAUT-31JUL26-4200-P-USDT -> XAUT
+// ══════════════════════════════════════════════════════════════════════════════
+// TRADINGVIEW WIDGETS
+// ══════════════════════════════════════════════════════════════════════════════
+const tvReady=new Promise(res=>{const s=document.createElement("script");s.src="https://s3.tradingview.com/tv.js";s.onload=res;document.head.appendChild(s);});
+const tvWidgets={};
 
-async function loadPortfolio(){
-  const out=document.getElementById("portCards"),pos=document.getElementById("portPositions");
-  if(!getKeys()){out.innerHTML=`<div class="card err">Сначала сохрани read-only ключ.</div>`;return;}
-  out.innerHTML=`<div class="card">Читаю аккаунт…</div>`;pos.innerHTML="";
-  try{
-    const [wb,plU,plC,opt]=await Promise.all([
-      signedGet("/v5/account/wallet-balance",{accountType:"UNIFIED"}),
-      signedGet("/v5/position/list",{category:"linear",settleCoin:"USDT"}),
-      signedGet("/v5/position/list",{category:"linear",settleCoin:"USDC"}).catch(()=>({list:[]})),
-      signedGet("/v5/position/list",{category:"option"}).catch(()=>({list:[]}))
-    ]);
-    const acc=wb.list?.[0]||{};
-    const perps=[...(plU.list||[]),...(plC.list||[])];
-    const opts=opt.list||[];
-
-    // --- нетто-греки по книге опционов + дельта перпов
-    const G={}; // base -> {delta,gamma,theta,vega}
-    const add=(b,k,v)=>{G[b]=G[b]||{delta:0,gamma:0,theta:0,vega:0};G[b][k]+=v;};
-    opts.forEach(p=>{const b=optBase(p.symbol);add(b,"delta",+p.delta||0);add(b,"gamma",+p.gamma||0);add(b,"theta",+p.theta||0);add(b,"vega",+p.vega||0);});
-    perps.forEach(p=>{const b=perpBase(p.symbol);const d=(p.side==="Buy"?1:-1)*(+p.size);add(b,"delta",d);}); // перп: 1 дельта/контракт
-    const tot=Object.values(G).reduce((a,g)=>({delta:a.delta+g.delta,gamma:a.gamma+g.gamma,theta:a.theta+g.theta,vega:a.vega+g.vega}),{delta:0,gamma:0,theta:0,vega:0});
-
-    // --- цены базовых активов → $-дельта (сумма дельт в штуках разных активов бессмысленна)
-    const baseSym=b=>b==="XAU"?"XAUUSDT":b+"USDT";
-    const prices={};
-    await Promise.all(Object.keys(G).map(async b=>{try{prices[b]=(await ticker("linear",baseSym(b))).last;}catch{prices[b]=NaN;}}));
-    Object.entries(G).forEach(([b,g])=>{g.usd=g.delta*(prices[b]||0);});
-    const totUsdDelta=Object.values(G).reduce((s,g)=>s+(g.usd||0),0);
-    const goldDelta=(G.XAU?.delta||0)+(G.XAUT?.delta||0);
-    const goldUsd=(G.XAU?.usd||0)+(G.XAUT?.usd||0);
-
-    // --- маржа: запас
-    const eq=+acc.totalEquity, mm=+acc.totalMaintenanceMargin, lvl=mm>0?eq/mm:Infinity;
-    const lvlCls=lvl<1.5?"neg":lvl<2.5?"neu":"pos";
-    const thetaPct=eq>0?tot.theta/eq*100:0;
-
-    // --- Мета-спред: вся книга как одна позиция
-    const byUsd=Object.entries(G).sort((a,b)=>Math.abs(b[1].usd||0)-Math.abs(a[1].usd||0));
-    const byVega=Object.entries(G).sort((a,b)=>Math.abs(b[1].vega)-Math.abs(a[1].vega));
-    window.META={usdDelta:totUsdDelta,gamma:tot.gamma,theta:tot.theta,vega:tot.vega,eq};
-    const killer=totUsdDelta<0&&tot.vega<0;
-    const metaCard=`<div class="card" style="grid-column:1/-1;border-color:var(--accent)">
-      <h3>🧩 Мета-спред — вся книга как одна позиция</h3>
-      <div style="display:flex;gap:28px;flex-wrap:wrap;margin-bottom:6px">
-        <div><div class="hint">Δ$ направление</div><div class="big ${totUsdDelta<0?'neg':'pos'}">${sign(totUsdDelta,0)} $</div></div>
-        <div><div class="hint">Gamma</div><div class="big ${tot.gamma<0?'neg':'pos'}">${fmt(tot.gamma,2)}</div></div>
-        <div><div class="hint">Theta /день</div><div class="big ${tot.theta<0?'neg':'pos'}">${sign(tot.theta,2)} $</div><div class="hint">${sign(thetaPct,2)}% эквити</div></div>
-        <div><div class="hint">Vega</div><div class="big ${tot.vega<0?'neg':'pos'}">${fmt(tot.vega,2)}</div></div>
-      </div>
-      <div style="color:var(--aqua);font-size:12px;margin-bottom:6px">
-        ${totUsdDelta<0?'шорт рынка':'лонг рынка'} · ${tot.vega<0?'шорт волы':'лонг волы'} · ${tot.gamma<0?'шорт гаммы':'лонг гаммы'} · тета ${tot.theta<0?'платим':'собираем'}
-        · плечо по дельте ≈ ${fmt(Math.abs(totUsdDelta)/eq,1)}× эквити</div>
-      <div class="hint">Концентрация — Δ$: ${byUsd[0]?.[0]} ${sign(byUsd[0]?.[1].usd||0,0)}, ${byUsd[1]?.[0]} ${sign(byUsd[1]?.[1].usd||0,0)} · Vega: ${byVega[0]?.[0]} ${fmt(byVega[0]?.[1].vega||0,2)}</div>
-      <div class="ctrl" style="margin:10px 0 0;background:none;border:0;padding:0">
-        <div class="fld"><label>Сценарий: рынок %</label><input id="scMove" type="number" value="3" style="min-width:70px"></div>
-        <div class="fld"><label>Δ IV, пункты</label><input id="scVol" type="number" value="5" style="min-width:70px"></div>
-        <button class="sec" onclick="scenarioCalc()">Оценить</button>
-        <span id="scOut" class="hint"></span>
-      </div>
-      ${killer?`<p class="hint" style="color:var(--red)">⚠ Сценарий-убийца: рост рынка + всплеск IV бьёт по дельте, воле и гамме одновременно.</p>`:''}
-    </div>`;
-
-    out.innerHTML=metaCard+`
-    <div class="card"><h3>Капитал (UNIFIED)</h3>${rows({
-      "Эквити":fmt(eq)+" $","Доступно":fmt(+acc.totalAvailableBalance)+" $",
-      "IM / MM":fmt(+acc.totalInitialMargin)+" / "+fmt(mm)+" $",
-      "Запас по марже":`<span class="${lvlCls}">${lvl===Infinity?"∞":fmt(lvl,2)+"×"}</span>${lvl<1.5?" ⚠":""}`,
-      "Нереализ. PnL":sign(+(acc.totalPerpUPL||0)) })}</div>
-    <div class="card" style="border-color:var(--aqua)"><h3>Нетто-греки (вся книга)</h3>${rows({
-      "Δ$ (направление)":`${sign(totUsdDelta,1)} $`,
-      "Gamma":sign(tot.gamma,4),
-      "Theta /день":`${sign(tot.theta,3)} $ (${sign(thetaPct,2)}% эквити) ${tot.theta>0?"собираем":"платим"}`,
-      "Vega (вола)":`${sign(tot.vega,2)} ${tot.vega<0?"(шорт волы)":"(лонг волы)"}` })}
-      <p class="hint">Δ$ = Σ(дельта актива × цена). Сумма дельт в штуках разных активов смысла не имеет.</p></div>
-    <div class="card"><h3>Золото — нетто-дельта</h3>
-      <div class="big ${Math.abs(goldUsd)<10?'neu':'neg'}">${sign(goldUsd,1)} $</div>
-      <p class="hint">${sign(goldDelta,4)} XAU (XAU+XAUT, перпы+опционы). ${Math.abs(goldUsd)<10?"≈ дельта-нейтрально":"⚠ направленная экспозиция"}</p></div>`;
-
-    // спот / кошелёк с $-оценкой (usdValue от Bybit)
-    const stables=new Set(["USDT","USDC","USD","DAI","FDUSD","BUSD"]);
-    const coins=(acc.coin||[]).filter(c=>Math.abs(+c.walletBalance)>1e-9)
-      .map(c=>({coin:c.coin,qty:+c.walletBalance,usd:+(c.usdValue||0)}))
-      .sort((a,b)=>Math.abs(b.usd)-Math.abs(a.usd));
-    if(coins.length){
-      const spotTot=coins.reduce((s,c)=>s+c.usd,0);
-      const cryptoTot=coins.filter(c=>!stables.has(c.coin)).reduce((s,c)=>s+c.usd,0);
-      const hasXAUT=coins.some(c=>c.coin==="XAUT");
-      out.innerHTML+=`<div class="card" style="grid-column:1/-1"><h3>Спот / кошелёк ($-оценка)</h3>
-        <table><tr><th>Монета</th><th>Кол-во</th><th>$-оценка</th><th>% спота</th><th></th></tr>
-        ${coins.map(c=>`<tr><td>${c.coin}</td><td>${fmt(c.qty,4)}</td><td>${fmt(c.usd,2)}</td>
-          <td>${fmt(spotTot?c.usd/spotTot*100:0,1)}%</td>
-          <td>${stables.has(c.coin)?'<span style="color:var(--mut)">кэш/маржа</span>':c.coin==="XAUT"?'<span class="pos">золото</span>':''}</td></tr>`).join("")}
-        </table>
-        <div class="row" style="margin-top:8px"><span class="k">Итого спот</span><span class="v">${fmt(spotTot,2)} $</span></div>
-        <div class="row"><span class="k">из них не-стейблы (крипта/активы)</span><span class="v">${fmt(cryptoTot,2)} $</span></div>
-        <p class="hint">$-оценка — поле usdValue от Bybit. Стейблы держат маржу под деривативы. Золотой спот (XAUT): ${hasXAUT?'<span class="pos">есть</span>':'<span class="neg">НЕТ — нога «спот-лонг» не набрана</span>'}.</p></div>`;
-    }
-
-    // греки по активам
-    const gk=Object.entries(G);
-    if(gk.length) out.innerHTML+=`<div class="card"><h3>Греки по активам</h3>
-      <table><tr><th>Актив</th><th>Δ (шт)</th><th>Δ$ </th><th>Γ</th><th>Θ/д</th><th>Vega</th></tr>
-      ${gk.map(([b,g])=>`<tr><td>${b}</td><td>${fmt(g.delta,3)}</td><td>${sign(g.usd||0,1)}</td><td>${fmt(g.gamma,4)}</td><td>${fmt(g.theta,3)}</td><td>${fmt(g.vega,2)}</td></tr>`).join("")}</table></div>`;
-
-    // таблицы позиций
-    let html="";
-    if(perps.length){
-      html+=`<div class="card" style="margin-bottom:16px"><h3>Перпы / фьючерсы (${perps.length})</h3>
-        <table><tr><th>Символ</th><th>Сторона</th><th>Размер</th><th>Средняя</th><th>Mark</th><th>uPnL</th></tr>
-        ${perps.map(p=>`<tr><td>${p.symbol}</td><td class="${p.side==="Buy"?'pos':'neg'}">${p.side}</td>
-          <td>${fmt(+p.size,4)}</td><td>${fmt(+p.avgPrice)}</td><td>${fmt(+p.markPrice)}</td><td>${sign(+p.unrealisedPnl)}</td></tr>`).join("")}</table></div>`;
-    }
-    if(opts.length){
-      const sorted=[...opts].sort((a,b)=>a.symbol.localeCompare(b.symbol));
-      html+=`<div class="card"><h3>Опционы (${opts.length})</h3>
-        <table><tr><th>Контракт</th><th>Сторона</th><th>Кол-во</th><th>Mark</th><th>uPnL</th><th>Δ</th><th>Θ</th><th>Vega</th></tr>
-        ${sorted.map(p=>`<tr><td>${p.symbol.replace("-USDT","")}</td><td class="${p.side==="Buy"?'pos':'neg'}">${p.side}</td>
-          <td>${fmt(+p.size,2)}</td><td>${fmt(+p.markPrice,2)}</td><td>${sign(+p.unrealisedPnl,2)}</td>
-          <td>${fmt(+p.delta,3)}</td><td>${fmt(+p.theta,3)}</td><td>${fmt(+p.vega,2)}</td></tr>`).join("")}</table></div>`;
-    }
-    // --- спреды / структуры в портфеле (группировка по базовому активу)
-    const legsByBase={};
-    const pushLeg=(b,l)=>{(legsByBase[b]=legsByBase[b]||[]).push(l);};
-    perps.forEach(p=>{const b=perpBase(p.symbol);const isFut=/-\d{2}[A-Z]{3}\d{2}$/.test(p.symbol);
-      pushLeg(b,{kind:isFut?"fut":"perp",side:p.side,label:p.symbol.replace("USDT","")+" "+(p.side==="Buy"?"L":"S")+fmt(+p.size,3)});});
-    opts.forEach(o=>{const pr=o.symbol.split("-");
-      pushLeg(pr[0],{kind:pr[3],exp:pr[1],side:o.side,label:pr[1]+" "+pr[2]+pr[3]+" "+(o.side==="Buy"?"L":"S")+fmt(+o.size,2)});});
-    const tagsFor=legs=>{
-      const t=[];const futs=legs.filter(l=>l.kind==="fut"),prp=legs.filter(l=>l.kind==="perp");
-      if(prp.length&&futs.length)t.push("перп↔фьюч (базис/календарь)");
-      const exps={};legs.filter(l=>l.kind==="C"||l.kind==="P").forEach(o=>{(exps[o.exp]=exps[o.exp]||[]).push(o);});
-      for(const [e,os] of Object.entries(exps)){
-        const c=os.filter(o=>o.kind==="C"),p=os.filter(o=>o.kind==="P");
-        if(c.some(x=>x.side==="Sell")&&p.some(x=>x.side==="Sell"))t.push(e+": продан стрэнгл");
-        if(c.length>=2&&c.some(x=>x.side==="Sell")&&c.some(x=>x.side==="Buy"))t.push(e+": колл-спред");
-        if(p.length>=2&&p.some(x=>x.side==="Sell")&&p.some(x=>x.side==="Buy"))t.push(e+": пут-спред");
-      }
-      if(Object.keys(exps).length>=2)t.push("опц. календарь");
-      return t;
-    };
-    const sprHtml=Object.entries(legsByBase).map(([b,legs])=>{
-      const g=G[b]||{usd:0,theta:0,vega:0};const tags=tagsFor(legs);
-      return `<div style="border-bottom:1px solid #1f2630;padding:8px 0">
-        <div style="display:flex;justify-content:space-between"><b>${b}</b>
-          <span style="color:var(--mut);font-size:12px">Δ$ ${sign(g.usd||0,0)} · Θ ${fmt(g.theta,2)} · Vega ${fmt(g.vega,2)}</span></div>
-        <div style="color:var(--aqua);font-size:12px;margin:2px 0">${tags.join(" · ")||"одиночные ноги"}</div>
-        <div style="color:var(--mut);font-size:11px">${legs.map(l=>l.label).join(", ")}</div></div>`;
-    }).join("");
-    html=`<div class="card" style="margin-bottom:16px"><h3>Спреды / структуры в портфеле</h3>${sprHtml}</div>`+html;
-
-    // --- график состояния спредов: uPnL по активам + state (Δ$/Θ/Vega)
-    const upnlByBase={};
-    perps.forEach(p=>{const b=perpBase(p.symbol);upnlByBase[b]=(upnlByBase[b]||0)+ +p.unrealisedPnl;});
-    opts.forEach(o=>{const b=optBase(o.symbol);upnlByBase[b]=(upnlByBase[b]||0)+ +o.unrealisedPnl;});
-    const items=Object.keys(legsByBase).map(b=>{const g=G[b]||{usd:0,theta:0,vega:0};
-      return {label:b, value:upnlByBase[b]||0,
-        sub:`Δ$ ${fmt(g.usd||0,0)} · Θ ${fmt(g.theta,2)} · V ${fmt(g.vega,2)} · ${legsByBase[b].length} ног`};})
-      .sort((a,b)=>a.value-b.value);
-    document.getElementById("spreadStateCard").style.display="";
-    barChart(document.getElementById("spreadStateChart"),items);
-    const totU=items.reduce((s,it)=>s+it.value,0);
-    document.getElementById("spreadStateNote").innerHTML=
-      `Суммарный нереализованный PnL: ${sign(totU,2)} $. Бар = uPnL структуры (зелёный плюс / красный минус), подпись = греки и число ног.`;
-
-    pos.innerHTML=html||`<div class="card">Открытых позиций нет.</div>`;
-    scenarioCalc();
-    renderPortfolioSpreads(perps);
-    document.getElementById("status").textContent="портфель: "+new Date().toLocaleTimeString();
-  }catch(e){out.innerHTML=`<div class="card err">${e.message}</div>`;}
+async function tvChart(containerId,symbol,interval="60"){
+  await tvReady;
+  const el=document.getElementById(containerId);if(!el)return;
+  if(tvWidgets[containerId]){try{tvWidgets[containerId].remove();}catch{} delete tvWidgets[containerId];}
+  el.innerHTML="";
+  tvWidgets[containerId]=new TradingView.widget({
+    container_id:containerId,autosize:true,symbol,interval,
+    timezone:"Etc/UTC",theme:"dark",style:"1",locale:"ru",
+    toolbar_bg:"#161b22",enable_publishing:false,
+    allow_symbol_change:true,save_image:false,
+    withdateranges:true,hide_side_toolbar:false,
+  });
 }
 
-async function renderPortfolioSpreads(perps){
-  const card=document.getElementById("portSpreadsCard"), box=document.getElementById("portSpreads");
-  const find=s=>perps.find(p=>p.symbol===s);
-  const pairs=[];
-  if(find("XAUTUSDT")&&find("XAUUSDT")) pairs.push({a:"XAUTUSDT",b:"XAUUSDT",label:"Золото синт: XAUT − XAU"});
-  const byBase={};
-  perps.forEach(p=>{const b=perpBase(p.symbol);const isFut=/-\d{2}[A-Z]{3}\d{2}$/.test(p.symbol);(byBase[b]=byBase[b]||[]).push({sym:p.symbol,isFut});});
-  Object.entries(byBase).forEach(([b,legs])=>{const perp=legs.find(l=>!l.isFut),fut=legs.find(l=>l.isFut);
-    if(perp&&fut) pairs.push({a:fut.sym,b:perp.sym,label:b+" календарь: фьюч − перп"});});
-  if(!pairs.length){card.style.display="none";return;}
-  card.style.display="";box.innerHTML="";
-  for(const pr of pairs){
-    const id="spc_"+pr.a.replace(/\W/g,"")+"_"+pr.b.replace(/\W/g,"");
-    const div=document.createElement("div");div.style.marginBottom="14px";
-    div.innerHTML=`<div style="display:flex;justify-content:space-between"><b>${pr.label}</b>
-      <span id="${id}_s" style="color:var(--mut);font-size:12px">…</span></div>
-      <canvas id="${id}" style="width:100%;height:200px"></canvas>`;
-    box.appendChild(div);
-    try{
-      const pa=find(pr.a),pb=find(pr.b);
-      const [ca,cb]=await Promise.all([candles("linear",pr.a,"60",300),candles("linear",pr.b,"60",300)]);
-      const sp=alignSpread(ca,cb,false);
-      if(sp.length<10){document.getElementById(id+"_s").innerText="мало данных";continue;}
-      const win=Math.min(200,sp.length), w=sp.slice(-win), m=mean(w), sg=stdev(w);
-      const N=win, series=sp.slice(-N), cur=sp[sp.length-1];
-      const entry=(pa&&pb&&+pa.avgPrice&&+pb.avgPrice)?(+pa.avgPrice-+pb.avgPrice):null;
-      const lines=[{data:series,color:"#39d0d8",w:1.6},{data:flat(m,N),color:"#8b97a7",dash:[4,4]},
-        {data:flat(m+sg,N),color:"#e3933c",dash:[2,3]},{data:flat(m-sg,N),color:"#e3933c",dash:[2,3]}];
-      const legend=["спред","среднее","+1σ","−1σ"];
-      const inRange=entry!==null && sg>0 && Math.abs(entry-m)<=4*sg;
-      if(inRange){lines.push({data:flat(entry,N),color:"#f0b429",w:2});legend.push("собрано @ "+fmt(entry,2));}
-      lineChart(document.getElementById(id),lines,{dp:2,xLabels:["−"+N+" баров","сейчас"],legend});
-      document.getElementById(id+"_s").innerHTML=`тек ${fmt(cur,2)} · среднее ${fmt(m,2)}`+
-        (entry!==null?` · собрано ${fmt(entry,2)}${inRange?"":" (вне графика)"} · Δ ${sign(cur-entry,2)}`:"");
-    }catch(e){const el=document.getElementById(id+"_s");if(el)el.innerText="ошибка: "+e.message;}
-  }
+function reloadTV(tab){
+  const sym=document.getElementById(`${tab}TvSym`).value;
+  const int=document.getElementById(`${tab}TvInt`).value;
+  tvChart(`tv_${tab}`,sym,int);
 }
 
-// ============================================================
-// GOLD / SILVER — монитор пары (спот XAUT + перп XAG)
-// ============================================================
-async function calcGS(){
-  const interval=document.getElementById("gsInt").value;
-  const win=+document.getElementById("gsWin").value;
-  const notXaut=+document.getElementById("gsNotXaut").value;
-  const out=document.getElementById("gsCards");
-  out.innerHTML=`<div class="card">Считаю…</div>`;
-  try{
-    const lim=Math.min(1000,Math.max(win*3,200));
-    // тикеры + свечи
-    const [txau,txag,cxau,cxag]=await Promise.all([
-      ticker("linear","XAUTUSDT"),
-      ticker("linear","XAGUSDT"),
-      candles("linear","XAUTUSDT",interval,lim),
-      candles("linear","XAGUSDT",interval,lim)
-    ]);
-    const pXau=txau.last, pXag=txag.last;
-    const ratio=pXau/pXag;
-    // ratio-ряд
-    const mxau=new Map(cxau.map(c=>[c.ts,c.close]));
-    const ratioSer=[], ts=[];
-    for(const c of cxag){const a=mxau.get(c.ts);if(a){ratioSer.push(a/c.close);ts.push(c.ts);}}
-    if(ratioSer.length<win){out.innerHTML=`<div class="card err">Мало совмещённых баров: ${ratioSer.length}</div>`;return;}
-    const rWin=ratioSer.slice(-win), rM=mean(rWin), rSg=stdev(rWin);
-    const rZ=rSg?(ratio-rM)/rSg:NaN;
-    // RV годовая обоих
-    const bpy=BPY[interval]||0;
-    const logR=a=>a.slice(1).map((_,i)=>Math.log(a[i+1].close/a[i].close));
-    const rvXau=stdev(logR(cxau).slice(-win))*Math.sqrt(bpy)*100;
-    const rvXag=stdev(logR(cxag).slice(-win))*Math.sqrt(bpy)*100;
-    // корреляция и h*
-    const rXau=logR(cxau), rXag=logR(cxag);
-    const n=Math.min(rXau.length,rXag.length,win);
-    const cc=corr(rXau.slice(-n),rXag.slice(-n));
-    const hstar=rvXau&&rvXag?cc*(rvXau/rvXag):NaN;
-    // скользящая корреляция (50-бар)
-    const wCorr=50, corrSer=[];
-    const ra=rXau.slice(-(n+50)), rb=rXag.slice(-(n+50));
-    for(let i=wCorr;i<=Math.min(ra.length,rb.length);i++) corrSer.push(corr(ra.slice(i-wCorr,i),rb.slice(i-wCorr,i)));
-    // сайзинг серебра
-    const notXag=Number.isFinite(hstar)?notXaut*hstar:NaN;
-    const qXau=notXaut/pXau, qXag=Number.isFinite(notXag)?notXag/pXag:NaN;
-    const netDelta=notXaut-notXag; // лонг XAUT − шорт XAG в $
-    // состояние ratio
-    const rVerdict=rZ>2?'rich':(rZ<-2?'cheap':'neu');
-    const rVtxt=rZ>2?'золото дорогое к серебру → ⬇ ratio ожидается':rZ<-2?'золото дёшево к серебру → ⬆ ratio ожидается':'нейтрально';
-    out.innerHTML=`
-    <div class="card"><h3>Цены</h3>${rows({
-      "XAUT (спот/перп)":fmt(pXau)+" $","XAGUSDT перп":fmt(pXag,3)+" $",
-      "Gold/Silver ratio":`<b>${fmt(ratio,2)}</b>`,
-      "Среднее ratio (окно)":fmt(rM,2),"Sigma ratio":fmt(rSg,3),
-      "Z ratio":`<span class="tag ${rVerdict}">${fmt(rZ,2)}</span>`
-    })}<p class="hint">${rVtxt}</p></div>
-    <div class="card"><h3>Корреляция / волатильность</h3>${rows({
-      "RV XAUT (год.)":fmt(rvXau,1)+"%","RV XAG (год.)":fmt(rvXag,1)+"%",
-      "XAG/XAUT волатильнее в":fmt(rvXag/rvXau,2)+"×",
-      "Корреляция (ρ)":fmt(cc,3),
-      "Хедж-коэф h*":fmt(hstar,3)
-    })}</div>
-    <div class="card" style="border-color:var(--accent)"><h3>Сайзинг пары</h3>${rows({
-      "Ноционал XAUT спот":fmt(notXaut)+" $",
-      "Ноционал XAG (=h*×notXAUT)":Number.isFinite(notXag)?fmt(notXag)+" $":"—",
-      "Кол-во XAUT":fmt(qXau,4),
-      "Кол-во XAG":Number.isFinite(qXag)?fmt(qXag,3)+"  (шорт перп)":"—",
-      "Нетто-дельта $":sign(netDelta,2)+" "+((Math.abs(netDelta)<notXaut*0.05)?"≈ нейтрально":"⚠ перекос")
-    })}<p class="hint">При h*×ноционал XAUT = ноционал XAG — движения нейтрализованы. Диапазон серебряной сетки делай ~${fmt(rvXag/rvXau,1)}× шире золотой.</p></div>`;
-    // ratio-график
-    document.getElementById("gsRatioCard").style.display="";
-    const percs=[...ratioSer].sort((a,b)=>a-b);
-    const p10=percs[Math.floor(percs.length*.1)],p90=percs[Math.floor(percs.length*.9)];
-    lineChart(document.getElementById("gsRatioChart"),[
-      {data:ratioSer.slice(-win),color:"#f0b429",w:1.8},
-      {data:flat(rM,win),color:"#8b97a7",dash:[4,4]},
-      {data:flat(rM+rSg,win),color:"#e3933c",dash:[2,3]},
-      {data:flat(rM-rSg,win),color:"#e3933c",dash:[2,3]},
-      {data:flat(rM+2*rSg,win),color:"#f85149",dash:[2,3]},
-      {data:flat(rM-2*rSg,win),color:"#f85149",dash:[2,3]},
-    ],{dp:2,xLabels:["−"+win+" баров","сейчас"],legend:["ratio","среднее","±1σ","","±2σ",""]});
-    // скользящая корреляция
-    document.getElementById("gsSpreadCard").style.display="";
-    lineChart(document.getElementById("gsSpreadChart"),[
-      {data:corrSer,color:"#39d0d8",w:1.6},
-      {data:flat(cc,corrSer.length),color:"#8b97a7",dash:[4,4]},
-    ],{dp:3,xLabels:["−"+corrSer.length+" баров","сейчас"],legend:["скользящая корр (50)","средняя"]});
-  }catch(e){out.innerHTML=`<div class="card err">${e.message}</div>`;}
+function loadCustomTV(inputId,containerId){
+  const url=document.getElementById(inputId).value.trim();if(!url)return;
+  const el=document.getElementById(containerId);if(!el)return;
+  if(tvWidgets[containerId]){try{tvWidgets[containerId].remove();}catch{} delete tvWidgets[containerId];}
+  el.innerHTML=`<iframe src="${url}" width="100%" height="420" frameborder="0" style="border:0;display:block"></iframe>`;
 }
 
-function scenarioCalc(){
-  const m=window.META; if(!m){return;}
-  const mv=(+document.getElementById("scMove").value||0)/100;
-  const dv=+document.getElementById("scVol").value||0;
-  const pnlD=m.usdDelta*mv, pnlV=m.vega*dv, est=pnlD+pnlV;
-  document.getElementById("scOut").innerHTML=
-    `ΔP&L ≈ <b class="${est<0?'neg':'pos'}">${sign(est,2)} $</b> (дельта ${sign(pnlD,2)} + вега ${sign(pnlV,2)}) `+
-    `<span class="neu">= ${sign(est/m.eq*100,1)}% эквити; гамма добавит убыток на большом ходе</span>`;
+// ══════════════════════════════════════════════════════════════════════════════
+// CANVAS CHARTS
+// ══════════════════════════════════════════════════════════════════════════════
+function lineChart(cv,lines,opt={}){
+  const ctx=cv.getContext("2d");const w=cv.width=cv.clientWidth||600,h=cv.height=opt.h||180;
+  ctx.clearRect(0,0,w,h);const pad={l:56,r:10,t:10,b:22};
+  const all=lines.flatMap(l=>l.data).filter(Number.isFinite);
+  if(!all.length)return;
+  let mn=Math.min(...all),mx=Math.max(...all);if(mn===mx){mx+=1;mn-=1;}
+  const X=i=>pad.l+(w-pad.l-pad.r)*i/(all.length/lines.length-1||1);
+  const Y=v=>pad.t+(h-pad.t-pad.b)*(1-(v-mn)/(mx-mn));
+  ctx.font="10px Segoe UI,sans-serif";
+  for(let g=0;g<=3;g++){const v=mn+(mx-mn)*g/3,y=Y(v);ctx.strokeStyle="#1f2630";ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();ctx.fillStyle="#8b97a7";ctx.fillText(fmt(v,opt.dp??2),2,y+3);}
+  const n=lines[0].data.length;
+  if(opt.xLabels){ctx.fillStyle="#8b97a7";ctx.textAlign="left";ctx.fillText(opt.xLabels[0],pad.l,h-5);ctx.textAlign="right";ctx.fillText(opt.xLabels[1],w-pad.r,h-5);ctx.textAlign="left";}
+  lines.forEach(l=>{ctx.strokeStyle=l.color;ctx.lineWidth=l.w||1.5;ctx.setLineDash(l.dash||[]);ctx.beginPath();let st=false;l.data.forEach((v,i)=>{if(!Number.isFinite(v))return;const x=X(i),y=Y(v);if(!st){ctx.moveTo(x,y);st=true;}else ctx.lineTo(x,y);});ctx.stroke();ctx.setLineDash([]);});
+  if(opt.legend){ctx.font="10px Segoe UI";lines.forEach((l,i)=>{if(!l.color||i>=opt.legend.length)return;ctx.fillStyle=l.color;ctx.fillRect(pad.l+i*90,4,12,8);ctx.fillStyle="#8b97a7";ctx.fillText(opt.legend[i],pad.l+i*90+15,12);});}
 }
-
-async function loadBalanceChart(){
-  const card=document.getElementById("portChartCard"),note=document.getElementById("portChartNote");
-  if(!getKeys()){card.style.display="";note.textContent="Сначала сохрани ключ.";return;}
-  card.style.display="";note.textContent="Загружаю историю…";
-  try{
-    // несколько страниц через cursor для большей глубины
-    let rows=[],cursor="";
-    for(let p=0;p<5;p++){
-      const q={accountType:"UNIFIED",category:"linear",currency:"USDT",limit:"50"};
-      if(cursor)q.cursor=cursor;
-      const r=await signedGet("/v5/account/transaction-log",q);
-      rows.push(...(r.list||[]));cursor=r.nextPageCursor;
-      if(!cursor)break;
-    }
-    const pts=rows.map(x=>({t:+x.transactionTime,bal:+x.cashBalance}))
-      .filter(x=>Number.isFinite(x.bal)).sort((a,b)=>a.t-b.t);
-    if(!pts.length){note.textContent="Нет записей в истории.";return;}
-    lineChart(document.getElementById("portChart"),
-      [{data:pts.map(p=>p.bal),color:"#3fb950",w:1.8}],
-      {dp:2,xLabels:[new Date(pts[0].t).toLocaleString(),new Date(pts.at(-1).t).toLocaleString()]});
-    const d=pts.at(-1).bal-pts[0].bal;
-    note.innerHTML=`${pts.length} записей · изменение за период: ${sign(d,2)} USDT. `+
-      `<span class="neu">Это баланс USDT-кошелька (реализованный кэш), без нереализованного PnL и др. монет.</span>`;
-  }catch(e){note.textContent="Ошибка: "+e.message;}
+function barChart(cv,items){
+  const ctx=cv.getContext("2d");const w=cv.width=cv.clientWidth||600,h=cv.height=Math.max(160,items.length*38+40);
+  ctx.clearRect(0,0,w,h);if(!items.length)return;
+  const vals=items.map(x=>x.value);const mx=Math.max(...vals.map(Math.abs),1);
+  const bh=24,pad=10,lw=160,rw=w-lw-pad*2;
+  const zero=lw+rw/2,Y=i=>pad+i*(bh+10);
+  ctx.font="11px Segoe UI,sans-serif";
+  items.forEach((it,i)=>{
+    const y=Y(i);const bw=Math.abs(it.value)/mx*(rw/2);
+    const x=it.value>=0?zero:zero-bw;
+    ctx.fillStyle=it.value>=0?"#1e3a28":"#3a1416";ctx.fillRect(x,y,bw,bh);
+    ctx.fillStyle=it.value>=0?"#3fb950":"#f85149";ctx.fillRect(x,y,Math.min(bw,2),bh);
+    ctx.fillStyle="#e6edf3";ctx.textAlign="right";ctx.fillText(it.label,lw-6,y+16);
+    ctx.fillStyle=it.value>=0?"#3fb950":"#f85149";ctx.textAlign="left";
+    ctx.fillText((it.value>=0?"+":"")+fmt(it.value),zero+rw/2*Math.sign(it.value)+4*(it.value>=0?1:-1),y+16);
+    if(it.sub){ctx.fillStyle="#8b97a7";ctx.font="9px Segoe UI";ctx.textAlign="right";ctx.fillText(it.sub,lw-6,y+bh+8);ctx.font="11px Segoe UI";}
+  });
+  ctx.strokeStyle="#2a323d";ctx.beginPath();ctx.moveTo(zero,0);ctx.lineTo(zero,h);ctx.stroke();
 }
-
-// ============================================================
-// STRUCTURE — reverse iron condor: payoff + карта гаммы / зоны хеджа
-// ============================================================
-function ncdf(x){const t=1/(1+0.2316419*Math.abs(x));const d=0.3989422804*Math.exp(-x*x/2);
-  let p=d*t*(0.31938153+t*(-0.356563782+t*(1.781477937+t*(-1.821255978+t*1.330274429))));
-  return x>0?1-p:p;}
-function npdf(x){return 0.3989422804014327*Math.exp(-x*x/2);}
-function bs(S,K,T,sig,type){
-  if(T<=0||sig<=0){const intr=type==="C"?Math.max(S-K,0):Math.max(K-S,0);
-    return {price:intr,delta:type==="C"?(S>K?1:0):(S<K?-1:0),gamma:0};}
-  const v=sig*Math.sqrt(T), d1=(Math.log(S/K)+0.5*sig*sig*T)/v, d2=d1-v;
-  const price=type==="C"?S*ncdf(d1)-K*ncdf(d2):K*ncdf(-d2)-S*ncdf(-d1);
-  const delta=type==="C"?ncdf(d1):ncdf(d1)-1;
-  return {price,delta,gamma:npdf(d1)/(S*v)};
-}
-// график с осью X = цена, поддержка зон-подсветки и вертикальных линий
 function xyChart(cv,xs,lines,opt={}){
   const ctx=cv.getContext("2d");const w=cv.width=cv.clientWidth||640,h=cv.height=opt.h||240;
   ctx.clearRect(0,0,w,h);const pad={l:62,r:14,t:14,b:24};
@@ -1066,84 +509,439 @@ function xyChart(cv,xs,lines,opt={}){
     xs.forEach((xv,i)=>{const v=l.data[i];if(!Number.isFinite(v))return;const x=X(xv),y=Y(v);if(!st){ctx.moveTo(x,y);st=true;}else ctx.lineTo(x,y);});ctx.stroke();}
   ctx.fillStyle="#8b97a7";ctx.textAlign="left";ctx.fillText(fmt(xmin,0),pad.l,h-7);ctx.textAlign="right";ctx.fillText(fmt(xmax,0),w-pad.r,h-7);ctx.textAlign="left";
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TICKER BAR (header)
+// ══════════════════════════════════════════════════════════════════════════════
+async function updateTickerBar(){
+  const syms=[{cat:"linear",sym:"XAUTUSDT"},{cat:"linear",sym:"XAUUSDT"},{cat:"linear",sym:"XAGUSDT"}];
+  const bar=document.getElementById("tickerBar");
+  try{
+    const ticks=await Promise.all(syms.map(s=>ticker(s.cat,s.sym).catch(()=>null)));
+    bar.innerHTML=ticks.map((t,i)=>t?`<div class="ticker-item"><span class="sym">${syms[i].sym}</span><span class="px">${fmt(t.last)}</span></div>`:"").join("");
+    document.getElementById("status").className="ok";document.getElementById("status").textContent=new Date().toLocaleTimeString();
+  }catch(e){document.getElementById("status").className="err";document.getElementById("status").textContent=e.message.slice(0,40);}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// C1 — LOCKED SPREAD
+// ══════════════════════════════════════════════════════════════════════════════
+async function loadC1(){
+  const out=document.getElementById("c1Metrics"),pos=document.getElementById("c1PosData");
+  out.innerHTML="Считаю…";
+  try{
+    const [txaut_p,txaut_s,txau]=await Promise.all([
+      ticker("linear","XAUTUSDT"),ticker("spot","XAUTUSDT"),ticker("linear","XAUUSDT")
+    ]);
+    const basis=txaut_p.last-txaut_s.last;
+    const basisPct=basis/txaut_s.last*100;
+    out.innerHTML=rows({
+      "XAUTUSDT перп (mark)":fmt(txaut_p.mark),
+      "XAUTUSDT спот":fmt(txaut_s.last),
+      "Базис перп−спот":sign(basis)+` $ (${sign(basisPct,3)}%)`,
+      "Фандинг перп":fmt(txaut_p.funding*100,4)+"%",
+      "XAUUSDT перп":fmt(txau.last),
+      "Basis XAUT vs XAU":sign(txaut_p.last-txau.last)+" $",
+    });
+    if(getKeys()){
+      const p=await signedGet("/v5/position/list",{category:"linear",symbol:"XAUTUSDT"}).catch(()=>({list:[]}));
+      const ps=await signedGet("/v5/account/wallet-balance",{accountType:"UNIFIED"}).catch(()=>null);
+      const spotCoins=ps?.list?.[0]?.coin?.filter(c=>c.coin==="XAUT")||[];
+      const perpPos=(p.list||[]).filter(x=>+x.size>0);
+      let html="";
+      if(spotCoins.length)html+=rows({"XAUT спот":fmt(+spotCoins[0].walletBalance,4)+" XAUT","$-оценка":fmt(+spotCoins[0].usdValue,2)+" $"});
+      perpPos.forEach(pp=>html+=rows({[pp.symbol+" "+pp.side]:fmt(+pp.size,4),"Средняя":fmt(+pp.avgPrice),"uPnL":sign(+pp.unrealisedPnl)}));
+      pos.innerHTML=html||"<p class='hint'>Позиций не найдено</p>";
+    }
+  }catch(e){out.innerHTML=`<span class="err">${e.message}</span>`;}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// C2 — STAT-ARB XAU/XAG  (бывший Gold/Silver)
+// ══════════════════════════════════════════════════════════════════════════════
+async function calcC2(){
+  const interval=document.getElementById("c2TvInt").value;
+  const win=+document.getElementById("gsWin").value;
+  const out=document.getElementById("c2Cards");
+  out.innerHTML=`<div class="card">Считаю…</div>`;
+  try{
+    const lim=Math.min(1000,Math.max(win*3,200));
+    const [txau,txag,cxau,cxag]=await Promise.all([
+      ticker("linear","XAUTUSDT"),ticker("linear","XAGUSDT"),
+      candles("linear","XAUTUSDT",interval,lim),candles("linear","XAGUSDT",interval,lim)
+    ]);
+    const pXau=txau.last,pXag=txag.last,ratio=pXau/pXag;
+    const mxau=new Map(cxau.map(c=>[c.ts,c.close]));
+    const ratioSer=[],ts=[];
+    for(const c of cxag){const a=mxau.get(c.ts);if(a){ratioSer.push(a/c.close);ts.push(c.ts);}}
+    if(ratioSer.length<win){out.innerHTML=`<div class="card err">Мало баров: ${ratioSer.length}</div>`;return;}
+    const rWin=ratioSer.slice(-win),rM=mean(rWin),rSg=stdev(rWin),rZ=rSg?(ratio-rM)/rSg:NaN;
+    const bpy=BPY[interval]||8760;
+    const logR=a=>a.slice(1).map((_,i)=>Math.log(a[i+1].close/a[i].close));
+    const rvXau=stdev(logR(cxau).slice(-win))*Math.sqrt(bpy)*100;
+    const rvXag=stdev(logR(cxag).slice(-win))*Math.sqrt(bpy)*100;
+    const rXau=logR(cxau),rXag=logR(cxag);
+    const n=Math.min(rXau.length,rXag.length,win);
+    const cc=corr(rXau.slice(-n),rXag.slice(-n));
+    const hstar=rvXau&&rvXag?cc*(rvXau/rvXag):NaN;
+    const wCorr=50,corrSer=[];
+    const ra=rXau.slice(-(n+50)),rb=rXag.slice(-(n+50));
+    for(let i=wCorr;i<=Math.min(ra.length,rb.length);i++)corrSer.push(corr(ra.slice(i-wCorr,i),rb.slice(i-wCorr,i)));
+    const rv=rZ>2?'rich':(rZ<-2?'cheap':'neu');
+    out.innerHTML=`
+    <div class="card"><h3>Ratio XAUT/XAG</h3>${rows({
+      "XAUT":fmt(pXau)+" $","XAGUSDT":fmt(pXag,3)+" $",
+      "Ratio":fmt(ratio,2),"Среднее (окно)":fmt(rM,2),"σ":fmt(rSg,3),
+      "Z-score":`<span class="tag ${rv}">${fmt(rZ,2)}</span>`
+    })}<p class="hint">${rZ>2?'Золото дорого к серебру → ratio ↓, сигнал C2/C3':rZ<-2?'Золото дёшево → ratio ↑':'Нейтрально'}</p></div>
+    <div class="card"><h3>Вола / корреляция</h3>${rows({
+      "RV XAUT":fmt(rvXau,1)+"%","RV XAG":fmt(rvXag,1)+"%",
+      "XAG волатильнее в":fmt(rvXag/rvXau,2)+"×","ρ":fmt(cc,3),"h*":fmt(hstar,3)
+    })}</div>
+    <div class="card" style="border-color:var(--accent)"><h3>Сайзинг C2</h3>
+      <div class="ctrl" style="background:none;border:0;padding:0;margin:0 0 8px">
+        <div class="fld"><label>Ноционал XAU $</label><input id="c2NotXau" type="number" value="1000" style="min-width:80px" oninput="updateC2Sizing()"></div>
+      </div>
+      <div id="c2SizingOut">${sizingHtml(1000,pXau,pXag,hstar,rvXag/rvXau)}</div>
+    </div>`;
+    // ratio chart (canvas)
+    const rc=document.getElementById("c2RatioCard");rc.style.display="";
+    lineChart(document.getElementById("c2RatioChart"),[
+      {data:ratioSer.slice(-win),color:"#f0b429",w:1.8},
+      {data:flat(rM,win),color:"#8b97a7",dash:[4,4]},
+      {data:flat(rM+rSg,win),color:"#e3933c",dash:[2,3]},
+      {data:flat(rM-rSg,win),color:"#e3933c",dash:[2,3]},
+      {data:flat(rM+2*rSg,win),color:"#f85149",dash:[2,3]},
+      {data:flat(rM-2*rSg,win),color:"#f85149",dash:[2,3]},
+    ],{dp:2,xLabels:["−"+win+"б","сейчас"],legend:["ratio","μ","±1σ","","±2σ",""]});
+    lineChart(document.getElementById("c2CorrChart"),[
+      {data:corrSer,color:"#39d0d8",w:1.6},
+      {data:flat(cc,corrSer.length),color:"#8b97a7",dash:[4,4]},
+    ],{dp:3,xLabels:["−"+corrSer.length+"б","сейчас"],legend:["скользящая корр 50","средняя"]});
+    // сохраняем для динамического пересчёта сайзинга
+    window._C2={pXau,pXag,hstar,volRatio:rvXag/rvXau};
+  }catch(e){out.innerHTML=`<div class="card err">${e.message}</div>`;}
+}
+function sizingHtml(not,pXau,pXag,hstar,volRatio){
+  const notXag=Number.isFinite(hstar)?not*hstar:NaN;
+  const qXau=not/pXau,qXag=Number.isFinite(notXag)?notXag/pXag:NaN;
+  const net=not-notXag;
+  return rows({
+    "Ноционал XAU":fmt(not)+" $","Ноционал XAG (h*×)":Number.isFinite(notXag)?fmt(notXag,2)+" $":"—",
+    "Кол-во XAUT":fmt(qXau,4),"Кол-во XAG":Number.isFinite(qXag)?fmt(qXag,3)+" (шорт)":"—",
+    "Нетто-Δ $":sign(net,2)+" "+((Math.abs(net)<not*0.05)?"≈ нейтрально":"⚠ перекос"),
+    "Диапазон XAG сетки":volRatio?fmt(volRatio,2)+"× шире":"—"
+  });
+}
+function updateC2Sizing(){
+  if(!window._C2)return;
+  const not=+document.getElementById("c2NotXau").value;
+  const {pXau,pXag,hstar,volRatio}=window._C2;
+  document.getElementById("c2SizingOut").innerHTML=sizingHtml(not,pXau,pXag,hstar,volRatio);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// C3 — VOL-ARB
+// ══════════════════════════════════════════════════════════════════════════════
+async function calcVolArb(){
+  const sym=document.getElementById("rvSym").value;
+  const win=+document.getElementById("rvWin").value;
+  const ivIn=+document.getElementById("rvIV").value/100;
+  const out=document.getElementById("rvOut");out.innerHTML="Считаю…";
+  try{
+    const c=await candles("linear",sym,"60",Math.min(1000,win+50));
+    const rets=c.slice(1).map((_,i)=>Math.log(c[i+1].close/c[i].close));
+    const rv=stdev(rets.slice(-win))*Math.sqrt(8760)*100;
+    const ratio=ivIn/rv*100;
+    const verdict=ratio>120?"rich":"cheap";
+    out.innerHTML=`${rows({"RV (1h годовая)":fmt(rv,1)+"%","IV (введено)":fmt(ivIn*100,1)+"%","IV/RV":fmt(ratio,1)+`% <span class="tag ${verdict}">${ratio>120?"продать волу":"дорого не продаём"}</span>`})}
+      <p class="hint">IV/RV > 120% → вола дорогая относительно реализованной → продавать стрэнгл/стрэддл выгодно.</p>`;
+  }catch(e){out.innerHTML=`<span class="err">${e.message}</span>`;}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// C4 — CALENDAR
+// ══════════════════════════════════════════════════════════════════════════════
+async function calcFutCal(){
+  const near=FUTURES.find(f=>f.id===document.getElementById("calNear").value);
+  const far=FUTURES.find(f=>f.id===document.getElementById("calFar").value);
+  const out=document.getElementById("futCalOut");out.innerHTML="Считаю…";
+  if(!near||!far){out.innerHTML='<span class="err">нет фьючей — обнови страницу</span>';return;}
+  try{
+    const [tn,tf]=await Promise.all([ticker(near.cat,near.sym),ticker(far.cat,far.sym)]);
+    const dN=expiryDays(near.sym),dF=expiryDays(far.sym);
+    const spread=tf.mark-tn.mark,days=dF-dN;
+    const annual=days>0?(spread/tn.mark)/days*365*100:NaN;
+    out.innerHTML=`<table>
+      <tr><th>Нога</th><th>Mark</th><th>Дней</th></tr>
+      <tr><td>${near.label}</td><td>${fmt(tn.mark)}</td><td>${fmt(dN,1)}</td></tr>
+      <tr><td>${far.label}</td><td>${fmt(tf.mark)}</td><td>${fmt(dF,1)}</td></tr>
+      <tr><td><b>Спред (far−near)</b></td><td colspan="2"><b>${sign(spread)}</b></td></tr>
+      <tr><td><b>Roll yield год.</b></td><td colspan="2"><b>${sign(annual,2)}%</b></td></tr>
+    </table><p class="hint">Контанго (far>near, +%) → продать дальний / купить ближний → собираем carry до схождения.</p>`;
+  }catch(e){out.innerHTML=`<span class="err">${e.message}</span>`;}
+}
+function calcOptCal(){
+  const g=id=>+document.getElementById(id).value;
+  const lots=g("oLots"),ivSpread=g("oNearIV")-g("oFarIV");
+  const netDebit=(g("oFarP")-g("oNearP"))*lots;
+  const netTheta=(g("oNearTh")-g("oFarTh"))*lots;
+  const netVega=(g("oFarVe")-g("oNearVe"))*lots;
+  const maxProfit=netTheta*g("oNearD")-netDebit;
+  const apr=maxProfit>0?(maxProfit/Math.max(netDebit,1))*(365/g("oNearD"))*100:0;
+  document.getElementById("optCalOut").innerHTML=`<table>
+    <tr><th>Метрика</th><th>Значение</th></tr>
+    <tr><td>IV спред near−far</td><td>${sign(ivSpread,1)} pp</td></tr>
+    <tr><td>Нетто дебет входа</td><td>${fmt(netDebit)}</td></tr>
+    <tr><td>Нетто тета /день</td><td>${sign(netTheta)}</td></tr>
+    <tr><td>Нетто вега</td><td>${sign(netVega)}</td></tr>
+    <tr><td>Макс прибыль</td><td>${sign(maxProfit,2)}</td></tr>
+    <tr><td><b>APR оценка</b></td><td><b>${sign(apr,1)}%</b></td></tr>
+  </table>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PORTFOLIO
+// ══════════════════════════════════════════════════════════════════════════════
+async function loadPortfolio(){
+  const out=document.getElementById("portCards"),pos=document.getElementById("portPositions");
+  if(!getKeys()){out.innerHTML=`<div class="card err">Сначала сохрани read-only ключ.</div>`;return;}
+  out.innerHTML=`<div class="card">Читаю аккаунт…</div>`;pos.innerHTML="";
+  try{
+    const [wb,plU,opt]=await Promise.all([
+      signedGet("/v5/account/wallet-balance",{accountType:"UNIFIED"}),
+      signedGet("/v5/position/list",{category:"linear",settleCoin:"USDT"}),
+      signedGet("/v5/position/list",{category:"option"}).catch(()=>({list:[]}))
+    ]);
+    const acc=wb.list?.[0]||{};
+    const perps=(plU.list||[]);
+    const opts=opt.list||[];
+    // греки
+    const G={};const add=(b,k,v)=>{G[b]=G[b]||{delta:0,gamma:0,theta:0,vega:0};G[b][k]+=v;};
+    opts.forEach(p=>{const b=optBase(p.symbol);add(b,"delta",+p.delta||0);add(b,"gamma",+p.gamma||0);add(b,"theta",+p.theta||0);add(b,"vega",+p.vega||0);});
+    perps.filter(p=>+p.size).forEach(p=>{const b=perpBase(p.symbol);add(b,"delta",(p.side==="Buy"?1:-1)*(+p.size));});
+    const tot=Object.values(G).reduce((a,g)=>({delta:a.delta+g.delta,gamma:a.gamma+g.gamma,theta:a.theta+g.theta,vega:a.vega+g.vega}),{delta:0,gamma:0,theta:0,vega:0});
+    const baseSym=b=>b==="XAU"?"XAUUSDT":b+"USDT";
+    const prices={};
+    await Promise.all(Object.keys(G).map(async b=>{try{prices[b]=(await ticker("linear",baseSym(b))).last;}catch{prices[b]=NaN;}}));
+    Object.entries(G).forEach(([b,g])=>{g.usd=g.delta*(prices[b]||0);});
+    const totUsdDelta=Object.values(G).reduce((s,g)=>s+(g.usd||0),0);
+    const goldUsd=(G.XAU?.usd||0)+(G.XAUT?.usd||0);
+    const eq=+acc.totalEquity,mm=+acc.totalMaintenanceMargin,im=+acc.totalInitialMargin;
+    const lvl=mm>0?eq/mm:Infinity,lvlCls=lvl<1.5?"neg":lvl<2.5?"neu":"pos";
+    const thetaPct=eq>0?tot.theta/eq*100:0;
+    window.META={usdDelta:totUsdDelta,gamma:tot.gamma,theta:tot.theta,vega:tot.vega,eq};
+    const killer=totUsdDelta<0&&tot.vega<0;
+    out.innerHTML=`
+    <div class="card" style="grid-column:1/-1;border-color:var(--accent)">
+      <h3>🧩 Мета-спред — вся книга</h3>
+      <div style="display:flex;gap:28px;flex-wrap:wrap;margin-bottom:8px">
+        <div><div class="hint">Δ$</div><div class="big ${totUsdDelta<0?'neg':'pos'}">${sign(totUsdDelta,0)} $</div></div>
+        <div><div class="hint">Gamma</div><div class="big ${tot.gamma<0?'neg':'pos'}">${fmt(tot.gamma,2)}</div></div>
+        <div><div class="hint">Theta /день</div><div class="big ${tot.theta<0?'neg':'pos'}">${sign(tot.theta,2)} $</div><div class="hint">${sign(thetaPct,2)}% эквити</div></div>
+        <div><div class="hint">Vega</div><div class="big ${tot.vega<0?'neg':'pos'}">${fmt(tot.vega,2)}</div></div>
+      </div>
+      <div style="color:var(--aqua);font-size:12px;margin-bottom:8px">
+        ${totUsdDelta<0?'шорт':'лонг'} рынка · ${tot.vega<0?'шорт волы':'лонг волы'} · ${tot.gamma<0?'шорт γ':'лонг γ'} · плечо ${fmt(Math.abs(totUsdDelta)/eq,1)}× эквити</div>
+      <div class="ctrl" style="background:none;border:0;padding:0">
+        <div class="fld"><label>Сценарий: рынок %</label><input id="scMove" type="number" value="3" style="min-width:65px"></div>
+        <div class="fld"><label>Δ IV, пп</label><input id="scVol" type="number" value="5" style="min-width:65px"></div>
+        <button class="sec" onclick="scenarioCalc()">Оценить</button>
+        <span id="scOut" class="hint"></span>
+      </div>
+      ${killer?`<p class="hint" style="color:var(--red)">⚠ Сценарий-убийца: рост + всплеск IV → шорт-дельта + шорт-вега + шорт-гамма одновременно.</p>`:""}
+    </div>
+    <div class="card"><h3>Капитал (UNIFIED)</h3>${rows({
+      "Эквити":fmt(eq)+" $","IM / MM":fmt(im)+" / "+fmt(mm)+" $",
+      "Запас MM":`<span class="${lvlCls}">${lvl===Infinity?"∞":fmt(lvl,2)+"×"}</span>`,
+      "IM% от эквити":fmt(im/eq*100,1)+"%",
+      "Нереализ. PnL":sign(+(acc.totalPerpUPL||0)) })}</div>
+    <div class="card"><h3>Золото нетто-Δ$</h3>
+      <div class="big ${Math.abs(goldUsd)<10?'neu':'neg'}">${sign(goldUsd,1)} $</div>
+      <p class="hint">${Math.abs(goldUsd)<10?"≈ дельта-нейтрально":"⚠ направленная экспозиция XAU+XAUT"}</p></div>
+    <div class="card"><h3>Греки по активам</h3>
+      <table><tr><th>Актив</th><th>Δ$</th><th>Γ</th><th>Θ/д</th><th>V</th></tr>
+      ${Object.entries(G).sort((a,b)=>Math.abs(b[1].usd||0)-Math.abs(a[1].usd||0))
+        .map(([b,g])=>`<tr><td>${b}</td><td>${sign(g.usd||0,0)}</td><td>${fmt(g.gamma,3)}</td><td>${fmt(g.theta,2)}</td><td>${fmt(g.vega,2)}</td></tr>`).join("")}
+      </table></div>`;
+    // C3 options data
+    const xautOpts=opts.filter(o=>o.symbol.startsWith("XAUT"));
+    document.getElementById("c3OptionsData").innerHTML=xautOpts.length
+      ?`<table><tr><th>Контракт</th><th>Сторона</th><th>Δ</th><th>Θ</th><th>V</th><th>uPnL</th></tr>
+        ${xautOpts.map(p=>`<tr><td>${p.symbol.replace("-USDT","")}</td><td class="${p.side==="Buy"?'pos':'neg'}">${p.side}</td>
+        <td>${fmt(+p.delta,3)}</td><td>${fmt(+p.theta,2)}</td><td>${fmt(+p.vega,2)}</td><td>${sign(+p.unrealisedPnl,2)}</td></tr>`).join("")}</table>`
+      :"<p class='hint'>XAUT-опционов нет</p>";
+    // spread state bar
+    const upnlByBase={};
+    perps.forEach(p=>{const b=perpBase(p.symbol);upnlByBase[b]=(upnlByBase[b]||0)+ +p.unrealisedPnl;});
+    opts.forEach(o=>{const b=optBase(o.symbol);upnlByBase[b]=(upnlByBase[b]||0)+ +o.unrealisedPnl;});
+    const legsByBase={};
+    perps.filter(p=>+p.size).forEach(p=>{const b=perpBase(p.symbol);(legsByBase[b]=legsByBase[b]||[]).push(p.symbol);});
+    opts.forEach(o=>{const b=optBase(o.symbol);(legsByBase[b]=legsByBase[b]||[]).push(o.symbol.split("-")[1]+o.symbol.split("-")[3]);});
+    const items=Object.keys(legsByBase).map(b=>{const g=G[b]||{usd:0,theta:0,vega:0};
+      return{label:b,value:upnlByBase[b]||0,sub:`Δ$ ${fmt(g.usd||0,0)} · Θ ${fmt(g.theta,2)} · V ${fmt(g.vega,2)}`};})
+      .sort((a,b)=>a.value-b.value);
+    document.getElementById("spreadStateCard").style.display="";
+    barChart(document.getElementById("spreadStateChart"),items);
+    document.getElementById("spreadStateNote").innerHTML=`uPnL по активам. Всего: ${sign(items.reduce((s,i)=>s+i.value,0),2)} $`;
+    // positions tables
+    let html=`<div class="card" style="margin-bottom:14px"><h3>Перпы / фьючи (${perps.filter(p=>+p.size).length})</h3>
+      <table><tr><th>Символ</th><th>Сторона</th><th>Размер</th><th>Средняя</th><th>Mark</th><th>uPnL</th></tr>
+      ${perps.filter(p=>+p.size).map(p=>`<tr><td>${p.symbol}</td><td class="${p.side==="Buy"?'pos':'neg'}">${p.side}</td>
+        <td>${fmt(+p.size,4)}</td><td>${fmt(+p.avgPrice)}</td><td>${fmt(+p.markPrice)}</td><td>${sign(+p.unrealisedPnl)}</td></tr>`).join("")}</table></div>`;
+    if(opts.length){html+=`<div class="card"><h3>Опционы (${opts.length})</h3>
+      <table><tr><th>Контракт</th><th>Сторона</th><th>Кол</th><th>Mark</th><th>uPnL</th><th>Δ</th><th>Θ</th><th>V</th></tr>
+      ${[...opts].sort((a,b)=>a.symbol.localeCompare(b.symbol)).map(p=>`<tr>
+        <td>${p.symbol.replace("-USDT","")}</td><td class="${p.side==="Buy"?'pos':'neg'}">${p.side}</td>
+        <td>${fmt(+p.size,2)}</td><td>${fmt(+p.markPrice,2)}</td><td>${sign(+p.unrealisedPnl,2)}</td>
+        <td>${fmt(+p.delta,3)}</td><td>${fmt(+p.theta,2)}</td><td>${fmt(+p.vega,2)}</td></tr>`).join("")}</table></div>`;}
+    pos.innerHTML=html;
+    // spot wallet
+    const stables=new Set(["USDT","USDC","USD","DAI","FDUSD"]);
+    const coins=(acc.coin||[]).filter(c=>Math.abs(+c.walletBalance)>1e-9)
+      .map(c=>({coin:c.coin,qty:+c.walletBalance,usd:+(c.usdValue||0)}))
+      .sort((a,b)=>Math.abs(b.usd)-Math.abs(a.usd));
+    if(coins.length){const st=coins.reduce((s,c)=>s+c.usd,0),hasXAUT=coins.some(c=>c.coin==="XAUT");
+      pos.innerHTML=`<div class="card" style="margin-bottom:14px"><h3>Спот / кошелёк</h3>
+        <table><tr><th>Монета</th><th>Кол-во</th><th>$-оценка</th></tr>
+        ${coins.map(c=>`<tr><td>${c.coin}${c.coin==="XAUT"?'<span class="pos"> ●</span>':""}</td><td>${fmt(c.qty,4)}</td><td>${fmt(c.usd,2)}</td></tr>`).join("")}</table>
+        <div class="row" style="margin-top:6px"><span class="k">Итого</span><span class="v">${fmt(st,2)} $</span></div>
+        <p class="hint">XAUT спот: ${hasXAUT?'<span class="pos">есть</span>':'<span class="neg">НЕТ — нога C1 spot не набрана</span>'}</p></div>`+pos.innerHTML;}
+    await renderPortfolioSpreads(perps.filter(p=>+p.size));
+    scenarioCalc();
+    document.getElementById("status").textContent="портфель: "+new Date().toLocaleTimeString();
+  }catch(e){out.innerHTML=`<div class="card err">${e.message}</div>`;}
+}
+function scenarioCalc(){
+  const m=window.META;if(!m)return;
+  const mv=(+document.getElementById("scMove").value||0)/100;
+  const dv=+document.getElementById("scVol").value||0;
+  const est=m.usdDelta*mv+m.vega*dv;
+  document.getElementById("scOut").innerHTML=`ΔP&L ≈ <b class="${est<0?'neg':'pos'}">${sign(est,2)} $</b> (${sign(est/m.eq*100,1)}% эквити)`;
+}
+async function renderPortfolioSpreads(perps){
+  const card=document.getElementById("portSpreadsCard"),box=document.getElementById("portSpreads");
+  const find=s=>perps.find(p=>p.symbol===s);
+  const pairs=[];
+  if(find("XAUTUSDT")&&find("XAUUSDT"))pairs.push({a:"XAUTUSDT",b:"XAUUSDT",label:"XAUT − XAU синт-спред"});
+  const byBase={};
+  perps.forEach(p=>{const b=perpBase(p.symbol);const isFut=/-\d{2}[A-Z]{3}\d{2}$/.test(p.symbol);(byBase[b]=byBase[b]||[]).push({sym:p.symbol,isFut});});
+  Object.entries(byBase).forEach(([b,legs])=>{const perp=legs.find(l=>!l.isFut),fut=legs.find(l=>l.isFut);if(perp&&fut)pairs.push({a:fut.sym,b:perp.sym,label:b+" kalendar: фьюч − перп"});});
+  if(!pairs.length){card.style.display="none";return;}
+  card.style.display="";box.innerHTML="";
+  for(const pr of pairs){
+    const id="spc_"+pr.a.replace(/\W/g,"")+"_"+pr.b.replace(/\W/g,"");
+    const div=document.createElement("div");div.style.marginBottom="16px";
+    div.innerHTML=`<div style="display:flex;justify-content:space-between"><b>${pr.label}</b><span id="${id}_s" style="color:var(--mut);font-size:12px">…</span></div><canvas id="${id}" style="width:100%;height:180px"></canvas>`;
+    box.appendChild(div);
+    try{
+      const pa=find(pr.a),pb=find(pr.b);
+      const [ca,cb]=await Promise.all([candles("linear",pr.a,"60",300),candles("linear",pr.b,"60",300)]);
+      const sp=alignSpread(ca,cb,false);if(sp.length<10){document.getElementById(id+"_s").innerText="мало данных";continue;}
+      const w=sp.slice(-200),m=mean(w),sg=stdev(w),cur=sp[sp.length-1];
+      const entry=(pa&&pb&&+pa.avgPrice&&+pb.avgPrice)?(+pa.avgPrice-+pb.avgPrice):null;
+      const N=w.length,lines=[{data:w,color:"#39d0d8",w:1.6},{data:flat(m,N),color:"#8b97a7",dash:[4,4]},{data:flat(m+sg,N),color:"#e3933c",dash:[2,3]},{data:flat(m-sg,N),color:"#e3933c",dash:[2,3]}];
+      const leg=["спред","μ","±1σ",""];
+      const inRange=entry!==null&&sg>0&&Math.abs(entry-m)<=4*sg;
+      if(inRange){lines.push({data:flat(entry,N),color:"#f0b429",w:2});leg.push("собрано @ "+fmt(entry,2));}
+      lineChart(document.getElementById(id),lines,{dp:2,xLabels:["−200б","сейчас"],legend:leg});
+      document.getElementById(id+"_s").innerHTML=`тек ${fmt(cur,2)} · μ ${fmt(m,2)}`+(entry!==null?` · собрано ${fmt(entry,2)} · Δ ${sign(cur-entry,2)}`:"");
+    }catch{}
+  }
+}
+async function loadBalanceChart(){
+  const card=document.getElementById("portChartCard"),note=document.getElementById("portChartNote");
+  if(!getKeys()){card.style.display="";note.textContent="Сначала сохрани ключ.";return;}
+  card.style.display="";note.textContent="Загружаю историю…";
+  try{
+    let rs=[],cursor="";
+    for(let p=0;p<5;p++){const q={accountType:"UNIFIED",category:"linear",currency:"USDT",limit:"50"};if(cursor)q.cursor=cursor;const r=await signedGet("/v5/account/transaction-log",q);rs.push(...(r.list||[]));cursor=r.nextPageCursor;if(!cursor)break;}
+    const pts=rs.map(x=>({t:+x.transactionTime,bal:+x.cashBalance})).filter(x=>Number.isFinite(x.bal)).sort((a,b)=>a.t-b.t);
+    if(!pts.length){note.textContent="Нет записей.";return;}
+    lineChart(document.getElementById("portChart"),[{data:pts.map(p=>p.bal),color:"#3fb950",w:1.8}],
+      {dp:2,xLabels:[new Date(pts[0].t).toLocaleString(),new Date(pts.at(-1).t).toLocaleString()]});
+    note.innerHTML=`${pts.length} записей · изменение: ${sign(pts.at(-1).bal-pts[0].bal,2)} USDT (реализованный кэш, без нереализованного PnL)`;
+  }catch(e){note.textContent="Ошибка: "+e.message;}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STRUCTURE
+// ══════════════════════════════════════════════════════════════════════════════
+function ncdf(x){const t=1/(1+0.2316419*Math.abs(x));const d=0.3989422804*Math.exp(-x*x/2);let p=d*t*(0.31938153+t*(-0.356563782+t*(1.781477937+t*(-1.821255978+t*1.330274429))));return x>0?1-p:p;}
+function npdf(x){return 0.3989422804*Math.exp(-x*x/2);}
+function bs(S,K,T,sig,type){
+  if(T<=0||sig<=0){const intr=type==="C"?Math.max(S-K,0):Math.max(K-S,0);return{price:intr,delta:type==="C"?(S>K?1:0):(S<K?-1:0),gamma:0};}
+  const v=sig*Math.sqrt(T),d1=(Math.log(S/K)+0.5*sig*sig*T)/v,d2=d1-v;
+  const price=type==="C"?S*ncdf(d1)-K*ncdf(d2):K*ncdf(-d2)-S*ncdf(-d1);
+  return{price,delta:type==="C"?ncdf(d1):ncdf(d1)-1,gamma:npdf(d1)/(S*v)};
+}
 function calcStructure(){
   const g=id=>+document.getElementById(id).value;
   const S=g("stSpot"),step=g("stStep"),inner=g("stInner"),outer=g("stOuter"),iv=g("stIV")/100,days=g("stDays"),qty=g("stQty");
   const T=days/365;
   const Kic=S+inner*step,Koc=S+outer*step,Kip=S-inner*step,Kop=S-outer*step;
-  // reverse: длинный центр (+), короткие крылья (−). condor: наоборот.
   const c=document.getElementById("stType").value==="condor"?-1:1;
   const legs=[{K:Kic,t:"C",s:+c},{K:Koc,t:"C",s:-c},{K:Kip,t:"P",s:+c},{K:Kop,t:"P",s:-c}];
   const debit=legs.reduce((a,l)=>a+l.s*bs(S,l.K,T,iv,l.t).price,0)*qty;
-  // сетка цен
-  const lo=S-(outer+2)*step, hi=S+(outer+2)*step, M=160, xs=[];
+  const lo=S-(outer+2)*step,hi=S+(outer+2)*step,M=160,xs=[];
   for(let i=0;i<=M;i++)xs.push(lo+(hi-lo)*i/M);
   const payoff=xs.map(s=>legs.reduce((a,l)=>a+l.s*(l.t==="C"?Math.max(s-l.K,0):Math.max(l.K-s,0)),0)*qty-debit);
   const gamma=xs.map(s=>legs.reduce((a,l)=>a+l.s*bs(s,l.K,T,iv,l.t).gamma,0)*qty);
-  const delta=xs.map(s=>legs.reduce((a,l)=>a+l.s*bs(s,l.K,T,iv,l.t).delta,0)*qty);
-  // реальные зоны по знаку нетто-гаммы (а не по страйкам)
   const inCap=p=>p>=Koc||p<=Kop;
   const zoneRuns=[];let i=0;
-  while(i<xs.length){const s=gamma[i]>=0;let j=i;while(j<xs.length&&(gamma[j]>=0)===s)j++;
-    zoneRuns.push({from:xs[i],to:xs[Math.min(j,xs.length-1)],pos:s});i=j;}
-  const zones=zoneRuns.map(z=>({from:z.from,to:z.to,
-    color:inCap((z.from+z.to)/2)?"rgba(80,90,100,0.18)":z.pos?"rgba(63,185,80,0.12)":"rgba(248,81,73,0.12)"}));
+  while(i<xs.length){const s=gamma[i]>=0;let j=i;while(j<xs.length&&(gamma[j]>=0)===s)j++;zoneRuns.push({from:xs[i],to:xs[Math.min(j,xs.length-1)],pos:s});i=j;}
+  const zones=zoneRuns.map(z=>({from:z.from,to:z.to,color:inCap((z.from+z.to)/2)?"rgba(80,90,100,0.18)":z.pos?"rgba(63,185,80,0.12)":"rgba(248,81,73,0.12)"}));
   const switches=zoneRuns.slice(1).map(z=>z.from).filter(x=>!inCap(x));
-  const maxProfit=Math.max(...payoff),maxLoss=Math.min(...payoff);
   const isRev=c>0;
-  document.getElementById("structCards").innerHTML=`
-    <div class="card"><h3>Конструкция (${isRev?"reverse condor":"iron condor"})</h3>${rows({
-      [isRev?"Куплен центр":"Продан центр"]:`C ${fmt(Kic,0)} / P ${fmt(Kip,0)}`,
-      [isRev?"Проданы крылья":"Куплены крылья"]:`C ${fmt(Koc,0)} / P ${fmt(Kop,0)}`,
-      [debit>=0?"Нетто дебет":"Нетто кредит"]:`${fmt(Math.abs(debit),2)} (×${qty})`,
-      "Макс прибыль":sign(maxProfit,2),"Макс убыток":sign(maxLoss,2) })}</div>`;
-  document.getElementById("structPayoffCard").style.display="";
-  document.getElementById("structGammaCard").style.display="";
-  const strikeLines=[{x:Kic,color:"#f0b429",label:"внутр C"},{x:Kip,color:"#f0b429",label:"внутр P"},
-    {x:Koc,color:"#f85149",label:"крыло C"},{x:Kop,color:"#f85149",label:"крыло P"}];
-  xyChart(document.getElementById("structPayoff"),xs,[{data:payoff,color:"#39d0d8",w:2}],
-    {dp:2,hline:0,vlines:strikeLines});
-  const gVlines=switches.map(x=>({x,color:"#f0b429",label:"switch",dash:[5,3]}));
-  xyChart(document.getElementById("structGamma"),xs,[{data:gamma,color:"#c77dff",w:2}],
-    {dp:4,hline:0,zones,vlines:gVlines});
-  const hedgeOf=z=>{if(inCap((z.from+z.to)/2))return['<span class="neu">кэп</span>',"СТОП грида","опционы плоские → не доливать"];
-    return z.pos?['<span class="pos">+</span>',"реверсия (гамма-скальп)","реверсионный грид"]
-                :['<span class="neg">−</span>',"продолжение","трендовый грид (перекрыть крыло)"];};
-  const rowsHtml=zoneRuns.map(z=>{const[g,h,e]=hedgeOf(z);return `<tr><td>${fmt(z.from,0)} … ${fmt(z.to,0)}</td><td>${g}</td><td>${h}</td><td>${e}</td></tr>`;}).join("");
+  document.getElementById("structCards").innerHTML=`<div class="card"><h3>Конструкция (${isRev?"reverse condor":"iron condor"})</h3>${rows({
+    [isRev?"Куплен центр":"Продан центр"]:`C ${fmt(Kic,0)} / P ${fmt(Kip,0)}`,
+    [isRev?"Проданы крылья":"Куплены крылья"]:`C ${fmt(Koc,0)} / P ${fmt(Kop,0)}`,
+    [debit>=0?"Нетто дебет":"Нетто кредит"]:fmt(Math.abs(debit),2)+" (×"+qty+")",
+    "Макс прибыль":sign(Math.max(...payoff),2),"Макс убыток":sign(Math.min(...payoff),2) })}</div>`;
+  document.getElementById("structPayoffCard").style.display="";document.getElementById("structGammaCard").style.display="";
+  const sl=[{x:Kic,color:"#f0b429",label:"внутр C"},{x:Kip,color:"#f0b429",label:"внутр P"},{x:Koc,color:"#f85149",label:"крыло C"},{x:Kop,color:"#f85149",label:"крыло P"}];
+  xyChart(document.getElementById("structPayoff"),xs,[{data:payoff,color:"#39d0d8",w:2}],{dp:2,hline:0,vlines:sl});
+  xyChart(document.getElementById("structGamma"),xs,[{data:gamma,color:"#c77dff",w:2}],{dp:4,hline:0,zones,vlines:switches.map(x=>({x,color:"#f0b429",label:"switch",dash:[5,3]}))});
+  const hedgeOf=z=>{if(inCap((z.from+z.to)/2))return['<span class="neu">кэп</span>',"—","стоп грида"];
+    return z.pos?['<span class="pos">+γ</span>',"реверсия","реверсионный грид"]:['<span class="neg">−γ</span>',"продолжение","трендовый грид"];};
+  const rowsHtml=zoneRuns.map(z=>{const[g,h,e]=hedgeOf(z);return`<tr><td>${fmt(z.from,0)}…${fmt(z.to,0)}</td><td>${g}</td><td>${h}</td><td>${e}</td></tr>`;}).join("");
   const bodyPos=gamma[Math.floor(xs.length/2)]>=0;
-  const note=switches.length
-    ? `Точки переключения (нетто-гамма меняет знак): <b>${switches.map(x=>fmt(x,0)).join(", ")}</b>. Держи дедбенд вокруг них, чтобы гриды не пилили.`
-    : bodyPos
-      ? `При <b>${days} дн</b> нетто-гамма положительна на всём теле → ЧИСТАЯ реверсия (длинная гамма везде). Зоны продолжения (−гамма у крыльев) появляются ближе к экспирации — уменьши «Дней».`
-      : `При <b>${days} дн</b> нетто-гамма отрицательна на всём теле → ЧИСТОЕ продолжение (короткая гамма везде). Реверсионных зон нет; ближе к экспирации появятся +гамма у крыльев.`;
-  document.getElementById("structZones").innerHTML=`<div class="card"><h3>Карта хеджа по зонам</h3>
-    <table><tr><th>Зона цены</th><th>Гамма</th><th>Хедж</th><th>Перп-движок</th></tr>${rowsHtml}</table>
+  const note=switches.length?`Точки переключения: <b>${switches.map(x=>fmt(x,0)).join(", ")}</b>. Дедбенд обязателен.`
+    :bodyPos?`Нетто-гамма + по всему телу → чистая реверсия. Зоны −γ появятся ближе к экспирации.`
+    :`Нетто-гамма − по всему телу → чистое продолжение.`;
+  document.getElementById("structZones").innerHTML=`<div class="card"><h3>Карта хеджа</h3>
+    <table><tr><th>Зона</th><th>Гамма</th><th>Стиль</th><th>Грид</th></tr>${rowsHtml}</table>
     <p class="hint">${note}</p></div>`;
 }
 
-// ============================================================
-// init
-// ============================================================
+// ══════════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════════
+const TV_DEFAULT={c1:"BYBIT:XAUTUSDT",c2:"BYBIT:XAUUSDT",c3:"BYBIT:XAUTUSDT/BYBIT:XAGUSDT",c4:"BYBIT:XAUTUSDT"};
+const TV_INT_DEFAULT={c1:"60",c2:"60",c3:"60",c4:"D"};
+
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
-  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-  document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
-  t.classList.add("active"); document.getElementById("v-"+t.dataset.v).classList.add("active");
+  document.querySelectorAll(".tab,.view").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");document.getElementById("v-"+t.dataset.v).classList.add("active");
+  const tab=t.dataset.v;
+  if(TV_DEFAULT[tab]){
+    const sym=document.getElementById(`${tab}TvSym`)?.value||TV_DEFAULT[tab];
+    const int=document.getElementById(`${tab}TvInt`)?.value||TV_INT_DEFAULT[tab];
+    if(!tvWidgets[`tv_${tab}`])tvChart(`tv_${tab}`,sym,int);
+  }
 });
+
 async function init(){
+  refreshKeyState();
+  updateTickerBar();setInterval(updateTickerBar,15000);
   try{
     const r=await api("/v5/market/instruments-info",{category:"linear",limit:"1000"});
-    FUTURES = r.list.filter(i=>/^XAUTUSDT-\d/.test(i.symbol))
-      .map(i=>({id:i.symbol,cat:"linear",sym:i.symbol,label:i.symbol.replace("XAUTUSDT-","XAUT фьюч ")}))
+    FUTURES=r.list.filter(i=>/^XAUTUSDT-\d/.test(i.symbol))
+      .map(i=>({id:i.symbol,cat:"linear",sym:i.symbol,label:i.symbol.replace("XAUTUSDT-","XAUT ")}))
       .sort((a,b)=>expiryDays(a.sym)-expiryDays(b.sym));
-  }catch(e){/* фьючи опциональны */}
-  const all=[...SYM,...FUTURES];
-  fillSelect(legA,all,"XAUTUSDT.P"); fillSelect(legB,all,"XAUUSDT.P");
-  fillSelect(rvSym,all,"XAUTUSDT.P");
-  fillSelect(szA,all,"XAUTUSDT.S"); fillSelect(szB,all,"XAUUSDT.P");
-  if(FUTURES.length>=2){fillSelect(calNear,FUTURES,FUTURES[0].id);fillSelect(calFar,FUTURES,FUTURES[1].id);}
-  else{calNear.innerHTML=calFar.innerHTML="<option>нет фьючей</option>";}
-  refreshKeyState();
-  loadLive(); setInterval(()=>{if(document.getElementById("v-live").classList.contains("active"))loadLive();},15000);
+  }catch{}
+  if(FUTURES.length>=2){fillSelect(document.getElementById("calNear"),FUTURES,FUTURES[0].id);fillSelect(document.getElementById("calFar"),FUTURES,FUTURES[1].id);}
+  else{document.getElementById("calNear").innerHTML=document.getElementById("calFar").innerHTML="<option>нет фьючей</option>";}
 }
 init();
 </script>
