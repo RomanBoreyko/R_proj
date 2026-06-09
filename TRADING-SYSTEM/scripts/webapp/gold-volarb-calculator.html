@@ -64,6 +64,7 @@
   <div class="tab" data-v="spread">Синт-спред / стат-арб</div>
   <div class="tab" data-v="volarb">Вол-арб (IV/RV)</div>
   <div class="tab" data-v="cal">Календари</div>
+  <div class="tab" data-v="gs">Gold/Silver</div>
   <div class="tab" data-v="struct">Структура</div>
   <div class="tab" data-v="size">Сайзинг / риск</div>
   <div class="tab" data-v="port">Портфель 🔒</div>
@@ -180,6 +181,38 @@
         <button onclick="calcOptCal()">Рассчитать</button>
       </div>
       <div id="optCalOut" style="margin-top:12px"></div>
+    </div>
+  </section>
+
+  <!-- ============ GOLD/SILVER ============ -->
+  <section class="view" id="v-gs">
+    <details class="info"><summary>Что это и как читать</summary><div class="body">
+      Монитор пары <b>XAUT (спот) ↔ XAGUSDT (серебро перп)</b> — основа для двух встречных сеток.
+      <ul>
+        <li><b>Ratio</b> XAUT/XAG — сколько унций серебра стоит одна унция золота (gold/silver ratio). Историческое среднее ~70–85, сейчас ~60–65. Z>2 = золото дорогое к серебру.</li>
+        <li><b>Реверсионная сетка (спот XAUT)</b> — long-only spot grid: покупает провалы, продаёт отскоки. Вогнутая (шорт-гамма): в тренде вниз докупает → накапливает просадку.</li>
+        <li><b>Трендовая нога (XAGUSDT перп)</b> — выпуклый хедж к реверсии: следует за движением. В тренде вниз идёт в шорт → компенсирует просадку спота.</li>
+        <li><b>Хедж-коэффициент h*</b> = ρ·σ_gold/σ_silver — сколько $ серебра на $1 золота (мин-вариансный). При текущих данных ≈ 0.39.</li>
+        <li><b>Нетто-дельта $</b> пары: при правильном сайзинге ≈ 0 (движение золота нейтрализовано).</li>
+      </ul>
+      Важно: нативного «трендового грида» у Bybit нет — серебряная нога требует кастомного исполнения (MetaScalp SDK / ребалансировка).
+    </div></details>
+    <div class="ctrl">
+      <div class="fld"><label>Интервал</label>
+        <select id="gsInt"><option>60</option><option selected>240</option><option>D</option></select></div>
+      <div class="fld"><label>Окно корреляции/RV</label><input id="gsWin" type="number" value="120"></div>
+      <div class="fld"><label>Ноционал XAUT спот, $</label><input id="gsNotXaut" type="number" value="1000"></div>
+      <button onclick="calcGS()">Рассчитать</button>
+      <button class="sec" onclick="calcGS()">↻ Обновить</button>
+    </div>
+    <div class="grid" id="gsCards"></div>
+    <div class="card" id="gsRatioCard" style="display:none;margin-top:16px">
+      <h3>Gold/Silver ratio (XAUT/XAG)</h3>
+      <canvas id="gsRatioChart" style="width:100%;height:220px"></canvas>
+    </div>
+    <div class="card" id="gsSpreadCard" style="display:none;margin-top:16px">
+      <h3>Корреляция доходностей (скользящая)</h3>
+      <canvas id="gsSpreadChart" style="width:100%;height:180px"></canvas>
     </div>
   </section>
 
@@ -872,6 +905,95 @@ async function renderPortfolioSpreads(perps){
         (entry!==null?` · собрано ${fmt(entry,2)}${inRange?"":" (вне графика)"} · Δ ${sign(cur-entry,2)}`:"");
     }catch(e){const el=document.getElementById(id+"_s");if(el)el.innerText="ошибка: "+e.message;}
   }
+}
+
+// ============================================================
+// GOLD / SILVER — монитор пары (спот XAUT + перп XAG)
+// ============================================================
+async function calcGS(){
+  const interval=document.getElementById("gsInt").value;
+  const win=+document.getElementById("gsWin").value;
+  const notXaut=+document.getElementById("gsNotXaut").value;
+  const out=document.getElementById("gsCards");
+  out.innerHTML=`<div class="card">Считаю…</div>`;
+  try{
+    const lim=Math.min(1000,Math.max(win*3,200));
+    // тикеры + свечи
+    const [txau,txag,cxau,cxag]=await Promise.all([
+      ticker("linear","XAUTUSDT"),
+      ticker("linear","XAGUSDT"),
+      candles("linear","XAUTUSDT",interval,lim),
+      candles("linear","XAGUSDT",interval,lim)
+    ]);
+    const pXau=txau.last, pXag=txag.last;
+    const ratio=pXau/pXag;
+    // ratio-ряд
+    const mxau=new Map(cxau.map(c=>[c.ts,c.close]));
+    const ratioSer=[], ts=[];
+    for(const c of cxag){const a=mxau.get(c.ts);if(a){ratioSer.push(a/c.close);ts.push(c.ts);}}
+    if(ratioSer.length<win){out.innerHTML=`<div class="card err">Мало совмещённых баров: ${ratioSer.length}</div>`;return;}
+    const rWin=ratioSer.slice(-win), rM=mean(rWin), rSg=stdev(rWin);
+    const rZ=rSg?(ratio-rM)/rSg:NaN;
+    // RV годовая обоих
+    const bpy=BPY[interval]||0;
+    const logR=a=>a.slice(1).map((_,i)=>Math.log(a[i+1].close/a[i].close));
+    const rvXau=stdev(logR(cxau).slice(-win))*Math.sqrt(bpy)*100;
+    const rvXag=stdev(logR(cxag).slice(-win))*Math.sqrt(bpy)*100;
+    // корреляция и h*
+    const rXau=logR(cxau), rXag=logR(cxag);
+    const n=Math.min(rXau.length,rXag.length,win);
+    const cc=corr(rXau.slice(-n),rXag.slice(-n));
+    const hstar=rvXau&&rvXag?cc*(rvXau/rvXag):NaN;
+    // скользящая корреляция (50-бар)
+    const wCorr=50, corrSer=[];
+    const ra=rXau.slice(-(n+50)), rb=rXag.slice(-(n+50));
+    for(let i=wCorr;i<=Math.min(ra.length,rb.length);i++) corrSer.push(corr(ra.slice(i-wCorr,i),rb.slice(i-wCorr,i)));
+    // сайзинг серебра
+    const notXag=Number.isFinite(hstar)?notXaut*hstar:NaN;
+    const qXau=notXaut/pXau, qXag=Number.isFinite(notXag)?notXag/pXag:NaN;
+    const netDelta=notXaut-notXag; // лонг XAUT − шорт XAG в $
+    // состояние ratio
+    const rVerdict=rZ>2?'rich':(rZ<-2?'cheap':'neu');
+    const rVtxt=rZ>2?'золото дорогое к серебру → ⬇ ratio ожидается':rZ<-2?'золото дёшево к серебру → ⬆ ratio ожидается':'нейтрально';
+    out.innerHTML=`
+    <div class="card"><h3>Цены</h3>${rows({
+      "XAUT (спот/перп)":fmt(pXau)+" $","XAGUSDT перп":fmt(pXag,3)+" $",
+      "Gold/Silver ratio":`<b>${fmt(ratio,2)}</b>`,
+      "Среднее ratio (окно)":fmt(rM,2),"Sigma ratio":fmt(rSg,3),
+      "Z ratio":`<span class="tag ${rVerdict}">${fmt(rZ,2)}</span>`
+    })}<p class="hint">${rVtxt}</p></div>
+    <div class="card"><h3>Корреляция / волатильность</h3>${rows({
+      "RV XAUT (год.)":fmt(rvXau,1)+"%","RV XAG (год.)":fmt(rvXag,1)+"%",
+      "XAG/XAUT волатильнее в":fmt(rvXag/rvXau,2)+"×",
+      "Корреляция (ρ)":fmt(cc,3),
+      "Хедж-коэф h*":fmt(hstar,3)
+    })}</div>
+    <div class="card" style="border-color:var(--accent)"><h3>Сайзинг пары</h3>${rows({
+      "Ноционал XAUT спот":fmt(notXaut)+" $",
+      "Ноционал XAG (=h*×notXAUT)":Number.isFinite(notXag)?fmt(notXag)+" $":"—",
+      "Кол-во XAUT":fmt(qXau,4),
+      "Кол-во XAG":Number.isFinite(qXag)?fmt(qXag,3)+"  (шорт перп)":"—",
+      "Нетто-дельта $":sign(netDelta,2)+" "+((Math.abs(netDelta)<notXaut*0.05)?"≈ нейтрально":"⚠ перекос")
+    })}<p class="hint">При h*×ноционал XAUT = ноционал XAG — движения нейтрализованы. Диапазон серебряной сетки делай ~${fmt(rvXag/rvXau,1)}× шире золотой.</p></div>`;
+    // ratio-график
+    document.getElementById("gsRatioCard").style.display="";
+    const percs=[...ratioSer].sort((a,b)=>a-b);
+    const p10=percs[Math.floor(percs.length*.1)],p90=percs[Math.floor(percs.length*.9)];
+    lineChart(document.getElementById("gsRatioChart"),[
+      {data:ratioSer.slice(-win),color:"#f0b429",w:1.8},
+      {data:flat(rM,win),color:"#8b97a7",dash:[4,4]},
+      {data:flat(rM+rSg,win),color:"#e3933c",dash:[2,3]},
+      {data:flat(rM-rSg,win),color:"#e3933c",dash:[2,3]},
+      {data:flat(rM+2*rSg,win),color:"#f85149",dash:[2,3]},
+      {data:flat(rM-2*rSg,win),color:"#f85149",dash:[2,3]},
+    ],{dp:2,xLabels:["−"+win+" баров","сейчас"],legend:["ratio","среднее","±1σ","","±2σ",""]});
+    // скользящая корреляция
+    document.getElementById("gsSpreadCard").style.display="";
+    lineChart(document.getElementById("gsSpreadChart"),[
+      {data:corrSer,color:"#39d0d8",w:1.6},
+      {data:flat(cc,corrSer.length),color:"#8b97a7",dash:[4,4]},
+    ],{dp:3,xLabels:["−"+corrSer.length+" баров","сейчас"],legend:["скользящая корр (50)","средняя"]});
+  }catch(e){out.innerHTML=`<div class="card err">${e.message}</div>`;}
 }
 
 function scenarioCalc(){
