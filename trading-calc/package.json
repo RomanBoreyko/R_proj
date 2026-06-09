@@ -7,6 +7,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "calc": "vite-node src/cli.ts",
+    "screener": "vite-node src/screener-cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

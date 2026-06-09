@@ -4,7 +4,7 @@
 // Публичные эндпоинты — без ключей.
 // ============================================================
 
-export type Category = 'linear' | 'spot' | 'inverse';
+export type Category = 'linear' | 'spot' | 'inverse' | 'option';
 export type Interval =
   | '1' | '3' | '5' | '15' | '30' | '60'
   | '120' | '240' | '360' | '720' | 'D' | 'W' | 'M';
@@ -43,6 +43,18 @@ async function apiGet(path: string, params: Record<string, string>): Promise<any
 
 export class BybitClient {
   constructor(private category: Category = 'linear') {}
+
+  /** Bulk-фетч тикеров по категории и необязательному baseCoin / symbol. */
+  async getTickers(
+    category: Category,
+    params: { baseCoin?: string; symbol?: string } = {}
+  ): Promise<any[]> {
+    const q: Record<string, string> = { category };
+    if (params.baseCoin) q.baseCoin = params.baseCoin;
+    if (params.symbol)   q.symbol   = params.symbol;
+    const r = await apiGet('/v5/market/tickers', q);
+    return r.list ?? [];
+  }
 
   async getTicker(symbol: string): Promise<Ticker> {
     const r = await apiGet('/v5/market/tickers', { category: this.category, symbol });
