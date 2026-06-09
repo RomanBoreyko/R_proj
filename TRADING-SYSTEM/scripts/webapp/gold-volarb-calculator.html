@@ -68,6 +68,7 @@
   <div class="tab" data-v="struct">Структура</div>
   <div class="tab" data-v="size">Сайзинг / риск</div>
   <div class="tab" data-v="port">Портфель 🔒</div>
+  <div class="tab" data-v="screener">Скринер 🔍</div>
 </div>
 <main>
   <!-- ============ LIVE ============ -->
@@ -303,6 +304,35 @@
       <p class="hint">Авто-графики по парам из позиций (синт золото, календари фьюч−перп). Золотая линия — твой уровень входа (собрано).</p></div>
     <div class="grid" id="portCards"></div>
     <div id="portPositions" style="margin-top:16px"></div>
+  </section>
+
+  <!-- ============ SCREENER ============ -->
+  <section class="view" id="v-screener">
+    <details class="info"><summary>Что это и как читать</summary><div class="body">
+      Два живых скринера по данным Bybit.
+      <ul>
+        <li><b>Фьючерсный календарь (контанго/бэквардейшн):</b> все датированные фьючи сравниваются со спот-ценой.
+            <b>Контанго</b> (+%) — фьюч дороже спота: продать фьюч / купить спот, разница схлопывается к экспирации.
+            <b>Бэквардейшн</b> (−%) — фьюч дешевле спота: обратная сделка.</li>
+        <li><b>Опционы дешевле BSM:</b> Bybit считает <code>markPrice</code> через модель Блэка-Шоулса.
+            Если рыночная цена (<code>mid = (bid+ask)/2</code>) ниже <code>markPrice</code> — опцион торгуется дешевле модели.
+            <b>Diff%</b> — скидка. Чем отрицательнее — тем дешевле относительно BSM.</li>
+      </ul>
+    </div></details>
+    <div class="ctrl">
+      <div class="fld"><label>Base coin</label><input id="scrBase" value="XAUT" style="width:80px"></div>
+      <div class="fld"><label>Мин. скидка к BSM, %</label><input id="scrDisc" type="number" value="1" style="width:70px"></div>
+      <button onclick="runScreener()">🔍 Запустить</button>
+      <span id="scrStatus" class="hint"></span>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>Фьючерсный календарь — контанго / бэквардейшн</h3>
+      <div id="scrCalOut"><span class="hint">Нажми «Запустить»</span></div>
+    </div>
+    <div class="card">
+      <h3>Опционы дешевле BSM</h3>
+      <div id="scrOptOut"><span class="hint">Нажми «Запустить»</span></div>
+    </div>
   </section>
 </main>
 
@@ -1119,6 +1149,134 @@ function calcStructure(){
   document.getElementById("structZones").innerHTML=`<div class="card"><h3>Карта хеджа по зонам</h3>
     <table><tr><th>Зона цены</th><th>Гамма</th><th>Хедж</th><th>Перп-движок</th></tr>${rowsHtml}</table>
     <p class="hint">${note}</p></div>`;
+}
+
+// ============================================================
+// ============================================================
+// SCREENER — Futures Calendar + Options cheaper than BSM
+// ============================================================
+
+async function apiList(cat, params={}){
+  const r = await api("/v5/market/tickers", Object.assign({category:cat}, params));
+  return r.list ?? [];
+}
+
+function parseOptSym(sym){
+  // XAUT-25JUL25-3400-C
+  const parts = sym.split("-");
+  if(parts.length < 4) return null;
+  const mo = {JAN:0,FEB:1,MAR:2,APR:3,MAY:4,JUN:5,JUL:6,AUG:7,SEP:8,OCT:9,NOV:10,DEC:11};
+  const ds = parts[1];
+  const day = parseInt(ds.slice(0,2),10);
+  const m   = mo[ds.slice(2,5).toUpperCase()];
+  const yr  = 2000 + parseInt(ds.slice(5,7),10);
+  if(m === undefined || isNaN(day) || isNaN(yr)) return null;
+  const expiry = new Date(Date.UTC(yr, m, day, 8, 0, 0));
+  const strike = parseFloat(parts[2]);
+  const type   = parts[3].toUpperCase();
+  if(isNaN(strike) || (type !== "C" && type !== "P")) return null;
+  return {expiry, strike, type, dte: Math.ceil((expiry - Date.now()) / 864e5)};
+}
+
+async function runScreener(){
+  const base    = (document.getElementById("scrBase").value.trim().toUpperCase()) || "XAUT";
+  const minDisc = parseFloat(document.getElementById("scrDisc").value) || 1;
+  const st      = document.getElementById("scrStatus");
+  const calOut  = document.getElementById("scrCalOut");
+  const optOut  = document.getElementById("scrOptOut");
+
+  st.textContent = "Загружаю..."; st.className = "hint load";
+  calOut.innerHTML = optOut.innerHTML = "<span class='hint'>Загружаю…</span>";
+
+  try {
+    // ── Calendars ──────────────────────────────────────────
+    const spotSym = base + "USDT";
+    const [spotList, futList] = await Promise.all([
+      apiList("spot",   {symbol: spotSym}),
+      apiList("linear", {baseCoin: base}),
+    ]);
+
+    const spotPrice = +(spotList[0]?.lastPrice ?? 0);
+    if(!spotPrice) throw new Error("Нет спот-цены для " + spotSym);
+
+    const calRows = [];
+    for(const t of futList){
+      const dt = parseInt(t.deliveryTime ?? 0, 10);
+      if(!dt || dt <= Date.now()) continue;
+      const dte = Math.ceil((dt - Date.now()) / 864e5);
+      if(dte <= 0) continue;
+      const fp = +(t.markPrice || t.lastPrice || 0);
+      if(!fp) continue;
+      const basis    = fp - spotPrice;
+      const basisPct = basis / spotPrice * 100;
+      const annBasis = basisPct * 365 / dte;
+      calRows.push({sym: t.symbol, dte, fp, spotPrice, basis, basisPct, annBasis, contango: basis > 0});
+    }
+    calRows.sort((a, b) => (b.contango - a.contango) || (a.dte - b.dte));
+
+    if(!calRows.length){
+      calOut.innerHTML = `<span class="hint">Нет датированных фьючерсов ${base}</span>`;
+    } else {
+      const hdr = `<tr><th>Символ</th><th>DTE</th><th>Фьюч</th><th>Спот</th><th>Basis$</th><th>Basis%</th><th>Годовых%</th><th>Статус</th></tr>`;
+      const trs = calRows.map(r => `<tr>
+        <td>${r.sym}</td><td>${r.dte}</td>
+        <td>${fmt(r.fp)}</td><td>${fmt(r.spotPrice)}</td>
+        <td>${sign(r.basis)}</td>
+        <td>${sign(r.basisPct)}%</td>
+        <td>${sign(r.annBasis)}%</td>
+        <td><span class="tag ${r.contango ? "rich" : "cheap"}">${r.contango ? "CONTANGO" : "BACKWARDATION"}</span></td>
+      </tr>`).join("");
+      calOut.innerHTML = `<table>${hdr}${trs}</table>
+        <p class="hint">Контанго (+) → купить спот / шортить фьюч. Бэквардейшн (−) → обратно.</p>`;
+    }
+
+    // ── Options BSM ────────────────────────────────────────
+    const optList = await apiList("option", {baseCoin: base});
+    const cheap = [];
+    for(const t of optList){
+      const parsed = parseOptSym(t.symbol ?? "");
+      if(!parsed || parsed.dte <= 0) continue;
+      const bid  = +(t.bid1Price ?? 0);
+      const ask  = +(t.ask1Price ?? 0);
+      const mark = +(t.markPrice ?? 0);
+      if(mark <= 0 || (bid <= 0 && ask <= 0)) continue;
+      const mid     = (bid > 0 && ask > 0) ? (bid + ask) / 2 : (bid || ask);
+      const diffPct = (mid - mark) / mark * 100;
+      if(diffPct > -minDisc) continue;
+      cheap.push({
+        sym: t.symbol, strike: parsed.strike, type: parsed.type, dte: parsed.dte,
+        bid, ask, mid, mark, iv: +(t.markIV ?? 0),
+        delta: +(t.delta ?? 0), oi: +(t.openInterest ?? 0), diffPct
+      });
+    }
+    cheap.sort((a, b) => a.diffPct - b.diffPct);
+
+    if(!cheap.length){
+      optOut.innerHTML = `<span class="hint">Нет опционов с bid &lt; markPrice на ${minDisc}% и более</span>`;
+    } else {
+      const hdr = `<tr><th>Символ</th><th>Страйк</th><th>C/P</th><th>DTE</th><th>Bid</th><th>Ask</th><th>Mark(BSM)</th><th>IV%</th><th>Diff%</th><th>Delta</th><th>OI</th></tr>`;
+      const trs = cheap.map(o => `<tr>
+        <td>${o.sym}</td>
+        <td>${fmt(o.strike, 0)}</td>
+        <td><span class="tag ${o.type === "C" ? "cheap" : "rich"}">${o.type}</span></td>
+        <td>${o.dte}</td>
+        <td>${fmt(o.bid)}</td><td>${fmt(o.ask)}</td><td>${fmt(o.mark)}</td>
+        <td>${o.iv > 0 ? fmt(o.iv, 1) + "%" : "—"}</td>
+        <td>${sign(o.diffPct, 1)}%</td>
+        <td>${o.delta !== 0 ? fmt(o.delta, 3) : "—"}</td>
+        <td>${o.oi > 0 ? fmt(o.oi, 0) : "—"}</td>
+      </tr>`).join("");
+      optOut.innerHTML = `<table>${hdr}${trs}</table>
+        <p class="hint">mid = (bid+ask)/2. Diff% = (mid − markPrice) / markPrice × 100. Отрицательный = дешевле BSM.</p>`;
+    }
+
+    st.textContent = "Готово ✓  " + new Date().toLocaleTimeString();
+    st.className = "hint ok";
+  } catch(e){
+    st.textContent = "Ошибка: " + e.message;
+    st.className = "hint err";
+    calOut.innerHTML = optOut.innerHTML = `<span class="err">${e.message}</span>`;
+  }
 }
 
 // ============================================================
