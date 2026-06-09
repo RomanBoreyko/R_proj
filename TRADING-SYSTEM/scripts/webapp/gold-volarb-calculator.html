@@ -67,6 +67,11 @@
   <h1>⚡ R-Trade — Trading Book</h1>
   <span style="font-size:11px;color:var(--mut)">Bybit live · C1–C5</span>
   <div class="ticker-bar" id="tickerBar"></div>
+  <span id="tvSessionStatus" style="font-size:11px"></span>
+  <a href="https://www.tradingview.com/signin/" target="_blank"
+     style="font-size:11px;color:var(--aqua);text-decoration:none;border:1px solid var(--aqua);
+            border-radius:4px;padding:3px 8px;white-space:nowrap"
+     onclick="setTimeout(checkTVSession,3000)">TV войти →</a>
   <span id="status" class="load">…</span>
 </header>
 
@@ -127,9 +132,11 @@
     <div class="ctrl" style="margin-bottom:8px">
       <div class="fld"><label>Символ TV</label>
         <select id="c1TvSym" onchange="reloadTV('c1')">
-          <option value="BYBIT:XAUTUSDT">XAUTUSDT (спот)</option>
-          <option value="BYBIT:XAUTUSDT.P">XAUTUSDT.P (перп)</option>
-          <option value="BYBIT:XAUUSDT">XAUUSDT</option>
+          <option value="BYBIT:XAUTUSDTPERP">XAUTUSDT перп</option>
+          <option value="BYBIT:XAUTUSDT">XAUTUSDT спот</option>
+          <option value="BYBIT:XAUUSDTPERP">XAUUSDT перп</option>
+          <option value="BYBIT:XAUTUSDTPERP/BYBIT:XAUUSDTPERP">XAUT/XAU ratio (перп/перп)</option>
+          <option value="BYBIT:XAUTUSDT-BYBIT:XAUUSDTPERP">XAUT спот − XAU перп (спред $)</option>
         </select></div>
       <div class="fld"><label>Интервал</label>
         <select id="c1TvInt" onchange="reloadTV('c1')">
@@ -137,10 +144,14 @@
           <option value="15">15m</option><option value="60" selected>1h</option>
           <option value="240">4h</option><option value="D">1D</option>
         </select></div>
+      <div class="fld" style="flex:1"><label>Свой символ / формула TV</label>
+        <input id="c1TvCustomSym" placeholder="напр. BYBIT:XAUTUSDTPERP/BYBIT:XAGUSDTPERP" style="width:100%"
+               onkeydown="if(event.key==='Enter')setCustomSym('c1')"></div>
+      <button class="sec" onclick="setCustomSym('c1')">↵</button>
     </div>
     <div class="tv-wrap" id="tv_c1" style="height:420px"></div>
     <div class="tv-custom">
-      <input id="c1_url" placeholder="Или вставь URL своего опубликованного графика TV (Share → Published)">
+      <input id="c1_url" placeholder="Или вставь URL своего опубликованного графика TV (Share → Publish → копируй URL)">
       <button class="sec" onclick="loadCustomTV('c1_url','tv_c1')">Загрузить</button>
     </div>
   </div>
@@ -171,9 +182,10 @@
     <div class="ctrl" style="margin-bottom:8px">
       <div class="fld"><label>Символ TV</label>
         <select id="c2TvSym" onchange="reloadTV('c2')">
-          <option value="BYBIT:XAUUSDT">XAUUSDT (реверсия)</option>
-          <option value="BYBIT:XAGUSDT">XAGUSDT (тренд/хедж)</option>
-          <option value="BYBIT:XAUTUSDT/BYBIT:XAGUSDT">XAUT/XAG ratio</option>
+          <option value="BYBIT:XAUUSDTPERP">XAUUSDT перп (реверсия)</option>
+          <option value="BYBIT:XAGUSDTPERP">XAGUSDT перп (тренд/хедж)</option>
+          <option value="BYBIT:XAUTUSDTPERP/BYBIT:XAGUSDTPERP">XAUT/XAG ratio (перпы)</option>
+          <option value="BYBIT:XAUUSDTPERP/BYBIT:XAGUSDTPERP">XAU/XAG ratio</option>
         </select></div>
       <div class="fld"><label>Интервал</label>
         <select id="c2TvInt" onchange="reloadTV('c2')">
@@ -182,11 +194,15 @@
           <option value="240">4h</option><option value="D">1D</option>
         </select></div>
       <div class="fld"><label>Окно (баров)</label><input id="gsWin" type="number" value="200" style="min-width:70px"></div>
+      <div class="fld" style="flex:1"><label>Свой символ / формула</label>
+        <input id="c2TvCustomSym" placeholder="напр. BYBIT:XAUUSDTPERP/BYBIT:XAGUSDTPERP"
+               onkeydown="if(event.key==='Enter')setCustomSym('c2')"></div>
+      <button class="sec" onclick="setCustomSym('c2')">↵</button>
       <button onclick="calcC2()">🔄 Считать</button>
     </div>
     <div class="tv-wrap" id="tv_c2" style="height:360px"></div>
     <div class="tv-custom">
-      <input id="c2_url" placeholder="URL своего графика TV">
+      <input id="c2_url" placeholder="URL своего опубликованного графика TV">
       <button class="sec" onclick="loadCustomTV('c2_url','tv_c2')">Загрузить</button>
     </div>
     <div style="margin-top:14px" id="c2RatioCard" style="display:none">
@@ -216,14 +232,20 @@
     <div class="ctrl" style="margin-bottom:8px">
       <div class="fld"><label>Символ TV</label>
         <select id="c3TvSym" onchange="reloadTV('c3')">
-          <option value="BYBIT:XAUTUSDT/BYBIT:XAGUSDT">XAUT/XAG ratio</option>
-          <option value="BYBIT:XAUTUSDT">XAUTUSDT</option>
-          <option value="BYBIT:XAGUSDT">XAGUSDT</option>
+          <option value="BYBIT:XAUTUSDTPERP/BYBIT:XAGUSDTPERP">XAUT/XAG ratio (перпы)</option>
+          <option value="BYBIT:XAUTUSDTPERP">XAUTUSDT перп</option>
+          <option value="BYBIT:XAGUSDTPERP">XAGUSDT перп</option>
         </select></div>
       <div class="fld"><label>Интервал</label>
         <select id="c3TvInt" onchange="reloadTV('c3')">
-          <option value="60" selected>1h</option><option value="240">4h</option><option value="D">1D</option>
+          <option value="1">1m</option><option value="5">5m</option>
+          <option value="15">15m</option><option value="60" selected>1h</option>
+          <option value="240">4h</option><option value="D">1D</option>
         </select></div>
+      <div class="fld" style="flex:1"><label>Свой символ / формула</label>
+        <input id="c3TvCustomSym" placeholder="напр. BYBIT:XAUTUSDTPERP/BYBIT:XAGUSDTPERP"
+               onkeydown="if(event.key==='Enter')setCustomSym('c3')"></div>
+      <button class="sec" onclick="setCustomSym('c3')">↵</button>
     </div>
     <div class="tv-wrap" id="tv_c3" style="height:380px"></div>
     <div class="tv-custom">
@@ -264,7 +286,7 @@
     <div class="ctrl" style="margin-bottom:8px">
       <div class="fld"><label>Символ TV</label>
         <select id="c4TvSym" onchange="reloadTV('c4')">
-          <option value="BYBIT:XAUTUSDT">XAUTUSDT перп</option>
+          <option value="BYBIT:XAUTUSDTPERP">XAUTUSDT перп</option>
           <option value="BYBIT:XAUTUSDT1!">XAUTUSDT фьюч (конт.)</option>
         </select></div>
       <div class="fld"><label>Интервал</label>
@@ -445,6 +467,21 @@ function reloadTV(tab){
   const sym=document.getElementById(`${tab}TvSym`).value;
   const int=document.getElementById(`${tab}TvInt`).value;
   tvChart(`tv_${tab}`,sym,int);
+}
+function setCustomSym(tab){
+  const inp=document.getElementById(`${tab}TvCustomSym`);
+  const raw=(inp?.value||"").trim().toUpperCase();
+  if(!raw)return;
+  tvChart(`tv_${tab}`,raw,document.getElementById(`${tab}TvInt`)?.value||"1");
+}
+// Проверяем сессию TV через iframe-хак: TV возвращает страницу с данными пользователя
+// Прямая проверка недоступна из-за CORS, поэтому просто смотрим на куки tv_uid
+function checkTVSession(){
+  const el=document.getElementById("tvSessionStatus");
+  // TV устанавливает куку tv_uid при логине, но мы не можем её читать (httpOnly/cross-domain)
+  // Показываем инструкцию
+  el.innerHTML='<span style="color:var(--orange)">↑ залогинься, перезагрузи страницу</span>';
+  setTimeout(()=>{el.innerHTML='<span class="hint">виджет подхватит сессию автоматически</span>';},8000);
 }
 
 function loadCustomTV(inputId,containerId){
@@ -917,7 +954,7 @@ function calcStructure(){
 // ══════════════════════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════════════════════
-const TV_DEFAULT={c1:"BYBIT:XAUTUSDT",c2:"BYBIT:XAUUSDT",c3:"BYBIT:XAUTUSDT/BYBIT:XAGUSDT",c4:"BYBIT:XAUTUSDT"};
+const TV_DEFAULT={c1:"BYBIT:XAUTUSDTPERP",c2:"BYBIT:XAUUSDTPERP",c3:"BYBIT:XAUTUSDTPERP/BYBIT:XAGUSDTPERP",c4:"BYBIT:XAUTUSDTPERP"};
 const TV_INT_DEFAULT={c1:"60",c2:"60",c3:"60",c4:"D"};
 
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
