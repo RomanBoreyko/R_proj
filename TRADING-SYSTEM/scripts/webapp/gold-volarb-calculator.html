@@ -952,6 +952,43 @@ function calcStructure(){
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// FORM PERSISTENCE  (все input/select → localStorage, кроме apiKey/apiSecret)
+// ══════════════════════════════════════════════════════════════════════════════
+const FP="calc_form_v1";
+const SKIP_IDS=new Set(["apiKey","apiSecret"]);
+
+function fpSave(id,val){
+  try{const d=JSON.parse(localStorage.getItem(FP)||"{}");d[id]=val;localStorage.setItem(FP,JSON.stringify(d));}catch{}
+}
+function fpLoad(){
+  try{return JSON.parse(localStorage.getItem(FP)||"{}");}catch{return{};}
+}
+function restoreForms(){
+  const d=fpLoad();
+  Object.entries(d).forEach(([id,val])=>{
+    if(SKIP_IDS.has(id))return;
+    const el=document.getElementById(id);
+    if(!el)return;
+    if(el.tagName==="SELECT"){
+      // select: set after options are populated; safe to call again from fillSelect
+      const opt=[...el.options].find(o=>o.value===val);
+      if(opt)el.value=val;
+    } else {
+      el.value=val;
+    }
+  });
+}
+// Слушаем все изменения в документе
+document.addEventListener("input",e=>{
+  const el=e.target;if(!el.id||SKIP_IDS.has(el.id))return;
+  fpSave(el.id,el.value);
+});
+document.addEventListener("change",e=>{
+  const el=e.target;if(!el.id||SKIP_IDS.has(el.id))return;
+  fpSave(el.id,el.value);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════════════════════
 const TV_DEFAULT={c1:"BYBIT:XAUTUSDTPERP",c2:"BYBIT:XAUUSDTPERP",c3:"BYBIT:XAUTUSDTPERP/BYBIT:XAGUSDTPERP",c4:"BYBIT:XAUTUSDTPERP"};
@@ -969,6 +1006,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
 });
 
 async function init(){
+  restoreForms();
   refreshKeyState();
   updateTickerBar();setInterval(updateTickerBar,15000);
   try{
@@ -977,7 +1015,14 @@ async function init(){
       .map(i=>({id:i.symbol,cat:"linear",sym:i.symbol,label:i.symbol.replace("XAUTUSDT-","XAUT ")}))
       .sort((a,b)=>expiryDays(a.sym)-expiryDays(b.sym));
   }catch{}
-  if(FUTURES.length>=2){fillSelect(document.getElementById("calNear"),FUTURES,FUTURES[0].id);fillSelect(document.getElementById("calFar"),FUTURES,FUTURES[1].id);}
+  if(FUTURES.length>=2){
+    fillSelect(document.getElementById("calNear"),FUTURES,FUTURES[0].id);
+    fillSelect(document.getElementById("calFar"),FUTURES,FUTURES[1].id);
+    // восстанавливаем сохранённый выбор после заполнения опций
+    const d=fpLoad();
+    if(d.calNear){const o=[...document.getElementById("calNear").options].find(x=>x.value===d.calNear);if(o)document.getElementById("calNear").value=d.calNear;}
+    if(d.calFar ){const o=[...document.getElementById("calFar" ).options].find(x=>x.value===d.calFar );if(o)document.getElementById("calFar" ).value=d.calFar ;}
+  }
   else{document.getElementById("calNear").innerHTML=document.getElementById("calFar").innerHTML="<option>нет фьючей</option>";}
 }
 init();
