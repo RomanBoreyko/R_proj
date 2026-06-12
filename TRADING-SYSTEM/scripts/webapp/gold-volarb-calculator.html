@@ -64,7 +64,7 @@
 </head>
 <body>
 <header>
-  <h1>⚡ R-Trade — Trading Book</h1>
+  <h1 id="brand">⚡ R-Trade — Trading Book</h1><span class="hint" id="brandSub" title="He comes">базис-десک</span>
   <span style="font-size:11px;color:var(--mut)">Bybit live · C1–C5</span>
   <div class="ticker-bar" id="tickerBar"></div>
   <span id="tvSessionStatus" style="font-size:11px"></span>
@@ -82,6 +82,7 @@
   <div class="tab" data-v="c3">C3 — Ratio + Опции</div>
   <div class="tab" data-v="c4">C4 — Календарь</div>
   <div class="tab" data-v="struct">Структура</div>
+  <div class="tab" data-v="sprd">Спред 🛠</div>
 </div>
 
 <main>
@@ -354,6 +355,29 @@
   <div class="card"><h3>Карта нетто-гаммы + зоны</h3><canvas id="structGamma" style="width:100%;height:200px"></canvas>
     <p class="hint">Зелёный = +γ (реверсия), красный = −γ (продолжение), серый = кэп (за крыльями)</p></div></div>
 <div id="structZones" style="margin-top:14px"></div>
+</section>
+
+<section class="view" id="v-sprd">
+<details class="info"><summary>Спред-конструктор — для пар, которых нет в TradingView</summary>
+<div style="padding:10px 14px;font-size:12px;color:var(--mut)">
+Любые две ноги Bybit (перп/спот/фьюч). TV не умеет: дохлые пары (HUSDC), опционы, синтетику.
+Строит ratio (A/B) или базис % ((A−B)/B). Детектор застывшей ноги: если цена ноги не
+менялась &gt;20% свечей — нога мёртвая, спред — фантом (кейс HUSDC).</div></details>
+<div class="ctrl">
+  <div class="fld"><label>Нога A: категория</label><select id="spA_cat"><option value="linear">linear (перп/фьюч)</option><option value="spot">spot</option></select></div>
+  <div class="fld"><label>Нога A: символ</label><input id="spA_sym" value="HUSDT" style="min-width:120px"></div>
+  <div class="fld"><label>Нога B: категория</label><select id="spB_cat"><option value="spot">spot</option><option value="linear">linear (перп/фьюч)</option></select></div>
+  <div class="fld"><label>Нога B: символ</label><input id="spB_sym" value="HUSDC" style="min-width:120px"></div>
+  <div class="fld"><label>Интервал</label><select id="sp_int"><option value="1">1м</option><option value="5">5м</option><option value="15">15м</option><option value="60" selected>1ч</option><option value="240">4ч</option><option value="D">1д</option></select></div>
+  <div class="fld"><label>Баров</label><input id="sp_lim" type="number" value="200" style="min-width:70px"></div>
+  <div class="fld"><label>Режим</label><select id="sp_mode"><option value="ratio">ratio A/B</option><option value="pct">базис % (A−B)/B</option><option value="diff">разница A−B</option></select></div>
+  <button onclick="buildSpread()">Построить</button>
+  <span id="sp_status" class="hint"></span>
+</div>
+<div class="card"><h3 id="sp_title">Спред</h3>
+  <canvas id="sp_chart" style="width:100%;height:260px"></canvas>
+  <p class="hint">фиолетовый = спред · серые пунктиры = μ ± 1σ/2σ</p></div>
+<div class="grid" id="sp_stats" style="margin-top:14px"></div>
 </section>
 
 </main>
@@ -788,11 +812,12 @@ async function loadPortfolio(){
       </div>
       ${killer?`<p class="hint" style="color:var(--red)">⚠ Сценарий-убийца: рост + всплеск IV → шорт-дельта + шорт-вега + шорт-гамма одновременно.</p>`:""}
     </div>
-    <div class="card"><h3>Капитал (UNIFIED)</h3>${rows({
+    <div class="card"><h3>${zalgo("Капитал (UNIFIED)",marginZalgo(im/eq))}</h3>${rows({
       "Эквити":fmt(eq)+" $","IM / MM":fmt(im)+" / "+fmt(mm)+" $",
       "Запас MM":`<span class="${lvlCls}">${lvl===Infinity?"∞":fmt(lvl,2)+"×"}</span>`,
-      "IM% от эквити":fmt(im/eq*100,1)+"%",
-      "Нереализ. PnL":sign(+(acc.totalPerpUPL||0)) })}</div>
+      "IM% от эквити":`<span class="${im/eq>0.8?'neg':im/eq>0.5?'neu':'pos'}">${zalgo(fmt(im/eq*100,1)+"%",marginZalgo(im/eq))}</span>`,
+      "Нереализ. PnL":sign(+(acc.totalPerpUPL||0)) })}
+      ${lvl<1.5?`<p class="hint" style="color:var(--red)">${zalgo("Он идёт.",1.4)}</p>`:""}</div>
     <div class="card"><h3>Золото нетто-Δ$</h3>
       <div class="big ${Math.abs(goldUsd)<10?'neu':'neg'}">${sign(goldUsd,1)} $</div>
       <p class="hint">${Math.abs(goldUsd)<10?"≈ дельта-нейтрально":"⚠ направленная экспозиция XAU+XAUT"}</p></div>
@@ -949,6 +974,86 @@ function calcStructure(){
   document.getElementById("structZones").innerHTML=`<div class="card"><h3>Карта хеджа</h3>
     <table><tr><th>Зона</th><th>Гамма</th><th>Стиль</th><th>Грид</th></tr>${rowsHtml}</table>
     <p class="hint">${note}</p></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ZALGO  —  H̴e̷ ̶c̸o̵m̷e̴s̶.  Интенсивность порчи = близость ликвидатора.
+// ══════════════════════════════════════════════════════════════════════════════
+const Z_UP=[0x0300,0x0301,0x0302,0x0303,0x0306,0x0307,0x030A,0x030B,0x030C,0x0342,0x034A,0x0352];
+const Z_MID=[0x0334,0x0335,0x0336,0x0337,0x0338];
+const Z_DN=[0x0316,0x0317,0x0318,0x0319,0x031C,0x031D,0x0323,0x0324,0x0325,0x0326,0x0330,0x0331];
+function zalgo(s,k=0.3){ // k ≈ среднее число диакритик на символ
+  if(k<=0)return s;
+  let out="";
+  for(const ch of s){
+    out+=ch;
+    if(/[\s⚡—]/.test(ch))continue;
+    const n=(Math.random()<k%1?1:0)+Math.floor(k);
+    for(let i=0;i<n;i++){
+      const pool=Math.random()<0.45?Z_UP:Math.random()<0.85?Z_DN:Z_MID;
+      out+=String.fromCharCode(pool[Math.floor(Math.random()*pool.length)]);
+    }
+  }
+  return out;
+}
+// живая лёгкая порча заголовка: едва заметное дрожание скриптуры
+setInterval(()=>{
+  const b=document.getElementById("brand");
+  if(b)b.textContent=zalgo("⚡ R-Trade — Trading Book",0.10);
+  const s=document.getElementById("brandSub");
+  if(s)s.textContent=zalgo("базис-десک",0.15);
+},4000);
+// маржинальная порча: 0 ниже IM 50%, нарастает к ликвидации
+const marginZalgo=imPct=>Math.max(0,(imPct-0.5)/0.5)*1.6;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// СПРЕД-КОНСТРУКТОР  (любые две ноги Bybit; для пар, которых нет в TV)
+// ══════════════════════════════════════════════════════════════════════════════
+async function buildSpread(){
+  const st=document.getElementById("sp_status");
+  const catA=document.getElementById("spA_cat").value, symA=document.getElementById("spA_sym").value.trim().toUpperCase();
+  const catB=document.getElementById("spB_cat").value, symB=document.getElementById("spB_sym").value.trim().toUpperCase();
+  const interval=document.getElementById("sp_int").value, lim=Math.min(+document.getElementById("sp_lim").value||200,1000);
+  const mode=document.getElementById("sp_mode").value;
+  st.textContent="загрузка…";st.className="load";
+  try{
+    const[ca,cb]=await Promise.all([candles(catA,symA,interval,lim),candles(catB,symB,interval,lim)]);
+    const mb=new Map(cb.map(c=>[c.ts,c.close]));
+    const pts=ca.filter(c=>mb.has(c.ts)).map(c=>{
+      const b=mb.get(c.ts);
+      return{ts:c.ts,a:c.close,b,
+        v:mode==="ratio"?c.close/b:mode==="pct"?(c.close-b)/b*100:c.close-b};
+    });
+    if(pts.length<10)throw new Error("общих свечей < 10 — ноги не пересекаются по времени");
+    // staleness-детектор (кейс HUSDC): доля свечей, где нога не менялась
+    const stale=leg=>{let s=0;for(let i=1;i<pts.length;i++)if(pts[i][leg]===pts[i-1][leg])s++;return s/(pts.length-1)*100;};
+    const stA=stale("a"),stB=stale("b");
+    const vs=pts.map(p=>p.v);
+    const mu=vs.reduce((a,b)=>a+b)/vs.length;
+    const sd=Math.sqrt(vs.reduce((s,v)=>s+(v-mu)**2,0)/(vs.length-1))||1e-9;
+    const z=(vs[vs.length-1]-mu)/sd;
+    const dp=mode==="ratio"?4:mode==="pct"?2:6;
+    document.getElementById("sp_title").textContent=`${symA}(${catA}) / ${symB}(${catB}) — ${mode}`;
+    lineChart(document.getElementById("sp_chart"),[
+      {data:vs,color:"#7f77dd",w:2},
+      {data:vs.map(()=>mu),color:"#8b97a7",dash:[6,4]},
+      {data:vs.map(()=>mu+sd),color:"#5f5e5a",dash:[3,4]},
+      {data:vs.map(()=>mu-sd),color:"#5f5e5a",dash:[3,4]},
+      {data:vs.map(()=>mu+2*sd),color:"#3a1416",dash:[3,4]},
+      {data:vs.map(()=>mu-2*sd),color:"#3a1416",dash:[3,4]},
+    ],{h:260,dp,xLabels:[new Date(pts[0].ts).toLocaleString("ru",{day:"2-digit",month:"2-digit",hour:"2-digit"}),new Date(pts[pts.length-1].ts).toLocaleString("ru",{day:"2-digit",month:"2-digit",hour:"2-digit"})]});
+    const warn=l=>l>20?` <span class="neg">⚠ застыла ${fmt(l,0)}% свечей — нога мёртвая?</span>`:` <span class="pos">живая (${fmt(l,0)}% повторов)</span>`;
+    document.getElementById("sp_stats").innerHTML=`
+      <div class="card"><h3>Статистика спреда</h3>${rows({
+        "Текущий":fmt(vs[vs.length-1],dp),"μ":fmt(mu,dp),"σ":fmt(sd,dp),
+        "Z":`<span class="${Math.abs(z)>2?'neg':Math.abs(z)>1?'neu':'pos'}">${fmt(z,2)}</span>`,
+        "Свечей":String(pts.length)})}</div>
+      <div class="card"><h3>Здоровье ног</h3>
+        <div class="row"><span class="k">${symA} (${catA})</span><span class="v">${fmt(pts[pts.length-1].a,6)}${warn(stA)}</span></div>
+        <div class="row"><span class="k">${symB} (${catB})</span><span class="v">${fmt(pts[pts.length-1].b,6)}${warn(stB)}</span></div>
+        <p class="hint">Застывшая нога = спред-фантом: видно на графике, нельзя исполнить (кейс HUSDC).</p></div>`;
+    st.textContent="ок · "+new Date().toLocaleTimeString("ru");st.className="ok";
+  }catch(e){st.textContent="✗ "+e.message;st.className="err";}
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

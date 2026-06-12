@@ -43,8 +43,10 @@ print(f"  MM:        {mm:>10.2f}  (запас {eq/mm:.2f}×)")
 print(f"  Свободно:  {avail:>10.2f}")
 
 # ── 2. Все перпы/фьючи ────────────────────────────────────────────────────────
-pl = get("/v5/position/list", {"category":"linear","settleCoin":"USDT","limit":"200"})
-perps = [p for p in pl["result"]["list"] if float(p["size"])>0]
+perps = []
+for _sc in ("USDT","USDC"):
+    pl = get("/v5/position/list", {"category":"linear","settleCoin":_sc,"limit":"200"})
+    perps += [p for p in pl["result"]["list"] if float(p["size"])>0]
 
 # ── 3. Все опционы с греками ──────────────────────────────────────────────────
 opts_raw = []
