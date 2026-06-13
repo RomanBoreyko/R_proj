@@ -28,3 +28,6 @@ config.json
 # OS / misc
 desktop.ini
 *.log
+
+# Live data logs (collector output)
+TRADING-SYSTEM/scripts/portfolio/data/
