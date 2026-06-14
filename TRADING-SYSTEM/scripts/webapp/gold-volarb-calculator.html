@@ -309,29 +309,30 @@
   <!-- ============ SCREENER ============ -->
   <section class="view" id="v-screener">
     <details class="info"><summary>Что это и как читать</summary><div class="body">
-      Два живых скринера по данным Bybit.
+      Три живых скринера. Все входы — лимитками (комиссия 0.2%). Минимальный edge учтён.
       <ul>
-        <li><b>Фьючерсный календарь (контанго/бэквардейшн):</b> все датированные фьючи сравниваются со спот-ценой.
-            <b>Контанго</b> (+%) — фьюч дороже спота: продать фьюч / купить спот, разница схлопывается к экспирации.
-            <b>Бэквардейшн</b> (−%) — фьюч дешевле спота: обратная сделка.</li>
-        <li><b>Опционы дешевле BSM:</b> Bybit считает <code>markPrice</code> через модель Блэка-Шоулса.
-            Если рыночная цена (<code>mid = (bid+ask)/2</code>) ниже <code>markPrice</code> — опцион торгуется дешевле модели.
-            <b>Diff%</b> — скидка. Чем отрицательнее — тем дешевле относительно BSM.</li>
+        <li><b>Фьючерсный календарь:</b> все датированные фьючи vs спот. <b>Контанго</b> (+%) — продать фьюч / купить спот. <b>Бэквардейшн</b> (−%) — обратно. Min edge с учётом round-trip 0.8%.</li>
+        <li><b>Паритет пут/кол:</b> <code>C − P = F − K</code>. Если рыночный синтетический форвард (C−P) расходится с реальным (F−K) — арбитраж. <b>Положительная ошибка</b> → коллы дороги (Sell C + Buy P + Buy Fut). <b>Отрицательная</b> → путы дороги (Buy C + Sell P + Sell Fut). Round-trip 1.2%.</li>
+        <li><b>Опционы дешевле BSM:</b> mid = (bid+ask)/2 vs markPrice Bybit (BSM). Отрицательный Diff% = скидка к модели.</li>
       </ul>
     </div></details>
     <div class="ctrl">
       <div class="fld"><label>Base coin</label><input id="scrBase" value="XAUT" style="width:80px"></div>
       <div class="fld"><label>Мин. скидка к BSM, %</label><input id="scrDisc" type="number" value="1" style="width:70px"></div>
-      <button onclick="runScreener()">🔍 Запустить</button>
+      <button onclick="runScreener()">🔍 Запустить всё</button>
       <span id="scrStatus" class="hint"></span>
     </div>
     <div class="card" style="margin-bottom:16px">
-      <h3>Фьючерсный календарь — контанго / бэквардейшн</h3>
-      <div id="scrCalOut"><span class="hint">Нажми «Запустить»</span></div>
+      <h3>1. Фьючерсный календарь — контанго / бэквардейшн</h3>
+      <div id="scrCalOut"><span class="hint">Нажми «Запустить всё»</span></div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>2. Паритет пут/кол — C − P vs F − K <span class="hint" style="font-size:11px">(min edge 1.2% round-trip)</span></h3>
+      <div id="scrParOut"><span class="hint">Нажми «Запустить всё»</span></div>
     </div>
     <div class="card">
-      <h3>Опционы дешевле BSM</h3>
-      <div id="scrOptOut"><span class="hint">Нажми «Запустить»</span></div>
+      <h3>3. Опционы дешевле BSM</h3>
+      <div id="scrOptOut"><span class="hint">Нажми «Запустить всё»</span></div>
     </div>
   </section>
 </main>
@@ -1183,10 +1184,11 @@ async function runScreener(){
   const minDisc = parseFloat(document.getElementById("scrDisc").value) || 1;
   const st      = document.getElementById("scrStatus");
   const calOut  = document.getElementById("scrCalOut");
+  const parOut  = document.getElementById("scrParOut");
   const optOut  = document.getElementById("scrOptOut");
 
   st.textContent = "Загружаю..."; st.className = "hint load";
-  calOut.innerHTML = optOut.innerHTML = "<span class='hint'>Загружаю…</span>";
+  calOut.innerHTML = parOut.innerHTML = optOut.innerHTML = "<span class='hint'>Загружаю…</span>";
 
   try {
     // ── Calendars ──────────────────────────────────────────
@@ -1230,8 +1232,77 @@ async function runScreener(){
         <p class="hint">Контанго (+) → купить спот / шортить фьюч. Бэквардейшн (−) → обратно.</p>`;
     }
 
+    // ── Put-Call Parity ────────────────────────────────────
+    // C - P = F - K  (r=0, European)
+    // Fetch options (already fetched below) and futures
+    const [optListAll, futListPar] = await Promise.all([
+      apiList("option", {baseCoin: base}),
+      apiList("linear", {baseCoin: base}),
+    ]);
+
+    // Build futures price map: deliveryTime(ms) → markPrice
+    const futMap = {};
+    for(const f of futListPar){
+      const dt = parseInt(f.deliveryTime ?? 0, 10);
+      if(!dt || dt <= Date.now()) continue;
+      futMap[dt] = +(f.markPrice || f.lastPrice || 0);
+    }
+
+    // Group options by expiry+strike → {call, put}
+    const pairsMap = {};
+    for(const o of optListAll){
+      const parsed = parseOptSym(o.symbol ?? "");
+      if(!parsed || parsed.dte <= 0) continue;
+      const key = parsed.expiry.getTime() + "_" + parsed.strike;
+      if(!pairsMap[key]) pairsMap[key] = {expiry: parsed.expiry, strike: parsed.strike, dte: parsed.dte};
+      const bid = +(o.bid1Price ?? 0), ask = +(o.ask1Price ?? 0);
+      const mid = (bid > 0 && ask > 0) ? (bid+ask)/2 : (bid||ask);
+      if(parsed.type === "C") pairsMap[key].callMid = mid;
+      else                    pairsMap[key].putMid  = mid;
+    }
+
+    // Find parity violations
+    const parRows = [];
+    const FEE_RT = 0.012; // 3 legs × 2 sides × 0.2%
+    for(const p of Object.values(pairsMap)){
+      if(!p.callMid || !p.putMid) continue;
+      // Find matching futures by expiry date (within 2 days)
+      let futPrice = 0;
+      for(const [dtStr, fp] of Object.entries(futMap)){
+        if(Math.abs(parseInt(dtStr) - p.expiry.getTime()) < 2*864e5){ futPrice = fp; break; }
+      }
+      if(!futPrice) continue;
+      const synth    = p.callMid - p.putMid;   // C − P
+      const real     = futPrice  - p.strike;    // F − K
+      const parErr   = synth - real;            // should be 0
+      const parErrPct = parErr / futPrice * 100;
+      if(Math.abs(parErrPct) < FEE_RT * 100) continue; // below round-trip cost
+      parRows.push({...p, futPrice, synth, real, parErr, parErrPct});
+    }
+    parRows.sort((a,b) => Math.abs(b.parErrPct) - Math.abs(a.parErrPct));
+
+    if(!parRows.length){
+      parOut.innerHTML = `<span class="hint">Нарушений паритета пут/кол выше порога 1.2% (round-trip) не найдено — рынок эффективен</span>`;
+    } else {
+      const hdr = `<tr><th>Страйк</th><th>DTE</th><th>F (фьюч)</th><th>C−P (синт)</th><th>F−K (реал)</th><th>Ошибка $</th><th>Ошибка %</th><th>Сделка</th></tr>`;
+      const trs = parRows.map(r => {
+        const dir = r.parErrPct > 0
+          ? `<span class="tag rich">Sell C + Buy P + Buy Fut</span>`
+          : `<span class="tag cheap">Buy C + Sell P + Sell Fut</span>`;
+        return `<tr>
+          <td>${fmt(r.strike,0)}</td><td>${r.dte}</td>
+          <td>${fmt(r.futPrice)}</td>
+          <td>${sign(r.synth)}</td><td>${sign(r.real)}</td>
+          <td>${sign(r.parErr)}</td><td>${sign(r.parErrPct,2)}%</td>
+          <td>${dir}</td>
+        </tr>`;
+      }).join("");
+      parOut.innerHTML = `<table>${hdr}${trs}</table>
+        <p class="hint">C−P = синтетический форвард. F−K = реальный. Положительная ошибка: коллы дороже путов → продать синтетику, купить фьюч. Round-trip ~1.2%.</p>`;
+    }
+
     // ── Options BSM ────────────────────────────────────────
-    const optList = await apiList("option", {baseCoin: base});
+    const optList = optListAll; // reuse already-fetched list
     const cheap = [];
     for(const t of optList){
       const parsed = parseOptSym(t.symbol ?? "");
