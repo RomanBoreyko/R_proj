@@ -416,6 +416,22 @@
 <p class="hint">Везде якорь один: <b>принудительный кэш-расчёт к индексу в зафиксированный deliveryTime.</b>
 Это превращает «ставку на схождение» в «ожидание исполнения контракта».</p></div>
 
+<div class="card"><h3>🎯 Базовый актив = ИНДЕКС (общий знаменатель всех трёх)</h3>
+<table><tr><th>Инструмент</th><th>Базовый актив</th><th>Механизм привязки</th></tr>
+<tr><td>Опцион</td><td>indexPrice</td><td>кэш-сеттл к 30-мин среднему индекса @ deliveryTime</td></tr>
+<tr><td>Дат. фьюч</td><td>indexPrice</td><td>кэш-сеттл к индексу @ deliveryTime</td></tr>
+<tr><td>Перп</td><td>indexPrice</td><td>фандинг тянет lastPrice к индексу непрерывно</td></tr>
+</table>
+<p class="hint">indexPrice ≠ Bybit-спот. Это композит спот-цен ETH/USDT по нескольким крупным биржам.
+markPrice (сглажен к индексу) — по нему считают PnL и ликвидацию, НЕ по lastPrice стакана.
+<b>Все три обёртки сходятся не друг к другу, а к ОДНОМУ индексу — вот почему базис закрывается.</b></p>
+<div class="ctrl" style="background:none;border:0;padding:0">
+  <div class="fld"><label>Актив</label><input id="law_idxbase" value="ETH" style="min-width:70px"></div>
+  <button onclick="showIndex()">Показать last / mark / index</button>
+  <span id="law_idxout" class="hint"></span>
+</div>
+<div id="law_idxrows"></div></div>
+
 <div class="ctrl">
   <div class="fld"><label>Актив</label><input id="law_base" value="ETH" style="min-width:70px"></div>
   <div class="fld"><label>Экспирация (как у фьюча)</label><input id="law_exp" value="26JUN26" style="min-width:110px"></div>
@@ -1073,6 +1089,28 @@ async function instr(cat,sym){
   const r=await api("/v5/market/instruments-info",{category:cat,symbol:sym});
   return r.list?.[0]||null;
 }
+async function showIndex(){
+  const base=(document.getElementById("law_idxbase").value||"ETH").trim().toUpperCase();
+  const out=document.getElementById("law_idxout"), rows=document.getElementById("law_idxrows");
+  out.textContent="…";out.className="load";
+  try{
+    const r=await api("/v5/market/tickers",{category:"linear",symbol:base+"USDT"});
+    const t=r.list[0];
+    let sp="—";try{sp=(await api("/v5/market/tickers",{category:"spot",symbol:base+"USDT"})).list[0].lastPrice;}catch{}
+    const idx=+t.indexPrice, last=+t.lastPrice;
+    const basis=idx?((last/idx-1)*100):0;
+    rows.innerHTML=rows2({
+      "lastPrice (стакан перпа)":t.lastPrice,
+      "markPrice (PnL/ликвид)":t.markPrice,
+      "★ indexPrice (БАЗОВЫЙ АКТИВ)":t.indexPrice,
+      "Bybit спот (отдельный)":sp,
+      "базис перп↔индекс":`<span class="${Math.abs(basis)>0.1?'neg':'pos'}">${fmt(basis,4)}%</span>`,
+      "фандинг":sign(+t.fundingRate*100,4)+"%"
+    });
+    out.textContent="ок";out.className="ok";
+  }catch(e){out.textContent="✗ "+e.message;out.className="err";}
+}
+function rows2(o){return Object.entries(o).map(([k,v])=>`<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("");}
 function utc(ms){return ms&&ms!=="0"?new Date(+ms).toISOString().replace("T"," ").slice(0,19)+" UTC":"—";}
 async function proveExpiry(){
   const st=document.getElementById("law_status"), out=document.getElementById("law_proof");
