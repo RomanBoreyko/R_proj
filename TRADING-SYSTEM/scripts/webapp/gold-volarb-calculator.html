@@ -83,6 +83,7 @@
   <div class="tab" data-v="c4">C4 — Календарь</div>
   <div class="tab" data-v="struct">Структура</div>
   <div class="tab" data-v="sprd">Спред 🛠</div>
+  <div class="tab" data-v="law">Право ⚖️</div>
 </div>
 
 <main>
@@ -378,6 +379,65 @@
   <canvas id="sp_chart" style="width:100%;height:260px"></canvas>
   <p class="hint">фиолетовый = спред · серые пунктиры = μ ± 1σ/2σ</p></div>
 <div class="grid" id="sp_stats" style="margin-top:14px"></div>
+</section>
+
+<section class="view" id="v-law">
+<details class="info" open><summary>Юридический базис арбитражей — почему схождение ГАРАНТИРОВАНО</summary>
+<div style="padding:10px 14px;font-size:12px;color:var(--mut)">
+Арбитраж ≠ статистика. Схождение паритета/календаря/базиса обеспечено не «обычно так бывает»,
+а <b>спецификацией контракта</b>: дата поставки, валюта расчёта, индекс. Здесь — выписка из
+живых спеков (через API) + ссылки на правила Bybit. Это верхняя строка карточки скрининга: КОНТРАКТ.</div></details>
+
+<div class="grid">
+<div class="card"><h3>Три типа инструмента (спека Bybit)</h3>
+  <table><tr><th>Тип</th><th>Экспирация</th><th>Расчёт</th><th>Тэйл-якорь</th></tr>
+  <tr><td>Опцион</td><td>датирован (deliveryTime)</td><td>кэш, европейский</td><td>индекс @ экспирации</td></tr>
+  <tr><td>Дат. фьюч</td><td>датирован (deliveryTime)</td><td>кэш</td><td>индекс @ экспирации</td></tr>
+  <tr><td>Перп</td><td>нет</td><td>фандинг-привязка</td><td>индекс ± фандинг</td></tr>
+  </table>
+  <p class="hint">Опцион европейский = исполняется ТОЛЬКО в дату экспирации (нет раннего ассайнмента).
+  Расчёт кэшем по индексу. Источник — спека контракта (кнопка ниже тянет live deliveryTime).</p></div>
+
+<div class="card"><h3>Закон паритета (Stoll 1969)</h3>
+  <div class="row"><span class="k">формула</span><span class="v">C − P = F − K</span></div>
+  <div class="row"><span class="k">синт-форвард</span><span class="v">K + C − P</span></div>
+  <p class="hint">Колл и пут ОДНОГО страйка и ОДНОЙ экспирации → синтетический форвард к этой дате.
+  Если синт ≠ фьюч той же даты → разрыв, закрываемый контрактно на сеттле.
+  <b>Юр-база:</b> оба гаснут в один deliveryTime к одному индексу в одной settleCoin.</p></div>
+</div>
+
+<div class="card"><h3>⚖️ Юридический якорь каждого арбитража</h3>
+<table><tr><th>Арбитраж</th><th>Что гарантирует схождение (контрактно)</th></tr>
+<tr><td>Паритет (синт↔фьюч)</td><td>один deliveryTime + один индекс + одна settleCoin → в дату оба = индекс</td></tr>
+<tr><td>Календарь (near↔far)</td><td>каждый фьюч кэш-сеттлится к индексу в свой deliveryTime → базис→0 на сеттле</td></tr>
+<tr><td>Cash-and-carry (фьюч↔перп/спот)</td><td>фьюч сходится к индексу на сеттле; перп привязан фандингом к тому же индексу</td></tr>
+<tr><td>Box (два паритета)</td><td>выплата = (K2−K1) детерминирована на сеттле, независимо от цены БА</td></tr>
+</table>
+<p class="hint">Везде якорь один: <b>принудительный кэш-расчёт к индексу в зафиксированный deliveryTime.</b>
+Это превращает «ставку на схождение» в «ожидание исполнения контракта».</p></div>
+
+<div class="ctrl">
+  <div class="fld"><label>Актив</label><input id="law_base" value="ETH" style="min-width:70px"></div>
+  <div class="fld"><label>Экспирация (как у фьюча)</label><input id="law_exp" value="26JUN26" style="min-width:110px"></div>
+  <button onclick="proveExpiry()">Доказать совпадение дат</button>
+  <span id="law_status" class="hint"></span>
+</div>
+<div class="card"><h3>Live-доказательство: опцион vs фьюч гаснут в один момент</h3>
+  <div id="law_proof"><p class="hint">Нажми «Доказать» — подтянет deliveryTime опционной серии и датированного фьюча, сверит.</p></div></div>
+
+<div class="card"><h3>📜 Документация Bybit (буква закона)</h3>
+  <p class="hint" style="line-height:1.7">
+  <b>Подтверждено цитатой Bybit:</b> «European-style cash-settled Options… can only be exercised at
+  expiration… settlement price is based on the average Index Price within the last 30 minutes before
+  expiration… at 8AM UTC».<br><br>
+  <b>API-спека</b> (машиночитаемо, авторитетно):<br>
+  • <a href="https://bybit-exchange.github.io/docs/v5/market/instrument" target="_blank">instruments-info — поля deliveryTime / settleCoin / optionsType</a><br><br>
+  <b>Хелп-центр</b> (человекочитаемо):<br>
+  • <a href="https://www.bybit.com/en/help-center/article/Introduction-to-Bybit-Options" target="_blank">Introduction to Bybit Options</a> — европейские, кэш-сеттл, цена поставки = 30-мин среднее индекса, 8:00 UTC<br>
+  • <a href="https://www.bybit.com/en/help-center/article/FAQ-Options-Trading" target="_blank">FAQ — Options Trading</a><br>
+  • <a href="https://www.bybit.com/en/help-center/article/P-L-Calculations-Options" target="_blank">P&amp;L Calculations (Options)</a> — формула расчёта на поставке<br>
+  • <a href="https://www.bybit.com/en/help-center/article/Bybit-Option-Fees-Explained" target="_blank">Options Fees Explained</a> — trading / delivery / liquidation fee<br>
+  • <a href="https://www.bybit.com/en/announcement-info/contract-summarize/" target="_blank">Derivatives Overview — спеки всех контрактов</a></p></div>
 </section>
 
 </main>
@@ -1005,6 +1065,49 @@ setInterval(()=>{
 },4000);
 // маржинальная порча: 0 ниже IM 50%, нарастает к ликвидации
 const marginZalgo=imPct=>Math.max(0,(imPct-0.5)/0.5)*1.6;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ПРАВО ⚖️ — live-доказательство контрактного якоря (deliveryTime опц == фьюч)
+// ══════════════════════════════════════════════════════════════════════════════
+async function instr(cat,sym){
+  const r=await api("/v5/market/instruments-info",{category:cat,symbol:sym});
+  return r.list?.[0]||null;
+}
+function utc(ms){return ms&&ms!=="0"?new Date(+ms).toISOString().replace("T"," ").slice(0,19)+" UTC":"—";}
+async function proveExpiry(){
+  const st=document.getElementById("law_status"), out=document.getElementById("law_proof");
+  const base=(document.getElementById("law_base").value||"ETH").trim().toUpperCase();
+  const exp =(document.getElementById("law_exp").value||"").trim().toUpperCase();
+  st.textContent="проверяю спеки…";st.className="load";
+  try{
+    const futSym=`${base}USDT-${exp}`;
+    const fut=await instr("linear",futSym);
+    // опцион той же серии: берём ATM-страйк из тикеров
+    const ot=await api("/v5/market/tickers",{category:"option",baseCoin:base});
+    const ser=(ot.list||[]).filter(o=>o.symbol.split("-")[1]===exp);
+    if(!fut) throw new Error(`фьюч ${futSym} не найден`);
+    if(!ser.length) throw new Error(`опционов серии ${exp} нет`);
+    const perp=(await ticker("linear",base+"USDT")).last;
+    const strikes=[...new Set(ser.map(o=>+o.symbol.split("-")[2]))];
+    const K=strikes.reduce((a,b)=>Math.abs(b-perp)<Math.abs(a-perp)?b:a);
+    const optSym=`${base}-${exp}-${K}-C-USDT`;
+    const opt=await instr("option",optSym);
+    if(!opt) throw new Error(`опцион ${optSym} не найден`);
+    const same=fut.deliveryTime===opt.deliveryTime;
+    out.innerHTML=`
+      <table>
+        <tr><th></th><th>ОПЦИОН ${optSym}</th><th>ФЬЮЧ ${futSym}</th></tr>
+        <tr><td>deliveryTime</td><td>${utc(opt.deliveryTime)}</td><td>${utc(fut.deliveryTime)}</td></tr>
+        <tr><td>settleCoin</td><td>${opt.settleCoin||"—"}</td><td>${fut.settleCoin||"—"}</td></tr>
+        <tr><td>baseCoin</td><td>${opt.baseCoin}</td><td>${fut.baseCoin}</td></tr>
+        <tr><td>тип</td><td>${opt.optionsType} (европ., кэш)</td><td>${fut.contractType}</td></tr>
+      </table>
+      <p class="hint" style="color:${same?'var(--green)':'var(--red)'};font-weight:600">
+        ${same?'✅ deliveryTime СОВПАДАЕТ → опцион-синтетика и фьюч гаснут в один момент к одному индексу. Паритет обеспечен контрактом.'
+               :'❌ deliveryTime РАЗНЫЙ → это НЕ паритет, а календарь (разные даты сеттла).'}</p>`;
+    st.textContent="ок";st.className="ok";
+  }catch(e){st.textContent="✗ "+e.message;st.className="err";out.innerHTML='<p class="hint err">'+e.message+'</p>';}
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // СПРЕД-КОНСТРУКТОР  (любые две ноги Bybit; для пар, которых нет в TV)

@@ -60,24 +60,25 @@ TRADING-SYSTEM/
 
 ## Быстрые ссылки
 
-| Раздел | Файл |
-|--------|------|
-| Философия | [[01-CONCEPT]] |
-| Сеточные боты | [[02-INSTRUMENTS/bybit-grid-bots]] |
-| Опционная обёртка | [[02-INSTRUMENTS/bybit-options-wrapper]] |
-| Торговля временем | [[03-STRATEGIES/time-trading]] |
-| Арбитраж волатильности | [[03-STRATEGIES/volatility-arbitrage]] |
-| XAU синт-спред + вола | [[03-STRATEGIES/xau-synthetic-spread]] |
+| Раздел                         | Файл                                        |
+| ------------------------------ | ------------------------------------------- |
+| Философия                      | [[01-CONCEPT]]                              |
+| Сеточные боты                  | [[02-INSTRUMENTS/bybit-grid-bots]]          |
+| Опционная обёртка              | [[02-INSTRUMENTS/bybit-options-wrapper]]    |
+| Торговля временем              | [[03-STRATEGIES/time-trading]]              |
+| Арбитраж волатильности         | [[03-STRATEGIES/volatility-arbitrage]]      |
+| XAU синт-спред + вола          | [[03-STRATEGIES/xau-synthetic-spread]]      |
 | Опционный кондор + зонный хедж | [[03-STRATEGIES/options-condor-zone-hedge]] |
-| Портфель — операционный план | [[03-STRATEGIES/portfolio-operating-plan]] |
-| ★ Карточка скрининга спреда | [[03-STRATEGIES/spread-screening-card]] |
-| Мультиактивная опц. книга (C5) | [[03-STRATEGIES/multi-asset-options]] |
-| Формулы прибыли | [[04-FORMULAS/profit-formulas]] |
-| Excel мастер-лог | [[05-EXCEL/master-log]] |
-| Правила риска | [[06-RISK/risk-rules]] |
-| Документация бирж | [[07-LINKS/documentation]] |
-| Инфраструктура (стек) | [[09-INFRASTRUCTURE]] |
-| Калькулятор (веб-апп) | [[scripts/webapp/README]] |
+| Портфель — операционный план   | [[03-STRATEGIES/portfolio-operating-plan]]  |
+| ★ Карточка скрининга спреда    | [[03-STRATEGIES/spread-screening-card]]     |
+| Базис-деск: родословная (учеб.) | [[03-STRATEGIES/basis-desk-родословная]]    |
+| Мультиактивная опц. книга (C5) | [[03-STRATEGIES/multi-asset-options]]       |
+| Формулы прибыли                | [[04-FORMULAS/profit-formulas]]             |
+| Excel мастер-лог               | [[05-EXCEL/master-log]]                     |
+| Правила риска                  | [[06-RISK/risk-rules]]                      |
+| Документация бирж              | [[07-LINKS/documentation]]                  |
+| Инфраструктура (стек)          | [[09-INFRASTRUCTURE]]                       |
+| Калькулятор (веб-апп)          | [[scripts/webapp/README]]                   |
 
 ---
 
