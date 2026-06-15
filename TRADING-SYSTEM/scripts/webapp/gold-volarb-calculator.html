@@ -327,11 +327,15 @@
       <div id="scrCalOut"><span class="hint">Нажми «Запустить всё»</span></div>
     </div>
     <div class="card" style="margin-bottom:16px">
-      <h3>2. Паритет пут/кол — C − P vs F − K <span class="hint" style="font-size:11px">(min edge 1.2% round-trip)</span></h3>
+      <h3>2. Треугольник: Perp ↔ Synth_F ↔ Dated F <span class="hint" style="font-size:11px">паритет + синт-перп-календарь</span></h3>
+      <div id="scrTriOut"><span class="hint">Нажми «Запустить всё»</span></div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>3. Паритет пут/кол — C − P vs F − K <span class="hint" style="font-size:11px">(min edge 1.2% round-trip)</span></h3>
       <div id="scrParOut"><span class="hint">Нажми «Запустить всё»</span></div>
     </div>
     <div class="card">
-      <h3>3. Опционы дешевле BSM</h3>
+      <h3>4. Опционы дешевле BSM</h3>
       <div id="scrOptOut"><span class="hint">Нажми «Запустить всё»</span></div>
     </div>
   </section>
@@ -1187,8 +1191,9 @@ async function runScreener(){
   const parOut  = document.getElementById("scrParOut");
   const optOut  = document.getElementById("scrOptOut");
 
+  const triOut  = document.getElementById("scrTriOut");
   st.textContent = "Загружаю..."; st.className = "hint load";
-  calOut.innerHTML = parOut.innerHTML = optOut.innerHTML = "<span class='hint'>Загружаю…</span>";
+  calOut.innerHTML = triOut.innerHTML = parOut.innerHTML = optOut.innerHTML = "<span class='hint'>Загружаю…</span>";
 
   try {
     // ── Calendars ──────────────────────────────────────────
@@ -1230,6 +1235,128 @@ async function runScreener(){
       </tr>`).join("");
       calOut.innerHTML = `<table>${hdr}${trs}</table>
         <p class="hint">Контанго (+) → купить спот / шортить фьюч. Бэквардейшн (−) → обратно.</p>`;
+    }
+
+    // ── Triangle: Perp ↔ Synth_F ↔ Dated F ───────────────
+    // Synth_F(T) = C(K,T) − P(K,T) + K  (synthetic futures via parity)
+    // Three pairs: Synth vs Dated, Synth vs Perp, Dated vs Perp
+    {
+      const perpSym  = base + "USDT";
+      const perpList = await apiList("linear", {symbol: perpSym});
+      const perpPrice = +(perpList[0]?.markPrice || perpList[0]?.lastPrice || 0);
+
+      const [optsTri, futsTri] = await Promise.all([
+        apiList("option", {baseCoin: base}),
+        apiList("linear", {baseCoin: base}),
+      ]);
+
+      // Map deliveryTime → futures markPrice
+      const futByExpiry = {};
+      for(const f of futsTri){
+        const dt = parseInt(f.deliveryTime ?? 0, 10);
+        if(!dt || dt <= Date.now()) continue;
+        futByExpiry[dt] = +(f.markPrice || f.lastPrice || 0);
+      }
+
+      // Group options by expiry → strike → {C_mid, P_mid}
+      const byExpiry = {};
+      for(const o of optsTri){
+        const p = parseOptSym(o.symbol ?? "");
+        if(!p || p.dte <= 0) continue;
+        const eKey = p.expiry.getTime();
+        if(!byExpiry[eKey]) byExpiry[eKey] = {expiry: p.expiry, dte: p.dte, strikes: {}};
+        const bid = +(o.bid1Price??0), ask = +(o.ask1Price??0);
+        const mid = (bid>0 && ask>0) ? (bid+ask)/2 : (bid||ask);
+        if(!byExpiry[eKey].strikes[p.strike]) byExpiry[eKey].strikes[p.strike] = {};
+        byExpiry[eKey].strikes[p.strike][p.type] = mid;
+      }
+
+      const FEE_CAL = 0.008; // 2 legs × 2 sides × 0.2%  (synth vs perp or fut)
+      const FEE_PAR = 0.012; // 3 legs × 2 sides × 0.2%
+
+      const triRows = [];
+      for(const [eKeyStr, eData] of Object.entries(byExpiry)){
+        const eKey   = parseInt(eKeyStr);
+        // Find matching dated futures (within 2 days)
+        let datedF = 0;
+        for(const [dtStr, fp] of Object.entries(futByExpiry)){
+          if(Math.abs(parseInt(dtStr) - eKey) < 2*864e5){ datedF = fp; break; }
+        }
+
+        // Pick ATM strikes: closest to datedF (or perpPrice if no futures)
+        const ref = datedF || perpPrice;
+        const strikes = Object.keys(eData.strikes).map(Number).filter(k => {
+          const s = eData.strikes[k];
+          return s.C && s.P && Math.abs(k - ref)/ref < 0.08; // within 8% of ATM
+        }).sort((a,b) => Math.abs(a-ref)-Math.abs(b-ref));
+
+        for(const K of strikes.slice(0,3)){ // top 3 near-the-money strikes
+          const {C, P} = eData.strikes[K];
+          const synthF = C - P + K;        // synthetic futures price
+          const T = eData.dte / 365;
+
+          // Edge 1: Synth vs Dated futures (put-call parity)
+          const errPar = datedF ? (synthF - datedF) : NaN;
+          const errParPct = datedF ? errPar / datedF * 100 : NaN;
+
+          // Edge 2: Synth calendar vs Perp  (synthetic basis)
+          const synthBasis    = perpPrice ? (synthF - perpPrice) / perpPrice * 365 / eData.dte * 100 : NaN;
+          // Edge 3: Dated futures vs Perp  (actual basis)
+          const datedBasis    = (datedF && perpPrice) ? (datedF - perpPrice) / perpPrice * 365 / eData.dte * 100 : NaN;
+          // Delta: synthetic carry - actual carry (the key dislocation)
+          const basisDelta    = (isFinite(synthBasis) && isFinite(datedBasis)) ? synthBasis - datedBasis : NaN;
+
+          triRows.push({
+            strike: K, dte: eData.dte, expiry: eData.expiry,
+            C, P, synthF, datedF, perpPrice,
+            errPar, errParPct,
+            synthBasis, datedBasis, basisDelta,
+            actionPar:    errParPct > 0 ? "Sell C + Buy P + Buy Fut" : "Buy C + Sell P + Sell Fut",
+            actionCal:    basisDelta > 0 ? "Sell Synth + Buy Perp" : "Buy Synth + Sell Perp",
+            hasParEdge:   isFinite(errParPct)   && Math.abs(errParPct)   > FEE_PAR*100,
+            hasCalEdge:   isFinite(basisDelta)  && Math.abs(basisDelta)  > FEE_CAL*100,
+          });
+        }
+      }
+      triRows.sort((a,b) => (Math.abs(b.basisDelta)||0) - (Math.abs(a.basisDelta)||0));
+
+      if(!triRows.length){
+        triOut.innerHTML = `<span class="hint">Нет ATM-пар опционов для треугольника (возможно нет опционов или не совпадают экспайри)</span>`;
+      } else {
+        const hdr = `<tr>
+          <th>Страйк</th><th>DTE</th>
+          <th>C mid</th><th>P mid</th>
+          <th>Synth F</th><th>Dated F</th><th>Perp</th>
+          <th>Par err%</th><th>Synth basis%</th><th>Dated basis%</th>
+          <th>ΔBasis%</th><th>Сигнал</th>
+        </tr>`;
+        const trs = triRows.map(r => {
+          const parTag  = r.hasParEdge  ? `<span class="tag ${r.errParPct>0?'rich':'cheap'}">${sign(r.errParPct,2)}%</span>` : `<span class="neu">${fmt(r.errParPct,2)}%</span>`;
+          const calTag  = r.hasCalEdge  ? `<span class="tag ${r.basisDelta>0?'rich':'cheap'}">${sign(r.basisDelta,2)}%</span>` : `<span class="neu">${isFinite(r.basisDelta)?fmt(r.basisDelta,2)+'%':'—'}</span>`;
+          const sig = [];
+          if(r.hasParEdge) sig.push(`<span class="tag ${r.errParPct>0?'rich':'cheap'}" title="${r.actionPar}">PAR</span>`);
+          if(r.hasCalEdge) sig.push(`<span class="tag ${r.basisDelta>0?'rich':'cheap'}" title="${r.actionCal}">CAL</span>`);
+          return `<tr title="PAR: ${r.actionPar} | CAL: ${r.actionCal}">
+            <td>${fmt(r.strike,0)}</td><td>${r.dte}</td>
+            <td>${fmt(r.C)}</td><td>${fmt(r.P)}</td>
+            <td>${fmt(r.synthF)}</td>
+            <td>${r.datedF?fmt(r.datedF):'—'}</td>
+            <td>${fmt(r.perpPrice)}</td>
+            <td>${parTag}</td>
+            <td>${isFinite(r.synthBasis)?fmt(r.synthBasis,2)+'%':'—'}</td>
+            <td>${isFinite(r.datedBasis)?fmt(r.datedBasis,2)+'%':'—'}</td>
+            <td>${calTag}</td>
+            <td>${sig.join(' ')||'—'}</td>
+          </tr>`;
+        }).join("");
+        triOut.innerHTML = `<table>${hdr}${trs}</table>
+          <p class="hint">
+            <b>Synth F</b> = C−P+K (синтетический форвард из опционов).
+            <b>Par err%</b> = (Synth−Dated)/Dated — ошибка паритета (edge > 1.2%).
+            <b>ΔBasis%</b> = Synth basis − Dated basis annualised — дислокация синт-перп-календаря (edge > 0.8%).
+            Наведи курсор на строку для деталей сделки.
+          </p>`;
+      }
     }
 
     // ── Put-Call Parity ────────────────────────────────────
