@@ -1242,8 +1242,11 @@ async function runScreener(){
     // Three pairs: Synth vs Dated, Synth vs Perp, Dated vs Perp
     {
       const perpSym  = base + "USDT";
-      const perpList = await apiList("linear", {symbol: perpSym});
-      const perpPrice = +(perpList[0]?.markPrice || perpList[0]?.lastPrice || 0);
+      // Fetch perp with funding rate for E2 fair-value adjustment
+      const perpTick  = await ticker("linear", perpSym);
+      const perpPrice = perpTick.mark;
+      // Bybit perp funding paid every 8h → annualised: rate × 3 × 365
+      const fundingAnn = perpTick.funding * 3 * 365; // annual rate (fraction)
 
       const [optsTri, futsTri] = await Promise.all([
         apiList("option", {baseCoin: base}),
@@ -1291,30 +1294,42 @@ async function runScreener(){
         }).sort((a,b) => Math.abs(a-ref)-Math.abs(b-ref));
 
         for(const K of strikes.slice(0,3)){ // top 3 near-the-money strikes
-          const {C, P} = eData.strikes[K];
-          const synthF = C - P + K;        // synthetic futures price
-          const T = eData.dte / 365;
+          const slot = eData.strikes[K];
+          const C = slot.C, P = slot.P;
+          const synthF = C - P + K;          // Synth_F vertex
 
-          // Edge 1: Synth vs Dated futures (put-call parity)
-          const errPar = datedF ? (synthF - datedF) : NaN;
+          // E1: Synth_F vs Dated_F  (put-call parity)
+          const errPar    = datedF ? synthF - datedF : NaN;
           const errParPct = datedF ? errPar / datedF * 100 : NaN;
 
-          // Edge 2: Synth calendar vs Perp  (synthetic basis)
-          const synthBasis    = perpPrice ? (synthF - perpPrice) / perpPrice * 365 / eData.dte * 100 : NaN;
-          // Edge 3: Dated futures vs Perp  (actual basis)
-          const datedBasis    = (datedF && perpPrice) ? (datedF - perpPrice) / perpPrice * 365 / eData.dte * 100 : NaN;
-          // Delta: synthetic carry - actual carry (the key dislocation)
-          const basisDelta    = (isFinite(synthBasis) && isFinite(datedBasis)) ? synthBasis - datedBasis : NaN;
+          // E2: Dated_F vs Perp — actual basis annualised
+          const datedBasisAnn  = (datedF && perpPrice)
+            ? (datedF - perpPrice) / perpPrice * 365 / eData.dte * 100 : NaN;
+          // E2 fair = funding annualised × 100%
+          const datedBasisFair = fundingAnn * 100;
+          // E2 anomaly vs funding-implied fair
+          const e2Anom = isFinite(datedBasisAnn) ? datedBasisAnn - datedBasisFair : NaN;
+
+          // E3: Synth_F vs Perp — synthetic basis annualised
+          const synthBasisAnn = perpPrice
+            ? (synthF - perpPrice) / perpPrice * 365 / eData.dte * 100 : NaN;
+
+          // ΔBasis = E3 − E2 (== E1 annualised; non-zero = triangle dislocation)
+          const basisDelta = (isFinite(synthBasisAnn) && isFinite(datedBasisAnn))
+            ? synthBasisAnn - datedBasisAnn : NaN;
 
           triRows.push({
             strike: K, dte: eData.dte, expiry: eData.expiry,
             C, P, synthF, datedF, perpPrice,
             errPar, errParPct,
-            synthBasis, datedBasis, basisDelta,
-            actionPar:    errParPct > 0 ? "Sell C + Buy P + Buy Fut" : "Buy C + Sell P + Sell Fut",
-            actionCal:    basisDelta > 0 ? "Sell Synth + Buy Perp" : "Buy Synth + Sell Perp",
-            hasParEdge:   isFinite(errParPct)   && Math.abs(errParPct)   > FEE_PAR*100,
-            hasCalEdge:   isFinite(basisDelta)  && Math.abs(basisDelta)  > FEE_CAL*100,
+            synthBasisAnn, datedBasisAnn, datedBasisFair, e2Anom, basisDelta,
+            fundingAnnPct: fundingAnn * 100,
+            actionPar: errParPct > 0 ? "Sell C + Buy P + Buy Fut" : "Buy C + Sell P + Sell Fut",
+            actionCal: basisDelta > 0 ? "Sell Synth + Buy Perp"   : "Buy Synth + Sell Perp",
+            actionE2:  e2Anom    > 0 ? "Sell Fut + Buy Perp"      : "Buy Fut + Sell Perp",
+            hasParEdge: isFinite(errParPct)  && Math.abs(errParPct)  > FEE_PAR*100,
+            hasCalEdge: isFinite(basisDelta) && Math.abs(basisDelta) > FEE_CAL*100,
+            hasE2Edge:  isFinite(e2Anom)     && Math.abs(e2Anom)     > FEE_CAL*100,
           });
         }
       }
@@ -1323,38 +1338,51 @@ async function runScreener(){
       if(!triRows.length){
         triOut.innerHTML = `<span class="hint">Нет ATM-пар опционов для треугольника (возможно нет опционов или не совпадают экспайри)</span>`;
       } else {
+        const fundingPct = fmt(triRows[0]?.fundingAnnPct ?? 0, 2);
         const hdr = `<tr>
           <th>Страйк</th><th>DTE</th>
           <th>C mid</th><th>P mid</th>
           <th>Synth F</th><th>Dated F</th><th>Perp</th>
-          <th>Par err%</th><th>Synth basis%</th><th>Dated basis%</th>
-          <th>ΔBasis%</th><th>Сигнал</th>
+          <th title="E1: (Synth_F−Dated_F)/F×100. edge>1.2%">E1 PAR err%</th>
+          <th title="E2: (Dated_F−Perp)/Perp×365/DTE. Annualised basis">E2 basis%</th>
+          <th title="E2 fair = funding annualised (${fundingPct}%)">E2 fair%</th>
+          <th title="E2 anomaly = actual basis − funding-implied fair. edge>0.8%">E2 anom%</th>
+          <th title="E3: (Synth_F−Perp)/Perp×365/DTE">E3 Synth%</th>
+          <th title="ΔBasis = E3−E2 = E1 ann. Non-zero = triangle disloc.">ΔBasis%</th>
+          <th>Сигналы</th>
         </tr>`;
         const trs = triRows.map(r => {
-          const parTag  = r.hasParEdge  ? `<span class="tag ${r.errParPct>0?'rich':'cheap'}">${sign(r.errParPct,2)}%</span>` : `<span class="neu">${fmt(r.errParPct,2)}%</span>`;
-          const calTag  = r.hasCalEdge  ? `<span class="tag ${r.basisDelta>0?'rich':'cheap'}">${sign(r.basisDelta,2)}%</span>` : `<span class="neu">${isFinite(r.basisDelta)?fmt(r.basisDelta,2)+'%':'—'}</span>`;
+          const tag = (val, cond, pos, neg) => cond
+            ? `<span class="tag ${val>0?'rich':'cheap'}">${sign(val,2)}%</span>`
+            : `<span class="neu">${isFinite(val)?sign(val,2)+'%':'—'}</span>`;
           const sig = [];
-          if(r.hasParEdge) sig.push(`<span class="tag ${r.errParPct>0?'rich':'cheap'}" title="${r.actionPar}">PAR</span>`);
-          if(r.hasCalEdge) sig.push(`<span class="tag ${r.basisDelta>0?'rich':'cheap'}" title="${r.actionCal}">CAL</span>`);
-          return `<tr title="PAR: ${r.actionPar} | CAL: ${r.actionCal}">
+          if(r.hasParEdge) sig.push(`<span class="tag ${r.errParPct>0?'rich':'cheap'}" title="E1: ${r.actionPar}">E1</span>`);
+          if(r.hasE2Edge)  sig.push(`<span class="tag ${r.e2Anom>0?'rich':'cheap'}"    title="E2: ${r.actionE2}">E2</span>`);
+          if(r.hasCalEdge) sig.push(`<span class="tag ${r.basisDelta>0?'rich':'cheap'}" title="E3: ${r.actionCal}">E3</span>`);
+          if(r.hasParEdge && r.hasE2Edge) sig.push(`<span class="tag rich" title="Full triangle: ${r.actionPar} + ${r.actionE2}">▲</span>`);
+          return `<tr>
             <td>${fmt(r.strike,0)}</td><td>${r.dte}</td>
             <td>${fmt(r.C)}</td><td>${fmt(r.P)}</td>
             <td>${fmt(r.synthF)}</td>
             <td>${r.datedF?fmt(r.datedF):'—'}</td>
             <td>${fmt(r.perpPrice)}</td>
-            <td>${parTag}</td>
-            <td>${isFinite(r.synthBasis)?fmt(r.synthBasis,2)+'%':'—'}</td>
-            <td>${isFinite(r.datedBasis)?fmt(r.datedBasis,2)+'%':'—'}</td>
-            <td>${calTag}</td>
+            <td>${tag(r.errParPct,   r.hasParEdge)}</td>
+            <td>${isFinite(r.datedBasisAnn)?fmt(r.datedBasisAnn,2)+'%':'—'}</td>
+            <td>${fmt(r.datedBasisFair,2)}%</td>
+            <td>${tag(r.e2Anom,      r.hasE2Edge)}</td>
+            <td>${isFinite(r.synthBasisAnn)?fmt(r.synthBasisAnn,2)+'%':'—'}</td>
+            <td>${tag(r.basisDelta,  r.hasCalEdge)}</td>
             <td>${sig.join(' ')||'—'}</td>
           </tr>`;
         }).join("");
         triOut.innerHTML = `<table>${hdr}${trs}</table>
           <p class="hint">
-            <b>Synth F</b> = C−P+K (синтетический форвард из опционов).
-            <b>Par err%</b> = (Synth−Dated)/Dated — ошибка паритета (edge > 1.2%).
-            <b>ΔBasis%</b> = Synth basis − Dated basis annualised — дислокация синт-перп-календаря (edge > 0.8%).
-            Наведи курсор на строку для деталей сделки.
+            <b>E1 PAR</b> = (Synth_F−F)/F: паритет пут/кол (edge 1.2%) →
+            <b>E2</b> = (F−Perp)/Perp ann.: basis vs funding-fair (edge 0.8%) →
+            <b>E3</b> = (Synth_F−Perp)/Perp ann.: синт-перп-календарь →
+            <b>ΔBasis</b> = E3−E2 ≡ E1 ann.
+            <b>▲</b> = полный треугольник (E1+E2 одновременно).
+            Курсор на сигнал — детали сделки.
           </p>`;
       }
     }
