@@ -73,6 +73,7 @@ TRADING-SYSTEM/
 | ★ Карточка скрининга спреда    | [[03-STRATEGIES/spread-screening-card]]     |
 | Базис-деск: родословная (учеб.) | [[03-STRATEGIES/basis-desk-родословная]]    |
 | ★ C6+ паритет + тета-обёртка    | [[03-STRATEGIES/C6plus-паритет-тета-обёртка]] |
+| Графики вокруг индекса (гайд)   | [[03-STRATEGIES/графики-вокруг-индекса-гайд]] |
 | Мультиактивная опц. книга (C5) | [[03-STRATEGIES/multi-asset-options]]       |
 | Формулы прибыли                | [[04-FORMULAS/profit-formulas]]             |
 | Excel мастер-лог               | [[05-EXCEL/master-log]]                     |

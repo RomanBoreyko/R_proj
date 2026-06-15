@@ -53,6 +53,24 @@ for a in ASSETS:
     so=f(spot[ps].get("turnover24h"))/1e6
     print(f"  {a:<7}{pp:>11,.4f}{sp:>11,.4f}{basis:>+8.3f}%{fr:>+9.4f}%{apy:>+7.0f}%{so:>7.0f}M")
 
+# ── A2. Инверс-перп (если есть): фандинг-дифф vs линейный ────
+print(f"\n  A2. ИНВЕРС-ПЕРП  (short собирает фандинг; coin-margin; USD-выпуклости НЕТ)")
+print(f"  {'актив':<7}{'инв last':>11}{'базис↔idx':>11}{'фандинг':>10}{'оборот$':>10}{'vs lin-фанд':>11}")
+try:
+    invt={t['symbol']:t for t in pub('/v5/market/tickers',{'category':'inverse'})['result']['list']}
+except Exception:
+    invt={}
+for a in ASSETS:
+    isym=a+"USD"
+    if isym not in invt: continue
+    t=invt[isym]; px=f(t['lastPrice']); idx=f(t.get('indexPrice')) or px
+    fr=f(t.get('fundingRate'))*100
+    # ВАЖНО: turnover24h инверса в БАЗОВОЙ МОНЕТЕ → ×цена для USD
+    turn_usd=f(t.get('turnover24h'))*px/1e6
+    frlin=f(linear.get(a+"USDT",{}).get('fundingRate'))*100
+    diff=fr-frlin
+    print(f"  {a:<7}{px:>11,.2f}{(px/idx-1)*100:>+10.3f}%{fr:>+9.4f}%{turn_usd:>8.0f}M{diff:>+10.4f}%")
+
 # ── B. Перп/Календарь ────────────────────────────────────────
 print(f"\n  B. ПЕРП/КАЛЕНДАРЬ  (датированный фьюч vs перп; базис+ = контанго)")
 print(f"  {'актив':<7}{'фьюч':>16}{'DTE':>6}{'перп':>11}{'фьюч цена':>11}{'базис%':>9}{'%год':>8}")
