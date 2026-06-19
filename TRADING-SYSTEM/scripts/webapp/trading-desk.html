@@ -618,8 +618,7 @@ function zalgo(s,k=0.3){ // k ≈ среднее число диакритик �
     if(/[\s⚡—]/.test(ch))continue;
     const n=(Math.random()<k%1?1:0)+Math.floor(k);
     for(let i=0;i<n;i++){
-      const pool=Math.random()<0.45?Z_UP:Math.random()<0.85?Z_DN:Z_MID;
-      out+=String.fromCharCode(pool[Math.floor(Math.random()*pool.length)]);
+      out+=String.fromCharCode(0x0300+Math.floor(Math.random()*0x70));
     }
   }
   return out;
