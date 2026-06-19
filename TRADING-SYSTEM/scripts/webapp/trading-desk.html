@@ -77,10 +77,8 @@
 
 <div class="tabs">
   <div class="tab active" data-v="port">Портфель 🔒</div>
-  <div class="tab" data-v="struct">Структура</div>
-  <div class="tab" data-v="sprd">Спред 🛠</div>
   <div class="tab" data-v="law">Право ⚖️</div>
-  <div class="tab" data-v="opt">Опцион 📈</div>
+  <div class="tab" data-v="opt">График 📈</div>
 </div>
 
 <main>
@@ -118,57 +116,6 @@
 </section>
 
 <!-- ══════════════ C1 — LOCKED SPREAD ══════════════ -->
-<section class="view" id="v-struct">
-<details class="info"><summary>Структура — payoff + карта гаммы + зоны хеджа</summary><div class="body">
-  <b>Reverse condor</b> (куплен центр): +γ на всём теле → реверсионный грид. За крыльями — кэп, опционы плоские.<br>
-  <b>Iron condor</b> (продан центр): −γ в теле (трендовый грид) → +γ у крыльев (реверсия). Точки переключения = нули гаммы.<br>
-  <b>Дедбенд</b> у точек переключения обязателен — иначе гриды пилят на костах.
-</div></details>
-
-<div class="ctrl">
-  <div class="fld"><label>Спот / ATM</label><input id="stSpot" type="number" value="4245"></div>
-  <div class="fld"><label>Шаг (страйк)</label><input id="stStep" type="number" value="50"></div>
-  <div class="fld"><label>Внутр. страйк (×шаг)</label><input id="stInner" type="number" value="1"></div>
-  <div class="fld"><label>Внеш. страйк (×шаг)</label><input id="stOuter" type="number" value="2"></div>
-  <div class="fld"><label>IV %</label><input id="stIV" type="number" value="22"></div>
-  <div class="fld"><label>Дней до эксп.</label><input id="stDays" type="number" value="14"></div>
-  <div class="fld"><label>Лотов</label><input id="stQty" type="number" value="1"></div>
-  <div class="fld"><label>Тип</label>
-    <select id="stType"><option value="reverse">Reverse condor (куплен центр)</option><option value="condor">Iron condor (продан центр)</option></select></div>
-  <button onclick="calcStructure()">Считать</button>
-</div>
-<div class="grid" id="structCards"></div>
-<div id="structPayoffCard" style="display:none;margin-top:14px">
-  <div class="card"><h3>Payoff при экспирации</h3><canvas id="structPayoff" style="width:100%;height:220px"></canvas></div></div>
-<div id="structGammaCard" style="display:none;margin-top:14px">
-  <div class="card"><h3>Карта нетто-гаммы + зоны</h3><canvas id="structGamma" style="width:100%;height:200px"></canvas>
-    <p class="hint">Зелёный = +γ (реверсия), красный = −γ (продолжение), серый = кэп (за крыльями)</p></div></div>
-<div id="structZones" style="margin-top:14px"></div>
-</section>
-
-<section class="view" id="v-sprd">
-<details class="info"><summary>Спред-конструктор — для пар, которых нет в TradingView</summary>
-<div style="padding:10px 14px;font-size:12px;color:var(--mut)">
-Любые две ноги Bybit (перп/спот/фьюч). TV не умеет: дохлые пары (HUSDC), опционы, синтетику.
-Строит ratio (A/B) или базис % ((A−B)/B). Детектор застывшей ноги: если цена ноги не
-менялась &gt;20% свечей — нога мёртвая, спред — фантом (кейс HUSDC).</div></details>
-<div class="ctrl">
-  <div class="fld"><label>Нога A: категория</label><select id="spA_cat"><option value="linear">linear (перп/фьюч)</option><option value="spot">spot</option></select></div>
-  <div class="fld"><label>Нога A: символ</label><input id="spA_sym" value="HUSDT" style="min-width:120px"></div>
-  <div class="fld"><label>Нога B: категория</label><select id="spB_cat"><option value="spot">spot</option><option value="linear">linear (перп/фьюч)</option></select></div>
-  <div class="fld"><label>Нога B: символ</label><input id="spB_sym" value="HUSDC" style="min-width:120px"></div>
-  <div class="fld"><label>Интервал</label><select id="sp_int"><option value="1">1м</option><option value="5">5м</option><option value="15">15м</option><option value="60" selected>1ч</option><option value="240">4ч</option><option value="D">1д</option></select></div>
-  <div class="fld"><label>Баров</label><input id="sp_lim" type="number" value="200" style="min-width:70px"></div>
-  <div class="fld"><label>Режим</label><select id="sp_mode"><option value="ratio">ratio A/B</option><option value="pct">базис % (A−B)/B</option><option value="diff">разница A−B</option></select></div>
-  <button onclick="buildSpread()">Построить</button>
-  <span id="sp_status" class="hint"></span>
-</div>
-<div class="card"><h3 id="sp_title">Спред</h3>
-  <canvas id="sp_chart" style="width:100%;height:260px"></canvas>
-  <p class="hint">фиолетовый = спред · серые пунктиры = μ ± 1σ/2σ</p></div>
-<div class="grid" id="sp_stats" style="margin-top:14px"></div>
-</section>
-
 <section class="view" id="v-law">
 <details class="info" open><summary>Юридический базис арбитражей — почему схождение ГАРАНТИРОВАНО</summary>
 <div style="padding:10px 14px;font-size:12px;color:var(--mut)">
@@ -264,6 +211,9 @@ Bybit API <b>не отдаёт свечи опционов</b> — нет endpoi
   <div class="fld"><label>B — символ (пусто = одна нога)</label><input id="opt_symB" value="" placeholder="ETH-25DEC26-1700-C-USDT" style="min-width:225px" onchange="optDraw()"></div>
   <div class="fld"><label>Режим</label><select id="opt_mode" onchange="optDraw()">
     <option value="single" selected>один (A)</option><option value="ratio">A / B</option><option value="ratio100">A / B × 100</option><option value="diff">A − B</option><option value="pct">(A−B)/B %</option></select></div>
+  <div class="fld"><label>Вид (одна нога)</label><select id="opt_view" onchange="optDraw()">
+    <option value="market" selected>маркет (bid/ask)</option><option value="bsm">vs БШМ</option><option value="index">индекс</option></select></div>
+  <div class="fld"><label>Реф-IV % (БШМ)</label><input id="opt_refiv" type="number" step="1" placeholder="старт IV" style="min-width:80px" onchange="optDraw()"></div>
   <div class="fld"><label>Опрос, сек</label><input id="opt_int" type="number" value="10" min="2" style="min-width:60px"></div>
   <button onclick="optStart()">▶ Старт</button>
   <button class="sec" onclick="optStop()">⏸ Стоп</button>
@@ -658,51 +608,6 @@ function bs(S,K,T,sig,type){
   const price=type==="C"?S*ncdf(d1)-K*ncdf(d2):K*ncdf(-d2)-S*ncdf(-d1);
   return{price,delta:type==="C"?ncdf(d1):ncdf(d1)-1,gamma:npdf(d1)/(S*v)};
 }
-function calcStructure(){
-  const g=id=>+document.getElementById(id).value;
-  const S=g("stSpot"),step=g("stStep"),inner=g("stInner"),outer=g("stOuter"),iv=g("stIV")/100,days=g("stDays"),qty=g("stQty");
-  const T=days/365;
-  const Kic=S+inner*step,Koc=S+outer*step,Kip=S-inner*step,Kop=S-outer*step;
-  const c=document.getElementById("stType").value==="condor"?-1:1;
-  const legs=[{K:Kic,t:"C",s:+c},{K:Koc,t:"C",s:-c},{K:Kip,t:"P",s:+c},{K:Kop,t:"P",s:-c}];
-  const debit=legs.reduce((a,l)=>a+l.s*bs(S,l.K,T,iv,l.t).price,0)*qty;
-  const lo=S-(outer+2)*step,hi=S+(outer+2)*step,M=160,xs=[];
-  for(let i=0;i<=M;i++)xs.push(lo+(hi-lo)*i/M);
-  const payoff=xs.map(s=>legs.reduce((a,l)=>a+l.s*(l.t==="C"?Math.max(s-l.K,0):Math.max(l.K-s,0)),0)*qty-debit);
-  const gamma=xs.map(s=>legs.reduce((a,l)=>a+l.s*bs(s,l.K,T,iv,l.t).gamma,0)*qty);
-  const inCap=p=>p>=Koc||p<=Kop;
-  const zoneRuns=[];let i=0;
-  while(i<xs.length){const s=gamma[i]>=0;let j=i;while(j<xs.length&&(gamma[j]>=0)===s)j++;zoneRuns.push({from:xs[i],to:xs[Math.min(j,xs.length-1)],pos:s});i=j;}
-  const zones=zoneRuns.map(z=>({from:z.from,to:z.to,color:inCap((z.from+z.to)/2)?"rgba(80,90,100,0.18)":z.pos?"rgba(63,185,80,0.12)":"rgba(248,81,73,0.12)"}));
-  const switches=zoneRuns.slice(1).map(z=>z.from).filter(x=>!inCap(x));
-  const isRev=c>0;
-  document.getElementById("structCards").innerHTML=`<div class="card"><h3>Конструкция (${isRev?"reverse condor":"iron condor"})</h3>${rows({
-    [isRev?"Куплен центр":"Продан центр"]:`C ${fmt(Kic,0)} / P ${fmt(Kip,0)}`,
-    [isRev?"Проданы крылья":"Куплены крылья"]:`C ${fmt(Koc,0)} / P ${fmt(Kop,0)}`,
-    [debit>=0?"Нетто дебет":"Нетто кредит"]:fmt(Math.abs(debit),2)+" (×"+qty+")",
-    "Макс прибыль":sign(Math.max(...payoff),2),"Макс убыток":sign(Math.min(...payoff),2) })}</div>`;
-  document.getElementById("structPayoffCard").style.display="";document.getElementById("structGammaCard").style.display="";
-  const sl=[{x:Kic,color:"#f0b429",label:"внутр C"},{x:Kip,color:"#f0b429",label:"внутр P"},{x:Koc,color:"#f85149",label:"крыло C"},{x:Kop,color:"#f85149",label:"крыло P"}];
-  xyChart(document.getElementById("structPayoff"),xs,[{data:payoff,color:"#39d0d8",w:2}],{dp:2,hline:0,vlines:sl});
-  xyChart(document.getElementById("structGamma"),xs,[{data:gamma,color:"#c77dff",w:2}],{dp:4,hline:0,zones,vlines:switches.map(x=>({x,color:"#f0b429",label:"switch",dash:[5,3]}))});
-  const hedgeOf=z=>{if(inCap((z.from+z.to)/2))return['<span class="neu">кэп</span>',"—","стоп грида"];
-    return z.pos?['<span class="pos">+γ</span>',"реверсия","реверсионный грид"]:['<span class="neg">−γ</span>',"продолжение","трендовый грид"];};
-  const rowsHtml=zoneRuns.map(z=>{const[g,h,e]=hedgeOf(z);return`<tr><td>${fmt(z.from,0)}…${fmt(z.to,0)}</td><td>${g}</td><td>${h}</td><td>${e}</td></tr>`;}).join("");
-  const bodyPos=gamma[Math.floor(xs.length/2)]>=0;
-  const note=switches.length?`Точки переключения: <b>${switches.map(x=>fmt(x,0)).join(", ")}</b>. Дедбенд обязателен.`
-    :bodyPos?`Нетто-гамма + по всему телу → чистая реверсия. Зоны −γ появятся ближе к экспирации.`
-    :`Нетто-гамма − по всему телу → чистое продолжение.`;
-  document.getElementById("structZones").innerHTML=`<div class="card"><h3>Карта хеджа</h3>
-    <table><tr><th>Зона</th><th>Гамма</th><th>Стиль</th><th>Грид</th></tr>${rowsHtml}</table>
-    <p class="hint">${note}</p></div>`;
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ZALGO  —  H̴e̷ ̶c̸o̵m̷e̴s̶.  Интенсивность порчи = близость ликвидатора.
-// ══════════════════════════════════════════════════════════════════════════════
-const Z_UP=[0x0300,0x0301,0x0302,0x0303,0x0306,0x0307,0x030A,0x030B,0x030C,0x0342,0x034A,0x0352];
-const Z_MID=[0x0334,0x0335,0x0336,0x0337,0x0338];
-const Z_DN=[0x0316,0x0317,0x0318,0x0319,0x031C,0x031D,0x0323,0x0324,0x0325,0x0326,0x0330,0x0331];
 function zalgo(s,k=0.3){ // k ≈ среднее число диакритик на символ
   if(k<=0)return s;
   let out="";
@@ -795,57 +700,6 @@ async function proveExpiry(){
 // ══════════════════════════════════════════════════════════════════════════════
 // СПРЕД-КОНСТРУКТОР  (любые две ноги Bybit; для пар, которых нет в TV)
 // ══════════════════════════════════════════════════════════════════════════════
-async function buildSpread(){
-  const st=document.getElementById("sp_status");
-  const catA=document.getElementById("spA_cat").value, symA=document.getElementById("spA_sym").value.trim().toUpperCase();
-  const catB=document.getElementById("spB_cat").value, symB=document.getElementById("spB_sym").value.trim().toUpperCase();
-  const interval=document.getElementById("sp_int").value, lim=Math.min(+document.getElementById("sp_lim").value||200,1000);
-  const mode=document.getElementById("sp_mode").value;
-  st.textContent="загрузка…";st.className="load";
-  try{
-    const[ca,cb]=await Promise.all([candles(catA,symA,interval,lim),candles(catB,symB,interval,lim)]);
-    const mb=new Map(cb.map(c=>[c.ts,c.close]));
-    const pts=ca.filter(c=>mb.has(c.ts)).map(c=>{
-      const b=mb.get(c.ts);
-      return{ts:c.ts,a:c.close,b,
-        v:mode==="ratio"?c.close/b:mode==="pct"?(c.close-b)/b*100:c.close-b};
-    });
-    if(pts.length<10)throw new Error("общих свечей < 10 — ноги не пересекаются по времени");
-    // staleness-детектор (кейс HUSDC): доля свечей, где нога не менялась
-    const stale=leg=>{let s=0;for(let i=1;i<pts.length;i++)if(pts[i][leg]===pts[i-1][leg])s++;return s/(pts.length-1)*100;};
-    const stA=stale("a"),stB=stale("b");
-    const vs=pts.map(p=>p.v);
-    const mu=vs.reduce((a,b)=>a+b)/vs.length;
-    const sd=Math.sqrt(vs.reduce((s,v)=>s+(v-mu)**2,0)/(vs.length-1))||1e-9;
-    const z=(vs[vs.length-1]-mu)/sd;
-    const dp=mode==="ratio"?4:mode==="pct"?2:6;
-    document.getElementById("sp_title").textContent=`${symA}(${catA}) / ${symB}(${catB}) — ${mode}`;
-    lineChart(document.getElementById("sp_chart"),[
-      {data:vs,color:"#7f77dd",w:2},
-      {data:vs.map(()=>mu),color:"#8b97a7",dash:[6,4]},
-      {data:vs.map(()=>mu+sd),color:"#5f5e5a",dash:[3,4]},
-      {data:vs.map(()=>mu-sd),color:"#5f5e5a",dash:[3,4]},
-      {data:vs.map(()=>mu+2*sd),color:"#3a1416",dash:[3,4]},
-      {data:vs.map(()=>mu-2*sd),color:"#3a1416",dash:[3,4]},
-    ],{h:260,dp,xLabels:[new Date(pts[0].ts).toLocaleString("ru",{day:"2-digit",month:"2-digit",hour:"2-digit"}),new Date(pts[pts.length-1].ts).toLocaleString("ru",{day:"2-digit",month:"2-digit",hour:"2-digit"})]});
-    const warn=l=>l>20?` <span class="neg">⚠ застыла ${fmt(l,0)}% свечей — нога мёртвая?</span>`:` <span class="pos">живая (${fmt(l,0)}% повторов)</span>`;
-    document.getElementById("sp_stats").innerHTML=`
-      <div class="card"><h3>Статистика спреда</h3>${rows({
-        "Текущий":fmt(vs[vs.length-1],dp),"μ":fmt(mu,dp),"σ":fmt(sd,dp),
-        "Z":`<span class="${Math.abs(z)>2?'neg':Math.abs(z)>1?'neu':'pos'}">${fmt(z,2)}</span>`,
-        "Свечей":String(pts.length)})}</div>
-      <div class="card"><h3>Здоровье ног</h3>
-        <div class="row"><span class="k">${symA} (${catA})</span><span class="v">${fmt(pts[pts.length-1].a,6)}${warn(stA)}</span></div>
-        <div class="row"><span class="k">${symB} (${catB})</span><span class="v">${fmt(pts[pts.length-1].b,6)}${warn(stB)}</span></div>
-        <p class="hint">Застывшая нога = спред-фантом: видно на графике, нельзя исполнить (кейс HUSDC).</p></div>`;
-    st.textContent="ок · "+new Date().toLocaleTimeString("ru");st.className="ok";
-  }catch(e){st.textContent="✗ "+e.message;st.className="err";}
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// OPTION PRICE COLLECTOR  (Bybit не отдаёт историю опционов → копим сами в localStorage)
-// ══════════════════════════════════════════════════════════════════════════════
-let optTimer=null;
 function optCfg(){return{
   catA:document.getElementById("opt_catA").value,symA:document.getElementById("opt_sym").value.trim().toUpperCase(),
   catB:document.getElementById("opt_catB").value,symB:document.getElementById("opt_symB").value.trim().toUpperCase(),
@@ -859,6 +713,7 @@ async function legTick(cat,sym){
   const t=r.list?.[0];if(!t)throw new Error("нет "+sym+" ("+cat+")");return t;}
 function legPx(cat,t){if(cat==="option"){const b=+t.bid1Price,a=+t.ask1Price;return(b&&a)?(b+a)/2:+t.markPrice;}return +t.lastPrice||+t.markPrice;}
 function optCombine(a,b,m){return m==="ratio"?a/b:m==="ratio100"?a/b*100:m==="diff"?a-b:m==="pct"?(a-b)/b*100:a;}
+function optParse(sym){const p=sym.split("-");return p.length>=4?{exp:p[1],K:+p[2],type:p[3]}:null;}
 const OPT_MODES={single:"один",ratio:"/",ratio100:"/ ×100",diff:"−",pct:"(−)/% "};
 function optDp(m){return m==="ratio"?4:m==="pct"||m==="ratio100"?2:6;}
 function optXlab(arr){return[new Date(arr[0].ts).toLocaleTimeString("ru",{hour:"2-digit",minute:"2-digit"}),new Date(arr[arr.length-1].ts).toLocaleTimeString("ru",{hour:"2-digit",minute:"2-digit"})];}
@@ -906,6 +761,37 @@ function optDraw(){
         <p class="hint">Любую ногу миксуй: опцион / перп / фьюч / спот / инверс. Ряд в localStorage, переживает перезагрузку. «Очистить» при смене связки.</p></div>`;
     return;
   }
+  // одна нога — переключатель вида (маркет / vs БШМ / индекс)
+  const view=document.getElementById("opt_view").value, pr=optParse(c.symA);
+  if(view==="index"){
+    lineChart(cv,[{data:arr.map(p=>p.u),color:"#e6edf3",w:2}],{h:300,dp:2,legend:["индекс"],xLabels:optXlab(arr)});
+    const L=arr[arr.length-1];
+    document.getElementById("opt_stats").innerHTML=`
+      <div class="card"><h3>Индекс (БА)</h3>${rows({
+        "индекс сейчас":fmt(L.u,2),
+        "мин / макс":`${fmt(Math.min(...arr.map(p=>p.u)),2)} / ${fmt(Math.max(...arr.map(p=>p.u)),2)}`,
+        "точек":String(arr.length)})}
+        <p class="hint">indexPrice — общий якорь: к нему гаснут опцион/фьюч/перп на экспирации. Сюда сходится всё.</p></div>`;
+    return;
+  }
+  if(view==="bsm"&&pr&&c.catA==="option"){
+    const T=Math.max(expiryDays(pr.exp),0)/365;
+    const refiv=(+document.getElementById("opt_refiv").value||arr[0].iv*100)/100;
+    const theo=arr.map(p=>p.u>0&&T>0?bs(p.u,pr.K,T,refiv,pr.type).price:NaN);
+    lineChart(cv,[
+      {data:arr.map(p=>p.mark),color:"#39d0d8",w:2},
+      {data:theo,color:"#f0b429",w:2,dash:[5,3]},
+    ],{h:300,dp:1,legend:["mark","БШМ@refIV"],xLabels:optXlab(arr)});
+    const L=arr[arr.length-1],tL=theo[theo.length-1],gap=L.mark-tL;
+    document.getElementById("opt_stats").innerHTML=`
+      <div class="card"><h3>Рынок vs БШМ</h3>${rows({
+        "mark":fmt(L.mark,2),"БШМ @ refIV":fmt(tL,2),
+        "разрыв":`<span class="${gap>0?'neg':'pos'}">${gap>0?'+':''}${fmt(gap,2)} (${gap>0?'дорого':'дёшево'})</span>`,
+        "refIV / live":`${fmt(refiv*100,1)}% / ${fmt(L.iv*100,1)}%`,"DTE · K":fmt(T*365,1)+"д · "+pr.K})}
+        <p class="hint">БШМ-линия = справедливая цена при ФИКС refIV (пусто = IV на старте). Разрыв mark−БШМ = переоценка волой (вега).</p></div>`;
+    return;
+  }
+  // маркет (bid/ask)
   lineChart(cv,[
     {data:arr.map(p=>p.mark),color:"#39d0d8",w:2},
     {data:arr.map(p=>p.bid),color:"#3fb950",dash:[4,3]},
@@ -920,7 +806,7 @@ function optDraw(){
     <div class="card"><h3>Ряд</h3>${rows({
       "старт":new Date(arr[0].ts).toLocaleString("ru",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}),
       "mark min/max":`${fmt(Math.min(...arr.map(p=>p.mark)),1)} / ${fmt(Math.max(...arr.map(p=>p.mark)),1)}`})}
-      <p class="hint">Добавь ногу B + режим (A/B, ×100, A−B, %) для спреда. Ряд в localStorage, переживает перезагрузку.</p></div>`;
+      <p class="hint">Вид: bid/ask · vs БШМ · индекс. Ногу B + режим = спред. Ряд в localStorage.</p></div>`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
