@@ -59,7 +59,7 @@ graph TD
 
 ### Анализ и визуализация
 - **TradingView** (платная подписка) — графики, разметка, **Pine-скрипты**. Источник данных для обучения Pine — сама подписка (API не нужен). Десктопы на TV для золота/крипты.
-- **Локальный калькулятор (Trading Desk)** [[scripts/webapp/README]] — один HTML-файл `trading-desk.html`, вкладки: **Портфель 🔒** (read-only ключ, мета-спред/греки/$-дельта), **Право ⚖️** (контрактный/легальный якорь D1, live deliveryTime/индекс), **График 📈** (live-коллектор спредов опционов/кросс-биржа, переключатель bid/ask ↔ БШМ ↔ индекс, μ/σ/Z). Запуск: `python -m http.server 8777 -d <webapp>` → `localhost:8777`. См. [[03-STRATEGIES/portfolio-operating-plan]].
+- **Локальный калькулятор (Trading Desk)** [[scripts/webapp/README]] — один HTML-файл `trading-desk.html`, вкладки: **Портфель 🔒** (read-only ключ, мета-спред/греки/$-дельта), **Право ⚖️** (контрактный/легальный якорь D1, live deliveryTime/индекс), **График 📈** (live-коллектор спредов опционов/кросс-биржа, переключатель bid/ask ↔ БШМ ↔ индекс, μ/σ/Z), **Оборот 🎯** (фи-тир + оборот сегодня + EV-калькулятор наград/ребейтов). Запуск: `python -m http.server 8777 -d <webapp>` → `localhost:8777`. См. [[03-STRATEGIES/portfolio-operating-plan]].
 - **TRADING_BOOK.xlsx** — учётная книга 5 конструктов (C1–C5), 8 листов. Генератор: `scripts/gen_excel.py`. Заполнение из API: `scripts/fill_book.py` (читает `C:\Users\DoOs\.bybit\credentials.json`, read-only ключи).
 
 ### Знания и журнал

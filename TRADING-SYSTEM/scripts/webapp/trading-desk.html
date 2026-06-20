@@ -79,6 +79,7 @@
   <div class="tab active" data-v="port">Портфель 🔒</div>
   <div class="tab" data-v="law">Право ⚖️</div>
   <div class="tab" data-v="opt">График 📈</div>
+  <div class="tab" data-v="farm">Оборот 🎯</div>
 </div>
 
 <main>
@@ -228,6 +229,34 @@ Bybit API <b>не отдаёт свечи опционов</b> — нет endpoi
     <canvas id="opt_chart" style="width:100%;height:300px"></canvas>
     <p class="hint">Одна нога · Вид: <b>маркет</b> (бирюза=mark, пунктир=bid/ask) · <b>vs БШМ</b> (бирюза=mark, янтарь=БШМ@refIV) · <b>индекс</b> (белая=indexPrice). Две ноги: фиолетовая=спред A/B, серый пунктир=μ±σ, бордовый=±2σ. Сбор идёт и на других вкладках.</p></div></div>
   <div id="opt_stats"></div>
+</div>
+</section>
+
+<section class="view" id="v-farm">
+<details class="info" open><summary>Оборот под прикрытием — фарм наград за оборот / ребейтов</summary>
+<div style="padding:10px 14px;font-size:12px;color:var(--mut)">
+Прикрытый интрадей: дельта-нейтральный гамма-скальп под опционом (D1), плоско к EOD.
+<b>Заработок — на наградах за оборот + ребейтах, не на скальпе</b> (скальп ≈ fair-игра).
+Тянет твой <b>реальный фи-тир</b> (signed <code>/v5/account/fee-rate</code>) и <b>оборот+фи сегодня</b>
+(<code>/v5/execution/list</code>). EV-калькулятор: награда − фи − тета прикрытия. Ключ read-only — из вкладки «Портфель 🔒».</div></details>
+
+<div class="ctrl">
+  <button onclick="loadFarm()">🔄 Подтянуть фи-тир + оборот сегодня</button>
+  <span id="farm_status" class="hint"></span>
+</div>
+
+<div class="grid" id="farm_live"></div>
+
+<div class="card" style="margin-top:14px">
+  <h3>EV-калькулятор оборота</h3>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Целевой оборот $</label><input id="farm_vol" type="number" value="1000000" oninput="calcFarmEV()"></div>
+    <div class="fld"><label>Мейкер %/филл</label><input id="farm_maker" type="number" step="0.001" value="0.04" oninput="calcFarmEV()"></div>
+    <div class="fld"><label>Награда $/М оборота</label><input id="farm_rew" type="number" value="0" oninput="calcFarmEV()"></div>
+    <div class="fld"><label>Тета прикрытия $/день</label><input id="farm_theta" type="number" value="0" oninput="calcFarmEV()"></div>
+  </div>
+  <div id="farm_ev" style="margin-top:10px"></div>
+  <p class="hint">Мейкер% автозаполнится из фи-тира после «Подтянуть» (мейкер&lt;0 = ребейт). Награда $/М — из условий программы (ребейт+ретродроп). Тета — из «График»→vs БШМ на твой опц-кавер.</p>
 </div>
 </section>
 
@@ -437,6 +466,52 @@ async function updateTickerBar(){
 // ══════════════════════════════════════════════════════════════════════════════
 // C1 — LOCKED SPREAD
 // ══════════════════════════════════════════════════════════════════════════════
+async function loadFarm(){
+  const st=document.getElementById("farm_status");
+  st.textContent="загрузка…";st.className="load";
+  try{
+    const [frP,frO]=await Promise.all([
+      signedGet("/v5/account/fee-rate",{category:"linear",symbol:"ETHUSDT"}),
+      signedGet("/v5/account/fee-rate",{category:"option",baseCoin:"ETH"}).catch(()=>({list:[]}))
+    ]);
+    const perp=frP.list?.[0]||{}, opt=frO.list?.[0]||{};
+    const mkPerp=+perp.makerFeeRate*100, tkPerp=+perp.takerFeeRate*100;
+    const mkOpt=opt.makerFeeRate!=null?+opt.makerFeeRate*100:null;
+    const start=new Date();start.setUTCHours(0,0,0,0);
+    const ex=await signedGet("/v5/execution/list",{category:"linear",limit:"100"});
+    const fills=(ex.list||[]).filter(e=>+e.execTime>=start.getTime());
+    const turnover=fills.reduce((s,e)=>s+(+e.execValue||0),0);
+    const fees=fills.reduce((s,e)=>s+(+e.execFee||0),0);
+    document.getElementById("farm_live").innerHTML=`
+      <div class="card"><h3>Фи-тир (live)</h3>${rows({
+        "перп мейкер":`<span class="${mkPerp<0?'pos':'neu'}">${fmt(mkPerp,4)}%</span>`,
+        "перп тейкер":fmt(tkPerp,4)+"%",
+        "опц мейкер":mkOpt!=null?fmt(mkOpt,4)+"%":"—"})}
+        <p class="hint">Реальный тир аккаунта. Мейкер &lt; 0 = ребейт (тебе платят за лимитку).</p></div>
+      <div class="card"><h3>Оборот сегодня (linear)</h3>${rows({
+        "оборот Σ":"$"+fmt(turnover,0),
+        "фи Σ":(fees<0?'<span class="pos">+рб $':'<span class="neg">−$')+fmt(Math.abs(fees),2)+"</span>",
+        "сделок":String(fills.length),
+        "эфф. фи":turnover?fmt(fees/turnover*100,4)+"%":"—"})}
+        <p class="hint">Из /v5/execution/list (последние ~100 филлов, сегодня UTC). Фи−=ребейт. Снимок, не полный день.</p></div>`;
+    document.getElementById("farm_maker").value=fmt(mkPerp,4);
+    calcFarmEV();
+    st.textContent="ок · "+new Date().toLocaleTimeString("ru");st.className="ok";
+  }catch(e){st.textContent="✗ "+e.message;st.className="err";}
+}
+function calcFarmEV(){
+  const vol=+document.getElementById("farm_vol").value||0;
+  const mk=+document.getElementById("farm_maker").value||0;
+  const rew=+document.getElementById("farm_rew").value||0;
+  const theta=+document.getElementById("farm_theta").value||0;
+  const fee=vol*mk/100, reward=vol/1e6*rew, net=reward-fee-theta;
+  document.getElementById("farm_ev").innerHTML=rows({
+    "фи на оборот":(fee<0?'<span class="pos">+ребейт $':'<span class="neg">−$')+fmt(Math.abs(fee),0)+"</span>",
+    "награда":'<span class="pos">+$'+fmt(reward,0)+"</span>",
+    "тета прикрытия":theta?'<span class="neg">−$'+fmt(theta,2)+"</span>":"$0",
+    "НЕТТО EV":`<span class="big ${net>=0?'pos':'neg'}">${net>=0?'+':'−'}$${fmt(Math.abs(net),2)}</span>`,
+    "порог награды (безубыток)":vol?fmt((fee+theta)/vol*1e6,2)+" $/М":"—"});
+}
 async function loadPortfolio(){
   const out=document.getElementById("portCards"),pos=document.getElementById("portPositions");
   if(!getKeys()){out.innerHTML=`<div class="card err">Сначала сохрани read-only ключ.</div>`;return;}
@@ -844,6 +919,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
     if(!tvWidgets[`tv_${tab}`])tvChart(`tv_${tab}`,sym,int);
   }
   if(tab==="opt")optDraw();
+  if(tab==="farm")calcFarmEV();
 });
 
 async function init(){
