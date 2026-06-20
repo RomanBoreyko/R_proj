@@ -248,6 +248,21 @@ Bybit API <b>не отдаёт свечи опционов</b> — нет endpoi
 <div class="grid" id="farm_live"></div>
 
 <div class="card" style="margin-top:14px">
+  <h3>Опц-кавер: стрэнгл (D1-прикрытие + гамма)</h3>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Актив</label><input id="str_base" value="ETH" style="min-width:60px"></div>
+    <div class="fld"><label>DTE</label><input id="str_dte" type="number" value="7" style="min-width:60px"></div>
+    <div class="fld"><label>Крылья ±%</label><input id="str_off" type="number" value="5" step="0.5" style="min-width:70px"></div>
+    <div class="fld"><label>IV %</label><input id="str_iv" type="number" value="50" style="min-width:60px"></div>
+    <div class="fld"><label>Размер (ед.)</label><input id="str_size" type="number" value="0.1" step="0.01" style="min-width:70px"></div>
+    <button onclick="calcStrangle()">Посчитать кавер</button>
+    <span id="str_status" class="hint"></span>
+  </div>
+  <div id="str_out" style="margin-top:10px"></div>
+  <p class="hint">Лонг-стрэнгл = дешёвое прикрытие (OTM-крылья) + гамма для скальпа. Тета автозаполнит «тета прикрытия» в EV ниже. Дешевле стрэддла (сравнение в выводе).</p>
+</div>
+
+<div class="card" style="margin-top:14px">
   <h3>EV-калькулятор оборота</h3>
   <div class="ctrl" style="background:none;border:0;padding:0">
     <div class="fld"><label>Целевой оборот $</label><input id="farm_vol" type="number" value="1000000" oninput="calcFarmEV()"></div>
@@ -511,6 +526,35 @@ function calcFarmEV(){
     "тета прикрытия":theta?'<span class="neg">−$'+fmt(theta,2)+"</span>":"$0",
     "НЕТТО EV":`<span class="big ${net>=0?'pos':'neg'}">${net>=0?'+':'−'}$${fmt(Math.abs(net),2)}</span>`,
     "порог награды (безубыток)":vol?fmt((fee+theta)/vol*1e6,2)+" $/М":"—"});
+}
+async function calcStrangle(){
+  const st=document.getElementById("str_status");st.textContent="…";st.className="load";
+  try{
+    const base=document.getElementById("str_base").value.trim().toUpperCase();
+    const dte=+document.getElementById("str_dte").value||7;
+    const off=+document.getElementById("str_off").value||5;
+    const iv=(+document.getElementById("str_iv").value||50)/100;
+    const sz=+document.getElementById("str_size").value||0.1;
+    const r=await api("/v5/market/tickers",{category:"linear",symbol:base+"USDT"});
+    const S=+(r.list?.[0]?.lastPrice||0); if(!S)throw new Error("нет цены "+base+"USDT");
+    const Kc=S*(1+off/100), Kp=S*(1-off/100);
+    const T=dte/365, T2=Math.max(dte-1,0.001)/365;
+    const strP=(bs(S,Kc,T,iv,"C").price+bs(S,Kp,T,iv,"P").price)*sz;
+    const strP2=(bs(S,Kc,T2,iv,"C").price+bs(S,Kp,T2,iv,"P").price)*sz;
+    const strTheta=Math.abs(strP-strP2);
+    const strGamma=(bs(S,Kc,T,iv,"C").gamma+bs(S,Kp,T,iv,"P").gamma)*sz;
+    const stdP=(bs(S,S,T,iv,"C").price+bs(S,S,T,iv,"P").price)*sz;
+    const stdP2=(bs(S,S,T2,iv,"C").price+bs(S,S,T2,iv,"P").price)*sz;
+    const stdTheta=Math.abs(stdP-stdP2);
+    document.getElementById("farm_theta").value=fmt(strTheta,2); calcFarmEV();
+    document.getElementById("str_out").innerHTML=rows({
+      "индекс · страйки":`${fmt(S,2)} · пут ${fmt(Kp,0)} / колл ${fmt(Kc,0)}`,
+      "премия (риск)":"$"+fmt(strP,2),
+      "ТЕТА/день (кавер)":`<span class="neg">−$${fmt(strTheta,2)}</span> → в EV ниже`,
+      "гамма (скальп-движок)":fmt(strGamma,5),
+      "vs стрэддл ATM тета":`$${fmt(stdTheta,2)} · стрэнгл дешевле на <span class="pos">${stdTheta>0?fmt((1-strTheta/stdTheta)*100,0):0}%</span>`});
+    st.textContent="ок";st.className="ok";
+  }catch(e){st.textContent="✗ "+e.message;st.className="err";}
 }
 async function loadPortfolio(){
   const out=document.getElementById("portCards"),pos=document.getElementById("portPositions");
