@@ -610,26 +610,7 @@ function bs(S,K,T,sig,type){
   const price=type==="C"?S*ncdf(d1)-K*ncdf(d2):K*ncdf(-d2)-S*ncdf(-d1);
   return{price,delta:type==="C"?ncdf(d1):ncdf(d1)-1,gamma:npdf(d1)/(S*v)};
 }
-function zalgo(s,k=0.3){ // k ≈ среднее число диакритик на символ
-  if(k<=0)return s;
-  let out="";
-  for(const ch of s){
-    out+=ch;
-    if(/[\s⚡—]/.test(ch))continue;
-    const n=(Math.random()<k%1?1:0)+Math.floor(k);
-    for(let i=0;i<n;i++){
-      out+=String.fromCharCode(0x0300+Math.floor(Math.random()*0x70));
-    }
-  }
-  return out;
-}
-// живая лёгкая порча заголовка: едва заметное дрожание скриптуры
-setInterval(()=>{
-  const b=document.getElementById("brand");
-  if(b)b.textContent=zalgo("⚡ R-Trade — Trading Book",0.10);
-  const s=document.getElementById("brandSub");
-  if(s)s.textContent=zalgo("базис-десک",0.15);
-},4000);
+function zalgo(s){return s;} // пасхалка отключена (no-op)
 // маржинальная порча: 0 ниже IM 50%, нарастает к ликвидации
 const marginZalgo=imPct=>Math.max(0,(imPct-0.5)/0.5)*1.6;
 
