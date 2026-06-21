@@ -190,6 +190,49 @@ markPrice (сглажен к индексу) — по нему считают Pn
   • <a href="https://www.bybit.com/en/help-center/article/P-L-Calculations-Options" target="_blank">P&amp;L Calculations (Options)</a> — формула расчёта на поставке<br>
   • <a href="https://www.bybit.com/en/help-center/article/Bybit-Option-Fees-Explained" target="_blank">Options Fees Explained</a> — trading / delivery / liquidation fee<br>
   • <a href="https://www.bybit.com/en/announcement-info/contract-summarize/" target="_blank">Derivatives Overview — спеки всех контрактов</a></p></div>
+
+<div class="card"><h3>🏛 Маркетос и стакан — обязательства, ребейты, СКРЫТАЯ ликвидность (RPI)</h3>
+<p class="hint" style="line-height:1.7"><b>🔑 RPI (Retail Price Improvement) — вот почему «пустой стакан» врёт.</b>
+Спец-ордер: ММ-партнёр даёт РОЗНИЦЕ лучшую цену, но прячет её от алго/API.</p>
+<table><tr><th>Правило RPI</th><th>Что это значит ДЛЯ ТЕБЯ</th></tr>
+<tr><td>ИСКЛЮЧЁН из API-стакана</td><td>бот/скрипт RPI-ликвидность <b>НЕ ВИДИТ</b> → стакан кажется пустым/широким</td></tr>
+<tr><td>ВИДЕН в UI (без метки)</td><td>вручную на сайте/в апп — видишь цены, которых нет в API</td></tr>
+<tr><td>Матчится только с НЕ-алго</td><td>твой РУЧНОЙ ордер может забрать price-improvement; БОТ-ордер — нет</td></tr>
+<tr><td>Ставят только избранные ММ-партнёры</td><td>обычному юзеру RPI не поставить (ошибка от API)</td></tr>
+<tr><td>Post-Only · кросс-RPI скрыты</td><td>только мейкер; пересекающиеся RPI прячутся, между собой не матчатся</td></tr>
+<tr><td>Приоритет — САМЫЙ НИЗКИЙ</td><td>исполняется после всех не-RPI на том же ценовом уровне</td></tr>
+</table>
+<p class="hint"><b>Вывод по твоему вопросу:</b> «маркетос не показывает лимитки в стакане» = это <b>RPI</b>.
+Доступ к его цене — РУЧНЫМ (не-алго) ордером через UI, НЕ через бота. Сам RPI ставить нельзя (нужен MM-партнёр статус).</p>
+
+<h3 style="margin-top:16px">Market Maker Incentive Program (обязательства)</h3>
+<table><tr><th>Параметр</th><th>Значение</th></tr>
+<tr><td>Ребейт мейкера</td><td>до <span class="pos">−0.015%</span> (негативный фи — биржа ПЛАТИТ за ликвидность)</td></tr>
+<tr><td>Размер ордера</td><td>≥ <b>10×</b> мин-лота контракта (иначе не зачёт)</td></tr>
+<tr><td>Аптайм</td><td>снимки каждые 10с · ≥ <b>75%</b> квалиф-снимков/день</td></tr>
+<tr><td>Оценка</td><td>помесячно · 1 мес триал новичкам · не выполнил → дисквал + потеря бенефитов</td></tr>
+</table>
+<p class="hint">Обязательства <b>конкретного</b> ММ — приватны (институционал, под NDA-соглашением). Публична только общая программа выше.</p>
+
+<h3 style="margin-top:16px">Матчинг (price-time priority)</h3>
+<table><tr><th>Правило</th><th>Суть</th></tr>
+<tr><td>Приоритет</td><td>цена-время (FIFO): при равной цене раньше пришёл — раньше исполнен</td></tr>
+<tr><td>Мейкер</td><td>стоячий лимит = ликвидность; <b>Post-Only</b> гарантирует мейкера (иначе авто-отмена)</td></tr>
+<tr><td>Маркет</td><td>конвертится в IOC-лимит (защита от слиппеджа); вне лимита — не исполнится</td></tr>
+</table>
+
+<p class="hint" style="line-height:1.7"><b>⚠ [CON] ориентир для research:</b> ММ <b>сегментирует поток</b> — рознице тонкие цены через RPI (UI, не-алго),
+а от алго/API прячет, чтобы не словить toxic flow. «Сам стану мейкером и заберу премию» = заберёшь
+И adverse selection, которую ММ несёт ЗА ребейт+скорость+хедж. RPI ты ставить НЕ можешь (нет партнёр-статуса) →
+конкурируешь обычным лимитом, без ребейта и без retail-only защиты. Премия = плата за риск инвентаря, не подарок.</p>
+
+<p class="hint" style="line-height:1.7"><b>📜 Источники (проверены HTTP 200):</b><br>
+• <a href="https://www.bybit.com/en/help-center/article/Retail-Price-Improvement-RPI-Order" target="_blank">RPI Order</a> — кто ставит, видимость, матчинг с не-алго<br>
+• <a href="https://www.bybit.com/en/help-center/article/Introduction-to-the-Market-Maker-Incentive-Program" target="_blank">Market Maker Incentive Program</a> — ребейты, критерии<br>
+• <a href="https://www.bybit.com/en/help-center/article/Optional-Liquidity-Requirements-for-Bybit-Market-Maker" target="_blank">MM Liquidity Requirements</a><br>
+• <a href="https://www.bybit.com/en/help-center/article/Types-of-Orders-Available-on-Bybit" target="_blank">Types of Orders</a> · <a href="https://www.bybit.com/en/help-center/article/FAQ-Order-Execution-and-Liquidation" target="_blank">FAQ Order Execution</a><br>
+• <a href="https://bybit-exchange.github.io/docs/v5/order/create-order" target="_blank">API: Place Order (типы/TIF/PostOnly)</a> · <a href="https://bybit-exchange.github.io/docs/v5/market/orderbook" target="_blank">API: Orderbook</a></p>
+</div>
 </section>
 
 <section class="view" id="v-opt">
