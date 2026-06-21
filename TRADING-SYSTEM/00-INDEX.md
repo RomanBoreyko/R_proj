@@ -41,6 +41,7 @@ D2 — ETH PERP-LONG + PUT-LONG, РЕБАЛАНС (Bybit)
 | ★ Карточка скрининга спреда | [[03-STRATEGIES/spread-screening-card]] |
 | C6+ паритет + тета-обёртка | [[03-STRATEGIES/C6plus-паритет-тета-обёртка]] |
 | Графики вокруг индекса (гайд) | [[03-STRATEGIES/графики-вокруг-индекса-гайд]] |
+| Квадрат SOL/MNT (эксперим., MNT мёртв) | [[03-STRATEGIES/квадрат-sol-mnt]] |
 | Базис-деск: родословная (учеб.) | [[03-STRATEGIES/basis-desk-родословная]] |
 | Опц. кондор + зонный хедж (техника) | [[03-STRATEGIES/options-condor-zone-hedge]] |
 | Портфель — операционный план | [[03-STRATEGIES/portfolio-operating-plan]] |
