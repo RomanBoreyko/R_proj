@@ -618,13 +618,6 @@ async function loadPortfolio(){
       ${Object.entries(G).sort((a,b)=>Math.abs(b[1].usd||0)-Math.abs(a[1].usd||0))
         .map(([b,g])=>`<tr><td>${b}</td><td>${sign(g.usd||0,0)}</td><td>${fmt(g.gamma,3)}</td><td>${fmt(g.theta,2)}</td><td>${fmt(g.vega,2)}</td></tr>`).join("")}
       </table></div>`;
-    // C3 options data
-    const xautOpts=opts.filter(o=>o.symbol.startsWith("XAUT"));
-    document.getElementById("c3OptionsData").innerHTML=xautOpts.length
-      ?`<table><tr><th>Контракт</th><th>Сторона</th><th>Δ</th><th>Θ</th><th>V</th><th>uPnL</th></tr>
-        ${xautOpts.map(p=>`<tr><td>${p.symbol.replace("-USDT","")}</td><td class="${p.side==="Buy"?'pos':'neg'}">${p.side}</td>
-        <td>${fmt(+p.delta,3)}</td><td>${fmt(+p.theta,2)}</td><td>${fmt(+p.vega,2)}</td><td>${sign(+p.unrealisedPnl,2)}</td></tr>`).join("")}</table>`
-      :"<p class='hint'>XAUT-опционов нет</p>";
     // spread state bar
     const upnlByBase={};
     perps.forEach(p=>{const b=perpBase(p.symbol);upnlByBase[b]=(upnlByBase[b]||0)+ +p.unrealisedPnl;});
