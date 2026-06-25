@@ -80,6 +80,7 @@
   <div class="tab" data-v="law">Право ⚖️</div>
   <div class="tab" data-v="opt">График 📈</div>
   <div class="tab" data-v="farm">Оборот 🎯</div>
+  <div class="tab" data-v="scen">Сценарий 🎲</div>
 </div>
 
 <main>
@@ -316,6 +317,41 @@ Bybit API <b>не отдаёт свечи опционов</b> — нет endpoi
   <div id="farm_ev" style="margin-top:10px"></div>
   <p class="hint">Мейкер% автозаполнится из фи-тира после «Подтянуть» (мейкер&lt;0 = ребейт). Награда $/М — из условий программы (ребейт+ретродроп). Тета — из «График»→vs БШМ на твой опц-кавер.</p>
 </div>
+</section>
+
+<!-- ══════════════ SCENARIO 🎲 — payoff всей книги ══════════════ -->
+<section class="view" id="v-scen">
+<details class="info"><summary>Сценарий 🎲 — payoff всей книги (±% и тета вперёд)</summary><div class="body">
+  Берёт твои <b>живые позиции</b> (read-only ключ из «Портфель») и считает P&amp;L всей книги при синхронном сдвиге ВСЕХ активов на ±%.
+  Опционы <b>перепрайсятся по Блэк-Шоулзу</b> (IV из <code>markIv</code> тикера, держится постоянной), перпы/фьючи — линейно, спот-мешок двигается со сдвигом.
+  «Горизонт дней» добавляет распад теты (близкие опционы гаснут в интринсик) + фандинг по перпам.<br>
+  <b>Форма-улыбка = длинная гамма</b> (профит на обоих краях, дно в штиле). IV постоянная → на реальном крахе путы дадут больше, на ралли — меньше.
+</div></details>
+
+<div class="ctrl">
+  <div class="fld"><label>Диапазон шока ±%</label><input id="scen_rng" type="number" value="12" style="min-width:65px"></div>
+  <div class="fld"><label>Горизонт, дней</label><input id="scen_days" type="number" value="4" step="0.5" style="min-width:65px"></div>
+  <button onclick="buildScenario()">🎲 Построить</button>
+  <span id="scen_status" class="hint"></span>
+</div>
+
+<div class="grid" id="scenCards" style="margin-top:12px"></div>
+<div id="scenPointCard" class="card" style="margin-top:12px;display:none">
+  <h3>🎯 Своя точка — через сколько дней и на сколько % сдвиг</h3>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Сдвиг ±%</label><input id="scen_pt_pct" type="number" value="3" step="0.5" style="min-width:65px" oninput="scenPoint()"></div>
+    <div class="fld"><label>Через дней</label><input id="scen_pt_days" type="number" value="3" step="0.5" style="min-width:65px" oninput="scenPoint()"></div>
+    <button class="sec" onclick="scenPoint()">Посчитать</button>
+  </div>
+  <div id="scen_pt_out" style="margin-top:10px"></div>
+  <p class="hint">Считает P&amp;L книги <b>через N дней</b> при сдвиге +X% / флэт (там же, где сейчас) / −X%. Учтены распад теты и фандинг.</p>
+</div>
+<div id="scenChartCard" style="display:none;margin-top:14px">
+  <div class="card"><h3>Payoff книги — P&amp;L vs движение всех активов</h3>
+    <canvas id="scenChart" style="width:100%;height:240px"></canvas>
+    <p class="hint" id="scenNote"></p></div></div>
+<div id="scenTable" style="margin-top:14px"></div>
+<p class="hint" style="margin-top:8px">⚠️ Допущение: все активы двигаются синхронно на один %, корреляция = 1, IV постоянна. Это стресс-срез, не прогноз.</p>
 </section>
 
 </main>
@@ -752,6 +788,123 @@ async function loadBalanceChart(){
       {dp:2,xLabels:[new Date(pts[0].t).toLocaleString(),new Date(pts.at(-1).t).toLocaleString()]});
     note.innerHTML=`${pts.length} записей · изменение: ${sign(pts.at(-1).bal-pts[0].bal,2)} USDT (реализованный кэш, без нереализованного PnL)`;
   }catch(e){note.textContent="Ошибка: "+e.message;}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// СЦЕНАРИЙ 🎲 — payoff всей книги (БШМ-перепрайс опционов + линейные перпы + спот)
+// ══════════════════════════════════════════════════════════════════════════════
+const SCEN_MON={JAN:0,FEB:1,MAR:2,APR:3,MAY:4,JUN:5,JUL:6,AUG:7,SEP:8,OCT:9,NOV:10,DEC:11};
+function scenParseOpt(sym){const p=sym.split("-");return{base:p[0],K:+p[2],type:p[3]};}
+function scenExpYears(sym){const m=sym.split("-")[1].match(/(\d+)([A-Z]{3})(\d{2})/);if(!m)return 0.05;
+  const exp=Date.UTC(2000+ +m[3],SCEN_MON[m[2]],+m[1],8,0,0);return Math.max((exp-Date.now())/(365*864e5),0);}
+function scenIsFut(sym){return /-\d{2}[A-Z]{3}\d{2}$/.test(sym);}
+function scenBase(sym){return sym.replace(/-\d{2}[A-Z]{3}\d{2}$/,"").replace(/USDT$|USDC$/,"").replace(/1000$/,"");}
+// P&L всей книги от ТЕКУЩЕГО марка: shock (доля), dt (дней вперёд), withFund — читает window.SCEN
+function scenPnl(shock,dt,withFund){
+  const S=window.SCEN; if(!S)return 0; let s=0;
+  for(const p of S.lin){const q=(p.side==="Buy"?1:-1)*(+p.size),mk=+p.markPrice;
+    s+=q*mk*shock;
+    if(withFund&&!scenIsFut(p.symbol))s+=-(q*mk)*(S.fr[p.symbol]||0)*3*dt;}
+  for(const o of S.opts){const q=(o.side==="Buy"?1:-1)*(+o.size);const{K,type}=scenParseOpt(o.symbol);
+    const T=scenExpYears(o.symbol),tk=S.otk[o.symbol]||{};let U=tk.u||0,iv=tk.iv||0;
+    if(U<=0)continue; if(iv<=0)iv=0.6;
+    const bn=bs(U,K,T,iv,type).price, bsh=bs(U*(1+shock),K,Math.max(T-dt/365,0),iv,type).price;
+    s+=q*(bsh-bn);}
+  for(const c of S.bag)s+=c.usd*shock;
+  return s;
+}
+// 🎯 Своя точка: «через D дней рынок на +X% / флэт / −X%»
+function scenPoint(){
+  const out=document.getElementById("scen_pt_out"); if(!out)return;
+  if(!window.SCEN){out.innerHTML='<span class="neg">Сначала нажми «Построить».</span>';return;}
+  const x=Math.abs(+document.getElementById("scen_pt_pct").value||0)/100;
+  const d=+document.getElementById("scen_pt_days").value||0;
+  const eq=window.SCEN.eq;
+  const up=scenPnl(x,d,true), fl=scenPnl(0,d,true), dn=scenPnl(-x,d,true);
+  const pc=v=>(v*100).toFixed((v*100)%1?1:0);
+  const cell=(lab,v)=>`<div style="flex:1;min-width:130px"><div class="hint">${lab}</div>
+    <div class="big ${v<0?'neg':'pos'}" style="font-size:20px">${sign(v,0)} $</div>
+    <div class="hint">эквити → ${fmt(eq+v,0)} $</div></div>`;
+  out.innerHTML=`<div style="display:flex;gap:20px;flex-wrap:wrap">
+    ${cell(`через ${fmt(d,0)}д · +${pc(x)}%`,up)}
+    ${cell(`через ${fmt(d,0)}д · флэт`,fl)}
+    ${cell(`через ${fmt(d,0)}д · −${pc(x)}%`,dn)}</div>`;
+}
+
+async function buildScenario(){
+  const st=document.getElementById("scen_status");
+  if(!getKeys()){st.innerHTML='<span class="neg">Сначала сохрани read-only ключ во вкладке «Портфель».</span>';return;}
+  st.textContent="Читаю позиции…";
+  try{
+    const [plU,plC,opt,wb]=await Promise.all([
+      signedGet("/v5/position/list",{category:"linear",settleCoin:"USDT"}).catch(()=>({list:[]})),
+      signedGet("/v5/position/list",{category:"linear",settleCoin:"USDC"}).catch(()=>({list:[]})),
+      signedGet("/v5/position/list",{category:"option"}).catch(()=>({list:[]})),
+      signedGet("/v5/account/wallet-balance",{accountType:"UNIFIED"})
+    ]);
+    const lin=[...(plU.list||[]),...(plC.list||[])].filter(p=>+p.size);
+    const opts=(opt.list||[]).filter(p=>+p.size);
+    const acc=wb.list?.[0]||{}; const eq=+acc.totalEquity||0;
+    st.textContent="Тяну IV/индексы опционов…";
+    // per-symbol option ticker → markIv + underlyingPrice (точное совпадение символа)
+    const otk={};
+    await Promise.all(opts.map(async o=>{try{
+      const r=await api("/v5/market/tickers",{category:"option",symbol:o.symbol});
+      const t=r.list?.[0]; if(t)otk[o.symbol]={iv:+t.markIv||0,u:+t.underlyingPrice||0};
+    }catch{}}));
+    // funding для перпов (для горизонта)
+    const fr={};
+    await Promise.all(lin.filter(p=>!scenIsFut(p.symbol)).map(async p=>{
+      try{fr[p.symbol]=(await ticker("linear",p.symbol)).funding||0;}catch{fr[p.symbol]=0;}}));
+    // спот-мешок (нестейблы, $-оценка) — двигается со сдвигом
+    const stables=new Set(["USDT","USDC","USD","DAI","FDUSD"]);
+    const bag=(acc.coin||[]).filter(c=>!stables.has(c.coin)&&Math.abs(+(c.usdValue||0))>0.01)
+      .map(c=>({coin:c.coin,usd:+c.usdValue}));
+    window.SCEN={lin,opts,otk,fr,bag,eq};
+    const warn=opts.filter(o=>!((otk[o.symbol]||{}).u>0)).length;
+    const pnl=scenPnl;  // читает window.SCEN
+    const days=+document.getElementById("scen_days").value||4;
+    const rng=Math.abs(+document.getElementById("scen_rng").value||12)/100;
+    const kd=[["−10% сразу",pnl(-0.10,0,false),"#f85149"],
+              ["Флэт "+fmt(days,0)+"д",pnl(0,days,true),"#e3933c"],
+              ["+10% сразу",pnl(0.10,0,false),"#3fb950"]];
+    const h=0.005, ndlr=(pnl(h,0,false)-pnl(-h,0,false))/(2*h), th1=pnl(0,1,true);
+    const steps=41, xs=[]; for(let i=0;i<steps;i++)xs.push(-rng+2*rng*i/(steps-1));
+    const lineNow=xs.map(x=>pnl(x,0,false)), lineH=xs.map(x=>pnl(x,days,true)), zero=xs.map(()=>0);
+    const smile=lineNow[0]>0&&lineNow[steps-1]>0;
+    document.getElementById("scenCards").innerHTML=kd.map(([lab,v,col])=>`
+      <div class="card"><h3>${lab}</h3>
+        <div class="big" style="color:${col}">${sign(v,0)} $</div>
+        <p class="hint">эквити → ${fmt(eq+v,0)} $</p></div>`).join("")+`
+      <div class="card"><h3>Профиль книги</h3>
+        <div class="row"><span class="k">Δ$ (нетто)</span><span class="v ${ndlr<0?'neg':'pos'}">${sign(ndlr,0)}</span></div>
+        <div class="row"><span class="k">Тета /день</span><span class="v ${th1<0?'neg':'pos'}">${sign(th1,2)} $</span></div>
+        <div class="row"><span class="k">Гамма</span><span class="v ${smile?'pos':'neu'}">${smile?'ДЛИННАЯ (улыбка)':'смешанная'}</span></div>
+      </div>`;
+    document.getElementById("scenChartCard").style.display="";
+    lineChart(document.getElementById("scenChart"),[
+      {data:zero,color:"#3a4250",dash:[3,3],w:1},
+      {data:lineNow,color:"#39d0d8",w:2},
+      {data:lineH,color:"#e3933c",w:2,dash:[6,4]}
+    ],{dp:0,h:240,xLabels:["−"+fmt(rng*100,0)+"%","+"+fmt(rng*100,0)+"%"],legend:["0","сейчас",fmt(days,0)+"д"]});
+    document.getElementById("scenNote").innerHTML=`Эквити ${fmt(eq,0)} $ · по оси X — синхронный сдвиг всех активов · улыбка = длинная гамма · дно ≈ штиль (тета).${warn?` <span class="neg">${warn} опц без тикера пропущены</span>`:""}`;
+    // вклад по активам при ±10%
+    const byBase={}; const addB=(b,k,v)=>{byBase[b]=byBase[b]||{d:0,u:0};byBase[b][k]+=v;};
+    for(const p of lin){const b=scenBase(p.symbol),q=(p.side==="Buy"?1:-1)*(+p.size),mk=+p.markPrice;addB(b,"d",q*mk*-0.10);addB(b,"u",q*mk*0.10);}
+    for(const o of opts){const q=(o.side==="Buy"?1:-1)*(+o.size);const{base,K,type}=scenParseOpt(o.symbol);
+      const T=scenExpYears(o.symbol),tk=otk[o.symbol]||{};let U=tk.u||0,iv=tk.iv||0;if(U<=0)continue;if(iv<=0)iv=0.6;
+      const bn=bs(U,K,T,iv,type).price;
+      addB(base,"d",q*(bs(U*0.9,K,T,iv,type).price-bn));addB(base,"u",q*(bs(U*1.1,K,T,iv,type).price-bn));}
+    const r3=Object.entries(byBase).sort((a,b)=>(Math.abs(b[1].d)+Math.abs(b[1].u))-(Math.abs(a[1].d)+Math.abs(a[1].u)));
+    document.getElementById("scenTable").innerHTML=`<div class="card"><h3>Вклад по активам (мгновенно)</h3>
+      <table><tr><th>Актив</th><th>при −10%</th><th>при +10%</th></tr>
+      ${r3.map(([b,v])=>`<tr><td>${b}</td><td class="${v.d<0?'neg':'pos'}">${sign(v.d,1)}</td><td class="${v.u<0?'neg':'pos'}">${sign(v.u,1)}</td></tr>`).join("")}
+      </table><p class="hint">Кто двигает улыбку: путы дают плюс слева, коллы/лонг-перпы — справа.</p></div>`;
+    document.getElementById("scenPointCard").style.display="";
+    scenPoint();
+    st.innerHTML=`<span class="pos">✓ ${lin.length} перп/фьюч · ${opts.length} опц · ${bag.length} спот</span> · ${new Date().toLocaleTimeString()}`;
+    document.getElementById("status").textContent="сценарий: "+new Date().toLocaleTimeString();
+  }catch(e){st.innerHTML=`<span class="neg">Ошибка: ${e.message}</span>`;}
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
