@@ -81,6 +81,7 @@
   <div class="tab" data-v="opt">График 📈</div>
   <div class="tab" data-v="farm">Оборот 🎯</div>
   <div class="tab" data-v="scen">Сценарий 🎲</div>
+  <div class="tab" data-v="arb">Стат-арб 🔱</div>
 </div>
 
 <main>
@@ -352,6 +353,71 @@ Bybit API <b>не отдаёт свечи опционов</b> — нет endpoi
     <p class="hint" id="scenNote"></p></div></div>
 <div id="scenTable" style="margin-top:14px"></div>
 <p class="hint" style="margin-top:8px">⚠️ Допущение: все активы двигаются синхронно на один %, корреляция = 1, IV постоянна. Это стресс-срез, не прогноз.</p>
+</section>
+
+<!-- ══════════════ STAT-ARB 🔱 — кросс-венью спред (ручной ввод) ══════════════ -->
+<section class="view" id="v-arb">
+<details class="info"><summary>Стат-арб 🔱 — кросс-венью спред (ручной ввод)</summary><div class="body">
+  Парный/спред стат-арб между площадками (Bybit · Герчик · Infra · Deribit/Coinbase · Freedom). Цены ДВУХ ног вводишь руками (API чужих площадок нет).
+  Считает: <b>что лонг / что шорт</b>, <b>соотношение (хедж-ратио)</b>, <b>объёмы под капитал</b>, <b>Z-сигнал</b> и <b>готовую формулу спреда для TradingView</b>.<br>
+  <b>FX→USD</b> на ноге приводит цену к общей валюте (золото-EUR через EURUSD = третий инструмент). <b>$/пункт</b> = стоимость 1 пункта контракта (крипто-перп = 1; CFD золото обычно 1 за унцию; FX — по спеке). Опцион-нога внизу: замена/страховка.
+</div></details>
+
+<div class="grid">
+  <div class="card"><h3>Нога A</h3>
+    <div class="fld"><label>Метка / тикер</label><input id="arbA_lbl" value="XAUTUSDT.bybit" oninput="statArb()"></div>
+    <div class="fld"><label>Площадка</label><select id="arbA_ven" onchange="statArb()"><option>Bybit</option><option>Герчик</option><option>Infra Capital</option><option>Deribit</option><option>Coinbase</option><option>Freedom</option></select></div>
+    <div class="fld"><label>Цена</label><input id="arbA_px" type="number" step="0.0001" value="4021.2" oninput="statArb()"></div>
+    <div class="fld"><label>FX → USD</label><input id="arbA_fx" type="number" step="0.0001" value="1" oninput="statArb()"></div>
+    <div class="fld"><label>$ / пункт</label><input id="arbA_pt" type="number" step="0.01" value="1" oninput="statArb()"></div>
+    <div class="fld"><label>Вола % (для риск-ратио)</label><input id="arbA_vol" type="number" step="0.1" value="15" oninput="statArb()"></div>
+    <div class="fld"><label>TV-символ</label><input id="arbA_tv" value="OANDA:XAUUSD" oninput="statArb()"></div>
+  </div>
+  <div class="card"><h3>Нога B</h3>
+    <div class="fld"><label>Метка / тикер</label><input id="arbB_lbl" value="XAUEUR.infra" oninput="statArb()"></div>
+    <div class="fld"><label>Площадка</label><select id="arbB_ven" onchange="statArb()"><option>Infra Capital</option><option>Bybit</option><option>Герчик</option><option>Deribit</option><option>Coinbase</option><option>Freedom</option></select></div>
+    <div class="fld"><label>Цена</label><input id="arbB_px" type="number" step="0.0001" value="3724" oninput="statArb()"></div>
+    <div class="fld"><label>FX → USD</label><input id="arbB_fx" type="number" step="0.0001" value="1.08" oninput="statArb()"></div>
+    <div class="fld"><label>$ / пункт</label><input id="arbB_pt" type="number" step="0.01" value="1" oninput="statArb()"></div>
+    <div class="fld"><label>Вола % (для риск-ратио)</label><input id="arbB_vol" type="number" step="0.1" value="15" oninput="statArb()"></div>
+    <div class="fld"><label>TV-символ</label><input id="arbB_tv" value="OANDA:XAUEUR*FX_IDC:EURUSD" oninput="statArb()"></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px"><h3>Соотношение · объёмы · сигнал</h3>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Метод ратио</label><select id="arb_method" onchange="statArb()"><option value="notional">Долларо-нейтрально (ноционал)</option><option value="vol">Риск / вола-нейтрально</option><option value="beta">Ручная β (ед. B на ед. A)</option></select></div>
+    <div class="fld"><label>β (ручной)</label><input id="arb_beta" type="number" step="0.01" value="1" oninput="statArb()"></div>
+    <div class="fld"><label>Капитал/сторона $</label><input id="arb_cap" type="number" step="10" value="1000" oninput="statArb()"></div>
+  </div>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Спред сейчас (пусто=авто)</label><input id="arb_cur" type="number" step="0.0001" placeholder="авто A−hB" oninput="statArb()"></div>
+    <div class="fld"><label>Среднее μ</label><input id="arb_mu" type="number" step="0.0001" value="0" oninput="statArb()"></div>
+    <div class="fld"><label>σ спреда</label><input id="arb_sg" type="number" step="0.0001" value="5" oninput="statArb()"></div>
+    <div class="fld"><label>Порог Z</label><input id="arb_zt" type="number" step="0.1" value="2" oninput="statArb()"></div>
+  </div>
+  <div id="arb_out" style="margin-top:10px"></div>
+</div>
+
+<div class="card" style="margin-top:14px"><h3>Формула спреда для TradingView</h3>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Режим</label><select id="arb_tvmode" onchange="statArb()"><option value="diff">A − h·B (спред)</option><option value="ratio">A / B (ратио)</option><option value="pct">(A/B−1)·100 %</option></select></div>
+  </div>
+  <div id="arb_tv" style="margin-top:8px"></div>
+</div>
+
+<div class="card" style="margin-top:14px"><h3>Опцион-нога (замена / страховка хвоста)</h3>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Заменяем ед. перпа</label><input id="arbo_units" type="number" step="0.01" value="1" oninput="statArb()"></div>
+    <div class="fld"><label>Тип</label><select id="arbo_type" onchange="statArb()"><option value="C">Колл</option><option value="P">Пут</option></select></div>
+    <div class="fld"><label>Спот</label><input id="arbo_S" type="number" step="0.01" value="4021" oninput="statArb()"></div>
+    <div class="fld"><label>Страйк</label><input id="arbo_K" type="number" step="0.01" value="4000" oninput="statArb()"></div>
+    <div class="fld"><label>Дней</label><input id="arbo_d" type="number" step="1" value="19" oninput="statArb()"></div>
+    <div class="fld"><label>IV %</label><input id="arbo_iv" type="number" step="0.1" value="15" oninput="statArb()"></div>
+  </div>
+  <div id="arbo_out" style="margin-top:10px"></div>
+</div>
+<p class="hint" style="margin-top:8px">Это «Статистика»-тир: схождение НЕ контрактное (нет принудительного сеттла между площадками). Работает, пока спред осциллирует; усреднение в трендящий спред = риск. μ/σ снимай с TV-графика по формуле выше.</p>
 </section>
 
 </main>
@@ -906,6 +972,67 @@ async function buildScenario(){
     document.getElementById("status").textContent="сценарий: "+new Date().toLocaleTimeString();
   }catch(e){st.innerHTML=`<span class="neg">Ошибка: ${e.message}</span>`;}
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// СТАТ-АРБ 🔱 — кросс-венью спред (ручной ввод, без API)
+// ══════════════════════════════════════════════════════════════════════════════
+function statArb(){
+  const g=id=>document.getElementById(id); if(!g("arbA_px"))return;
+  const num=id=>parseFloat(g(id).value);
+  const leg=p=>({lbl:g("arb"+p+"_lbl").value,ven:g("arb"+p+"_ven").value,px:num("arb"+p+"_px"),
+    fx:num("arb"+p+"_fx"),pt:num("arb"+p+"_pt"),vol:num("arb"+p+"_vol"),tv:g("arb"+p+"_tv").value});
+  const A=leg("A"),B=leg("B");
+  const pxA=A.px*A.fx, pxB=B.px*B.fx;        // цена в USD
+  const nA=pxA*A.pt, nB=pxB*B.pt;            // $ ноционал за 1 ед
+  const method=g("arb_method").value;
+  let h = method==="notional" ? (nB?nA/nB:0)
+        : method==="vol"      ? (nB*B.vol?(nA*A.vol)/(nB*B.vol):0)
+        : (num("arb_beta")||0);              // ед. B на 1 ед. A
+  const cap=num("arb_cap")||0;
+  const unitsA = nA?cap/nA:0, unitsB = unitsA*h, notB = unitsB*nB;
+  const mode=g("arb_tvmode").value;
+  const Sauto = mode==="ratio" ? (pxB?pxA/pxB:0)
+              : mode==="pct"   ? (pxB?(pxA/pxB-1)*100:0)
+              : pxA - h*pxB;
+  let S=num("arb_cur"); if(!isFinite(S)) S=Sauto;
+  const mu=num("arb_mu")||0, sg=num("arb_sg")||1, zt=num("arb_zt")||2, Z=(S-mu)/sg;
+  let sig,longLeg,shortLeg,col;
+  if(Z>=zt){sig="спред ДОРОГ → продаём A, покупаем B"; shortLeg=A; longLeg=B; col="neg";}
+  else if(Z<=-zt){sig="спред ДЁШЕВ → покупаем A, продаём B"; longLeg=A; shortLeg=B; col="pos";}
+  else {sig="внутри полосы — ждать"; col="neu";}
+  let html=`<div style="display:flex;gap:26px;flex-wrap:wrap;margin-bottom:10px">
+    <div><div class="hint">Спред (${mode}${isFinite(num("arb_cur"))?', ручной':', авто'})</div><div class="big">${fmt(S,3)}</div></div>
+    <div><div class="hint">Z-score</div><div class="big ${Math.abs(Z)>=zt?col:'neu'}">${fmt(Z,2)}σ</div></div>
+    <div><div class="hint">Хедж-ратио (B на 1 A)</div><div class="big">${fmt(h,4)}</div></div>
+  </div>`;
+  if(longLeg){
+    const uL=longLeg===A?unitsA:unitsB, uS=shortLeg===A?unitsA:unitsB;
+    const nL=longLeg===A?cap:notB, nS=shortLeg===A?cap:notB;
+    const tgt = mode==="diff" ? Math.abs(S-mu)*unitsA*A.pt : null;
+    html+=`<div class="row"><span class="k">Сигнал</span><span class="v ${col}">${sig}</span></div>
+      <div class="row"><span class="k"><span class="pos">ЛОНГ</span></span><span class="v">${longLeg.lbl} <span class="hint">(${longLeg.ven})</span> · ${fmt(uL,4)} ед · ноционал $${fmt(nL,0)}</span></div>
+      <div class="row"><span class="k"><span class="neg">ШОРТ</span></span><span class="v">${shortLeg.lbl} <span class="hint">(${shortLeg.ven})</span> · ${fmt(uS,4)} ед · ноционал $${fmt(nS,0)}</span></div>
+      <div class="row"><span class="k">Цель — возврат к μ</span><span class="v">ΔS ${fmt(S-mu,3)}${tgt!==null?` → P&L ≈ $${fmt(tgt,2)}`:` <span class="hint">(P&L оцени по графику)</span>`}</span></div>`;
+  } else {
+    html+=`<div class="row"><span class="k">Сигнал</span><span class="v neu">${sig} (|Z|<${zt})</span></div>
+      <p class="hint">При сигнале: ${fmt(unitsA,4)} ед A : ${fmt(unitsB,4)} ед B, ноционал $${fmt(cap,0)}/сторона (метод: ${method}).</p>`;
+  }
+  g("arb_out").innerHTML=html;
+  const hr=fmt(h,4);
+  const tvf = mode==="ratio" ? `${A.tv}/(${B.tv})`
+            : mode==="pct"   ? `(${A.tv}/(${B.tv})-1)*100`
+            : `${A.tv} - ${hr}*(${B.tv})`;
+  g("arb_tv").innerHTML=`<div style="font-family:monospace;background:#0d1117;border:1px solid #1f2630;border-radius:6px;padding:9px;font-size:13px;word-break:break-all;color:#c9d1d9">${tvf}</div>
+    <p class="hint">Вставь как символ в TradingView (комбо-график). Разные валюты ног → домножь на FX-символ прямо в TV-поле ноги (как в B по умолчанию). С этого графика снимай μ/σ для сигнала выше.</p>`;
+  // опцион-нога
+  const o=bs(num("arbo_S"),num("arbo_K"),(num("arbo_d")||0)/365,(num("arbo_iv")||0)/100,g("arbo_type").value);
+  const dlt=Math.abs(o.delta)||1e-9, contracts=(num("arbo_units")||0)/dlt, cost=contracts*o.price;
+  g("arbo_out").innerHTML=`<div class="row"><span class="k">Дельта опциона</span><span class="v">${fmt(o.delta,3)}</span></div>
+    <div class="row"><span class="k">Контрактов на ${fmt(num("arbo_units")||0,3)} ед перпа</span><span class="v">${fmt(contracts,3)} шт <span class="hint">(= ед/|Δ|)</span></span></div>
+    <div class="row"><span class="k">Премия (стоимость)</span><span class="v">$${fmt(cost,2)}</span></div>
+    <p class="hint">${g("arbo_type").value==="C"?"Колл — заменяет ЛОНГ-ногу / страхует ШОРТ-хвост вверх":"Пут — заменяет ШОРТ-ногу / страхует ЛОНГ-хвост вниз"}. Та же дельта, но + гамма/тета и ограниченный хвост за страйком (премия = максимум потерь по этой ноге).</p>`;
+}
+try{statArb();}catch(e){}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // STRUCTURE
