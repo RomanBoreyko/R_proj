@@ -1,0 +1,80 @@
+//@version=5
+// =============================================================================
+// МУЛЬТИ-СПРЕД «ЁРШ» — несколько Z-score спредов на одной панели
+// -----------------------------------------------------------------------------
+// Каждая пара (A/B) даёт свою Z-линию вокруг нуля; вместе они "топорщатся" —
+// когда несколько ног разъезжаются одновременно, видно сразу, а не по одной
+// вкладке "Стат-арб" за раз. Композит (среднее |Z|) — общий "уровень шума".
+// Дефолты — под связку ETH/HYPE/Золото/NVDA(токен)/SpaceX(токен) с Bybit.
+// Вешать на любой график (данные всех ног берутся через request.security,
+// текущий график индикатор не использует).
+// =============================================================================
+indicator("Мульти-спред Ёрш", shorttitle="ЁРШ", overlay=false)
+
+grp = "Ноги (до 4 пар)"
+lookback = input.int(200, "Окно среднего/сигмы (баров)", minval=20)
+
+useP1 = input.bool(true,  "Пара 1 вкл", group=grp)
+A1 = input.symbol("BYBIT:ETHUSDT.P",  "Пара 1 — A", group=grp)
+B1 = input.symbol("BYBIT:HYPEUSDT.P", "Пара 1 — B", group=grp)
+
+useP2 = input.bool(true,  "Пара 2 вкл", group=grp)
+A2 = input.symbol("BYBIT:NVDAXUSDT",  "Пара 2 — A", group=grp)
+B2 = input.symbol("BYBIT:SPCXXUSDT",  "Пара 2 — B", group=grp)
+
+useP3 = input.bool(true,  "Пара 3 вкл", group=grp)
+A3 = input.symbol("BYBIT:HYPEUSDT.P", "Пара 3 — A", group=grp)
+B3 = input.symbol("BYBIT:SPCXXUSDT",  "Пара 3 — B", group=grp)
+
+useP4 = input.bool(false, "Пара 4 вкл", group=grp)
+A4 = input.symbol("BYBIT:ETHUSDT.P",  "Пара 4 — A", group=grp)
+B4 = input.symbol("BYBIT:XAUUSDT.P",  "Пара 4 — B", group=grp)
+
+kSig = input.float(2.0, "σ-порог для алерта/подсветки", step=0.25)
+
+// ---------- Z-score одной пары (лог-ratio) -----------------------------------
+f_z(_a_sym, _b_sym) =>
+    a = request.security(_a_sym, timeframe.period, math.log(close), barmerge.gaps_off, barmerge.lookahead_off)
+    b = request.security(_b_sym, timeframe.period, math.log(close), barmerge.gaps_off, barmerge.lookahead_off)
+    s = a - b
+    m = ta.sma(s, lookback)
+    sg = ta.stdev(s, lookback)
+    sg > 0 ? (s - m) / sg : 0.0
+
+z1 = useP1 ? f_z(A1, B1) : na
+z2 = useP2 ? f_z(A2, B2) : na
+z3 = useP3 ? f_z(A3, B3) : na
+z4 = useP4 ? f_z(A4, B4) : na
+
+// ---------- Композит: среднее |Z| активных пар (общий "уровень шума") -------
+cnt = (useP1?1:0) + (useP2?1:0) + (useP3?1:0) + (useP4?1:0)
+sumAbs = (useP1 ? math.abs(z1) : 0.0) + (useP2 ? math.abs(z2) : 0.0) + (useP3 ? math.abs(z3) : 0.0) + (useP4 ? math.abs(z4) : 0.0)
+composite = cnt > 0 ? sumAbs / cnt : na
+
+// ---------- Отрисовка: "иглы ежа" вокруг нуля --------------------------------
+hline(0, "ноль", color=color.new(color.gray, 50))
+hline(kSig,  "+σ-порог", color=color.new(color.orange, 60))
+hline(-kSig, "−σ-порог", color=color.new(color.orange, 60))
+
+plot(z1, "Z: пара 1", color=color.new(color.aqua,   0), linewidth=1)
+plot(z2, "Z: пара 2", color=color.new(color.lime,   0), linewidth=1)
+plot(z3, "Z: пара 3", color=color.new(color.fuchsia,0), linewidth=1)
+plot(z4, "Z: пара 4", color=color.new(color.yellow, 0), linewidth=1)
+plot(composite, "Композит |Z| (уровень шума)", color=color.new(color.white, 0), linewidth=2, style=plot.style_area, histbase=0)
+
+// ---------- Таблица живых значений -------------------------------------------
+var table tb = table.new(position.top_right, 2, 5, border_width=1)
+f_row(_i, _k, _v, _c) =>
+    table.cell(tb, 0, _i, _k, text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(tb, 1, _i, _v, text_color=_c, text_size=size.small, text_halign=text.align_right)
+
+if barstate.islast
+    f_row(0, "Z пара 1", useP1 ? str.tostring(z1, "#.##") : "—", color.aqua)
+    f_row(1, "Z пара 2", useP2 ? str.tostring(z2, "#.##") : "—", color.lime)
+    f_row(2, "Z пара 3", useP3 ? str.tostring(z3, "#.##") : "—", color.fuchsia)
+    f_row(3, "Z пара 4", useP4 ? str.tostring(z4, "#.##") : "—", color.yellow)
+    f_row(4, "Композит |Z|", str.tostring(composite, "#.##"), color.white)
+
+// ---------- Алерты: любая игла пробила порог ---------------------------------
+anySpike = (useP1 and math.abs(z1) > kSig) or (useP2 and math.abs(z2) > kSig) or (useP3 and math.abs(z3) > kSig) or (useP4 and math.abs(z4) > kSig)
+alertcondition(anySpike, "Ёрш: игла за порог", "Одна из пар ушла за σ-порог — проверь, какая (см. таблицу на графике)")

@@ -98,6 +98,47 @@ RV из klines (live) против IV (ручной ввод) → IV/RV, сиг�
 
 ---
 
+## Другие биржи (вкладка «Портфель», блок ниже Bybit)
+
+Read-only ключи/адрес для **Binance** (USDT-M фьючи), **MEXC** (спот), **Bitfinex**, **Hyperliquid** — та же модель: ключи только в `localStorage`, подпись HMAC в браузере, «🔄 Обновить другие биржи» тянет все сохранённые сразу.
+
+- **Hyperliquid** не требует ключа — только публичный адрес кошелька (`0x...`), запрос идёт напрямую (CORS у Hyperliquid открыт).
+- **Binance / MEXC / Bitfinex**: их приватные (подписанные) эндпоинты не всегда отдают браузеру CORS-заголовки — прямой запрос из `trading-desk.html` может быть заблокирован браузером. Карточка покажет явную ошибку («сеть/CORS…») в этом случае.
+  - **Обход**: локальный CORS-прокси. Пример на Python (без внешних зависимостей), проксирующий уже подписанный запрос 1:1 на биржу и добавляющий `Access-Control-Allow-Origin`:
+    ```python
+    # cors-proxy.py — запускать рядом с trading-desk.html, порт свой (напр. 8778)
+    import urllib.request
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    ALLOWED = {"fapi.binance.com", "api.mexc.com", "api.bitfinex.com"}
+    class Proxy(BaseHTTPRequestHandler):
+        def _forward(self, method):
+            host = self.headers.get("X-Proxy-Host")
+            if host not in ALLOWED: self.send_error(403); return
+            url = f"https://{host}{self.path}"
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0) or 0))
+            headers = {k: v for k, v in self.headers.items() if k.lower().startswith(("x-mbx", "bfx-", "content-type"))}
+            req = urllib.request.Request(url, data=body or None, headers=headers, method=method)
+            try:
+                with urllib.request.urlopen(req, timeout=10) as r:
+                    self._send(r.status, r.read(), r.headers.get("Content-Type", "application/json"))
+            except urllib.error.HTTPError as e:
+                self._send(e.code, e.read(), "application/json")
+        def _send(self, status, body, ctype):
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Headers", "*")
+            self.end_headers(); self.wfile.write(body)
+        def do_GET(self): self._forward("GET")
+        def do_POST(self): self._forward("POST")
+        def do_OPTIONS(self): self._send(204, b"", "text/plain")
+    HTTPServer(("127.0.0.1", 8778), Proxy).serve_forever()
+    ```
+    Затем в коде запросы к `fapi.binance.com`/`api.mexc.com`/`api.bitfinex.com` меняются на `http://127.0.0.1:8778` + заголовок `X-Proxy-Host`. Ключ по-прежнему подписывается в браузере и в прокси не «виден» осмысленно — прокси лишь перекладывает уже готовый подписанный запрос.
+  - Если понадобится — попроси добавить переключение на прокси прямо в коде (сейчас реализован прямой запрос к биржам).
+
+---
+
 ## Технически
 - Чистый vanilla JS, canvas-графики (функции `lineChart`, `barChart`), без внешних библиотек.
 - Bybit v5 API: `/v5/market/{tickers,kline,instruments-info}` (публичные), `/v5/account/{wallet-balance,transaction-log}`, `/v5/position/list` (подписанные).

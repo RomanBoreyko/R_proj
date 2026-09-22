@@ -103,6 +103,43 @@
   <span id="keyState" class="hint" style="margin-left:4px"></span>
 </div>
 
+<details class="info"><summary>Другие биржи (Binance / MEXC / Bitfinex / Hyperliquid)</summary><div class="body">
+  Ключи — так же только в <code>localStorage</code>, подпись считается в браузере, никуда кроме самой биржи не уходит. Нужны <b>read-only</b> права (без Trade/Withdraw).<br>
+  Binance/MEXC/Bitfinex могут упереться в CORS — приватные эндпоинты не всегда отдают заголовок для браузерных запросов. Если карточка покажет ошибку "CORS" — нужен локальный прокси (см. README, раздел «Другие биржи»). Hyperliquid работает без ключа: только публичный адрес кошелька.
+</div></details>
+
+<div class="ctrl">
+  <div class="fld"><label>Binance API Key</label><input id="binApiKey" type="password" placeholder="вставь один раз" style="min-width:180px"></div>
+  <div class="fld"><label>Binance Secret</label><input id="binApiSecret" type="password" placeholder="вставь один раз" style="min-width:180px"></div>
+  <button onclick="saveExKeys('binance')">Сохранить</button>
+  <button class="sec" onclick="forgetExKeys('binance')">Забыть</button>
+  <span id="binanceKeyState" class="hint"></span>
+</div>
+<div class="ctrl">
+  <div class="fld"><label>MEXC API Key</label><input id="mexcApiKey" type="password" placeholder="вставь один раз" style="min-width:180px"></div>
+  <div class="fld"><label>MEXC Secret</label><input id="mexcApiSecret" type="password" placeholder="вставь один раз" style="min-width:180px"></div>
+  <button onclick="saveExKeys('mexc')">Сохранить</button>
+  <button class="sec" onclick="forgetExKeys('mexc')">Забыть</button>
+  <span id="mexcKeyState" class="hint"></span>
+</div>
+<div class="ctrl">
+  <div class="fld"><label>Bitfinex API Key</label><input id="bfxApiKey" type="password" placeholder="вставь один раз" style="min-width:180px"></div>
+  <div class="fld"><label>Bitfinex Secret</label><input id="bfxApiSecret" type="password" placeholder="вставь один раз" style="min-width:180px"></div>
+  <button onclick="saveExKeys('bitfinex')">Сохранить</button>
+  <button class="sec" onclick="forgetExKeys('bitfinex')">Забыть</button>
+  <span id="bitfinexKeyState" class="hint"></span>
+</div>
+<div class="ctrl">
+  <div class="fld"><label>Hyperliquid — адрес кошелька</label><input id="hlAddress" type="text" placeholder="0x…" style="min-width:280px"></div>
+  <button onclick="saveExKeys('hyperliquid')">Сохранить</button>
+  <button class="sec" onclick="forgetExKeys('hyperliquid')">Забыть</button>
+  <span id="hyperliquidKeyState" class="hint"></span>
+</div>
+<div class="ctrl">
+  <button onclick="loadOtherExchanges()">🔄 Обновить другие биржи</button>
+</div>
+<div class="grid" id="otherExCards"></div>
+
 <div class="grid" id="portCards"></div>
 <div id="spreadStateCard" style="display:none;margin-top:14px">
   <div class="card"><h3>uPnL по структурам (бар)</h3>
@@ -308,6 +345,31 @@ Bybit API <b>не отдаёт свечи опционов</b> — нет endpoi
 </div>
 
 <div class="card" style="margin-top:14px">
+  <h3>Сетка против теты страховки (D2 — сеткой вместо ручного ребаланса)</h3>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Спот / вход</label><input id="gt_entry" type="number" value="2725" step="0.01" oninput="calcGridVsTheta()"></div>
+    <div class="fld"><label>ATR(20, 1H)</label><input id="gt_atr" type="number" value="15" step="0.1" oninput="calcGridVsTheta()"></div>
+    <div class="fld"><label>Символ (для авто-ATR)</label><input id="gt_sym" value="ETHUSDT" style="min-width:100px"></div>
+    <button class="sec" onclick="fetchGtAtr()">🔄 ATR + спот с Bybit</button>
+  </div>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Ширина диапазона ±%</label><input id="gt_width" type="number" value="5" step="0.5" oninput="calcGridVsTheta()"></div>
+    <div class="fld"><label>Капитал сетки $</label><input id="gt_inv" type="number" value="1000" oninput="calcGridVsTheta()"></div>
+    <div class="fld"><label>Плечо</label><input id="gt_lev" type="number" value="2" step="0.1" oninput="calcGridVsTheta()"></div>
+    <div class="fld"><label>Комиссия/сторону %</label><input id="gt_fee" type="number" value="0.02" step="0.001" oninput="calcGridVsTheta()"></div>
+  </div>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Тета страховки $/день (расход)</label><input id="gt_theta" type="number" value="10" step="0.1" oninput="calcGridVsTheta()"></div>
+    <div class="fld"><label>GridCount (0 = авто-решить под тету)</label><input id="gt_n" type="number" value="0" step="1" oninput="calcGridVsTheta()"></div>
+    <button onclick="pushGtThetaToEV()">→ остаток теты в EV ниже</button>
+  </div>
+  <div id="gt_out" style="margin-top:10px"></div>
+  <p class="hint">Модель — как обычный grid-бот (arithmetic): DailyPnL = profitPerFill × fillsPerDay × N × 0.3, fillsPerDay = ATR×0.6/шаг. При N=0 решает шаг/N так, чтобы DailyPnL сетки покрыл тету страховки.
+  Это ПРИБЛИЖЕНИЕ (та же оговорка, что у обычной сетки) — реальные заполнения зависят от режима рынка.
+  <b>Капкан:</b> ценовая сетка ≠ дельта-ребаланс пута из D2 — при сильном тренде сетка режет позицию не там, где просит грек пута. Для настоящей замены ручного ребаланса шаг/лот нужно калибровать под Γ пута, а не под фиксированный %.</p>
+</div>
+
+<div class="card" style="margin-top:14px">
   <h3>EV-калькулятор оборота</h3>
   <div class="ctrl" style="background:none;border:0;padding:0">
     <div class="fld"><label>Целевой оборот $</label><input id="farm_vol" type="number" value="1000000" oninput="calcFarmEV()"></div>
@@ -317,6 +379,17 @@ Bybit API <b>не отдаёт свечи опционов</b> — нет endpoi
   </div>
   <div id="farm_ev" style="margin-top:10px"></div>
   <p class="hint">Мейкер% автозаполнится из фи-тира после «Подтянуть» (мейкер&lt;0 = ребейт). Награда $/М — из условий программы (ребейт+ретродроп). Тета — из «График»→vs БШМ на твой опц-кавер.</p>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h3>Прогресс по VIP-тирам (естественный трек объёмом)</h3>
+  <p class="hint">Таблица порогов Bybit (перпы, любой ИЗ двух: 30-дн. объём ИЛИ баланс активов). До Supreme VIP maker-фи доходит до 0% — это НЕ отрицательный rebate (тот только в формальной MM Program, см. чат), а честный потолок обычной лестницы.</p>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <div class="fld"><label>Текущий 30-дн. объём, $</label><input id="vip_vol" type="number" step="1000" value="0" oninput="calcVipProgress()"></div>
+    <div class="fld"><label>Текущие активы на счёте, $</label><input id="vip_assets" type="number" step="1000" value="0" oninput="calcVipProgress()"></div>
+    <div class="fld"><label>Доп. оборот/день от сеток+спредов, $</label><input id="vip_daily" type="number" step="100" value="0" oninput="calcVipProgress()"></div>
+  </div>
+  <div id="vip_out" style="margin-top:10px"></div>
 </div>
 </section>
 
@@ -357,7 +430,41 @@ Bybit API <b>не отдаёт свечи опционов</b> — нет endpoi
 
 <!-- ══════════════ STAT-ARB 🔱 — кросс-венью спред (ручной ввод) ══════════════ -->
 <section class="view" id="v-arb">
-<details class="info"><summary>Стат-арб 🔱 — кросс-венью спред (ручной ввод)</summary><div class="body">
+<details class="info"><summary>Live мульти-спред (Bybit, один venue) — тянется само</summary><div class="body">
+  ETH · HYPE · Золото (XAUUSDT перп) · NVDA (NVDAXUSDT, токенизир. спот) · SpaceX (SPCXXUSDT, токенизир. спот) — все на одной бирже, поэтому можно тянуть live без ручного ввода.
+  NVDA/SpaceX — только спот, шорт недоступен физически. Часовые бары, 200 баров назад.
+</div></details>
+<div class="card" style="margin-top:0">
+  <h3>Live мульти-спред (Bybit)</h3>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <button onclick="loadMultiSpread()">🔄 Обновить мульти-спред</button>
+    <div class="fld"><label>Нога A</label><select id="msA" onchange="renderMsPair()"></select></div>
+    <div class="fld"><label>Нога B</label><select id="msB" onchange="renderMsPair()"></select></div>
+    <div class="fld"><label>Капитал ноги A, $</label><input id="msCap" type="number" step="10" value="1000" oninput="renderMsPair()"></div>
+  </div>
+  <div id="msCorr" style="margin-top:10px"><p class="hint">Нажми «Обновить мульти-спред».</p></div>
+  <div id="msPair" style="margin-top:14px"></div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h3>Индекс vs синтетика (без половины активов)</h3>
+  <p class="hint">Индекс = equal-weight всех 5. Синтетика = equal-weight отмеченных ниже (данные берутся из «Обновить мульти-спред» выше — нажми его сначала).</p>
+  <div class="ctrl" style="background:none;border:0;padding:0">
+    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="ix_ETH" checked> ETH</label>
+    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="ix_HYPE" checked> HYPE</label>
+    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="ix_GOLD"> GOLD</label>
+    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="ix_NVDAX"> NVDAX</label>
+    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="ix_SPCXX" checked> SPCXX</label>
+    <button onclick="renderIndexVsSynth()">Построить</button>
+  </div>
+  <div class="grid">
+    <div class="card"><h3>Кумулятивный %: Индекс(5) vs Синтетика</h3><canvas id="ixCumChart" style="width:100%;height:180px"></canvas></div>
+    <div class="card"><h3>Спред (Индекс − Синтетика, лог)</h3><canvas id="ixSpreadChart" style="width:100%;height:180px"></canvas></div>
+  </div>
+  <div id="ixStats" style="margin-top:10px"></div>
+</div>
+
+<details class="info" style="margin-top:14px"><summary>Стат-арб 🔱 — кросс-венью спред (ручной ввод)</summary><div class="body">
   Парный/спред стат-арб между площадками (Bybit · Герчик · Infra · Deribit/Coinbase · Freedom). Цены ДВУХ ног вводишь руками (API чужих площадок нет).
   Считает: <b>что лонг / что шорт</b>, <b>соотношение (хедж-ратио)</b>, <b>объёмы под капитал</b>, <b>Z-сигнал</b> и <b>готовую формулу спреда для TradingView</b>.<br>
   <b>FX→USD</b> на ноге приводит цену к общей валюте (золото-EUR через EURUSD = третий инструмент). <b>$/пункт</b> = стоимость 1 пункта контракта (крипто-перп = 1; CFD золото обычно 1 за унцию; FX — по спеке). Опцион-нога внизу: замена/страховка.
@@ -467,6 +574,106 @@ async function candles(cat,sym,interval,limit){
   const r=await api("/v5/market/kline",{category:cat,symbol:sym,interval,limit:String(limit)});
   return(r.list||[]).map(c=>({ts:+c[0],open:+c[1],high:+c[2],low:+c[3],close:+c[4],vol:+c[5]})).reverse();
 }
+const MS_ASSETS=[
+  {id:"ETH",cat:"linear",sym:"ETHUSDT",label:"ETH перп"},
+  {id:"HYPE",cat:"linear",sym:"HYPEUSDT",label:"HYPE перп"},
+  {id:"GOLD",cat:"linear",sym:"XAUUSDT",label:"Золото перп (XAU)"},
+  {id:"NVDAX",cat:"spot",sym:"NVDAXUSDT",label:"NVDA токен (спот)"},
+  {id:"SPCXX",cat:"spot",sym:"SPCXXUSDT",label:"SpaceX токен (спот)"},
+];
+let MS_DATA=null;
+async function loadMultiSpread(){
+  const corrEl=document.getElementById("msCorr");
+  corrEl.innerHTML=`<p class="hint">Тяну свечи…</p>`;
+  try{
+    const results=await Promise.all(MS_ASSETS.map(a=>candles(a.cat,a.sym,"60",200)));
+    MS_DATA={};
+    MS_ASSETS.forEach((a,i)=>{MS_DATA[a.id]={closes:results[i].map(c=>c.close)};});
+    const n=Math.min(...Object.values(MS_DATA).map(d=>d.closes.length));
+    Object.values(MS_DATA).forEach(d=>{d.closes=d.closes.slice(-n);d.rets=d.closes.slice(1).map((c,i)=>Math.log(c/d.closes[i]));});
+    const vol={};MS_ASSETS.forEach(a=>{vol[a.id]=stdev(MS_DATA[a.id].rets)*Math.sqrt(24*365)*100;});
+    let html=`<table><tr><th></th>${MS_ASSETS.map(a=>`<th>${a.id}</th>`).join("")}</tr>`;
+    MS_ASSETS.forEach(a=>{
+      html+=`<tr><td><b>${a.id}</b></td>`+MS_ASSETS.map(b=>`<td>${fmt(corr(MS_DATA[a.id].rets,MS_DATA[b.id].rets),2)}</td>`).join("")+`</tr>`;
+    });
+    html+=`</table><p class="hint" style="margin-top:6px">Годовая вола: ${MS_ASSETS.map(a=>`${a.id} ${fmt(vol[a.id],1)}%`).join(" · ")}</p>`;
+    corrEl.innerHTML=html;
+    if(!document.getElementById("msA").options.length){
+      fillSelect(document.getElementById("msA"),MS_ASSETS.map(a=>({id:a.id,label:a.label})),"ETH");
+      fillSelect(document.getElementById("msB"),MS_ASSETS.map(a=>({id:a.id,label:a.label})),"HYPE");
+    }
+    await renderMsPair();
+  }catch(e){corrEl.innerHTML=`<div class="err">${e.message}</div>`;}
+}
+async function renderMsPair(){
+  const out=document.getElementById("msPair");
+  if(!MS_DATA){out.innerHTML="";return;}
+  const idA=document.getElementById("msA").value,idB=document.getElementById("msB").value;
+  if(!idA||!idB||idA===idB){out.innerHTML=`<p class="hint">Выбери две разные ноги.</p>`;return;}
+  const dA=MS_DATA[idA],dB=MS_DATA[idB];
+  const n=Math.min(dA.closes.length,dB.closes.length);
+  const closesA=dA.closes.slice(-n),closesB=dB.closes.slice(-n);
+  const spread=closesA.map((c,i)=>Math.log(c/closesB[i]));
+  const mu=mean(spread),sd=stdev(spread);
+  const cur=spread[spread.length-1];
+  const z=sd?(cur-mu)/sd:0;
+  const hl=halfLife(spread);
+  const volA=stdev(dA.rets)*Math.sqrt(24*365),volB=stdev(dB.rets)*Math.sqrt(24*365);
+  const ratioBA=volB?volA/volB:0;
+  const capA=+document.getElementById("msCap").value||1000;
+  const capB=capA*ratioBA;
+  const pxA=closesA[closesA.length-1],pxB=closesB[closesB.length-1];
+  const bandRows=[-2,-1.5,-1,0,1,1.5,2].map(k=>{
+    const s=mu+k*sd,ratio=Math.exp(s),bAtFixedA=pxA/ratio;
+    return `<tr><td>${k>0?'+':''}${k}</td><td>${fmt(bAtFixedA,4)}</td></tr>`;
+  }).join("");
+  out.innerHTML=`
+    <div class="grid">
+      <div class="card"><h3>Спред ln(${idA}/${idB})</h3>${rows({
+        "Текущий Z":sign(z,2),
+        "mean / sd":`${fmt(mu,4)} / ${fmt(sd,4)}`,
+        "Half-life возврата":Number.isFinite(hl)?fmt(hl,1)+" ч":"—",
+        [idA+" live"]:fmt(pxA,4),[idB+" live"]:fmt(pxB,4)})}</div>
+      <div class="card"><h3>Полосы (${idB} при фикс. ${idA}=${fmt(pxA,2)})</h3>
+        <table><tr><th>Z</th><th>${idB}, $</th></tr>${bandRows}</table></div>
+      <div class="card"><h3>Sizing (вола-нейтрально)</h3>${rows({
+        ["vol "+idA+" / "+idB+" (год.)"]:`${fmt(volA*100,1)}% / ${fmt(volB*100,1)}%`,
+        [idB+"$ на 1 "+idA+"$"]:fmt(ratioBA,3),
+        ["Капитал "+idA]:"$"+fmt(capA,0),
+        ["Капитал "+idB]:"$"+fmt(capB,0)})}</div>
+    </div>`;
+}
+function renderIndexVsSynth(){
+  const out=document.getElementById("ixStats");
+  if(!MS_DATA){out.innerHTML=`<p class="hint">Сначала «Обновить мульти-спред» выше.</p>`;return;}
+  const all=MS_ASSETS.map(a=>a.id);
+  const subset=all.filter(id=>document.getElementById("ix_"+id).checked);
+  if(!subset.length||subset.length===all.length){out.innerHTML=`<p class="hint">Отметь ЧАСТЬ активов (не все и не ноль) — это и есть «синтетика».</p>`;return;}
+  const n=Math.min(...all.map(id=>MS_DATA[id].rets.length));
+  const wAvgRet=ids=>{const w=1/ids.length,r=[];for(let t=0;t<n;t++){let s=0;ids.forEach(id=>s+=w*MS_DATA[id].rets[t]);r.push(s);}return r;};
+  const fullRet=wAvgRet(all),synthRet=wAvgRet(subset);
+  const cum=r=>{const c=[0];r.forEach(x=>c.push(c[c.length-1]+x));return c;};
+  const fullCum=cum(fullRet),synthCum=cum(synthRet);
+  const fullPct=fullCum.map(x=>(Math.exp(x)-1)*100),synthPct=synthCum.map(x=>(Math.exp(x)-1)*100);
+  const spread=fullCum.map((v,i)=>v-synthCum[i]);
+  const mu=mean(spread),sd=stdev(spread),z=sd?(spread[spread.length-1]-mu)/sd:0,hl=halfLife(spread);
+  const c=corr(fullRet,synthRet);
+  lineChart(document.getElementById("ixCumChart"),[
+    {data:fullPct,color:"#58a6ff"},{data:synthPct,color:"#3fb950"}
+  ],{dp:2,legend:["Индекс(5)","Синтетика ("+subset.join("+")+")"]});
+  lineChart(document.getElementById("ixSpreadChart"),[
+    {data:flat(mu+2*sd,spread.length),color:"#f85149",dash:[4,3],w:1},
+    {data:flat(mu-2*sd,spread.length),color:"#f85149",dash:[4,3],w:1},
+    {data:flat(mu,spread.length),color:"#8b97a7",dash:[2,2],w:1},
+    {data:spread,color:"#d29922",w:2}
+  ],{dp:4});
+  out.innerHTML=rows({
+    "Состав синтетики":subset.join(" + "),
+    "Корреляция (доходности)":fmt(c,3),
+    "σ спреда":fmt(sd,4),
+    "Half-life возврата":Number.isFinite(hl)?fmt(hl,1)+" ч":"—",
+    "Текущий Z":sign(z,2)});
+}
 function alignSpread(ca,cb,pct=false){
   const mb=new Map(cb.map(c=>[c.ts,c.close]));
   return ca.filter(c=>mb.has(c.ts)).map(c=>pct?(c.close-mb.get(c.ts))/mb.get(c.ts)*100:c.close-mb.get(c.ts));
@@ -504,6 +711,125 @@ async function signedGet(path,params){
   let j;try{j=JSON.parse(txt);}catch{throw new Error("HTTP "+r.status+" — не-JSON");}
   if(j.retCode!==0)throw new Error("Bybit "+j.retCode+": "+j.retMsg);
   return j.result;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// OTHER EXCHANGES (read-only): Binance, MEXC, Bitfinex, Hyperliquid
+// ══════════════════════════════════════════════════════════════════════════════
+const EX_FIELDS={
+  binance:{key:"binApiKey",secret:"binApiSecret",state:"binanceKeyState",store:"binance_ro_keys"},
+  mexc:{key:"mexcApiKey",secret:"mexcApiSecret",state:"mexcKeyState",store:"mexc_ro_keys"},
+  bitfinex:{key:"bfxApiKey",secret:"bfxApiSecret",state:"bitfinexKeyState",store:"bitfinex_ro_keys"},
+  hyperliquid:{key:"hlAddress",secret:null,state:"hyperliquidKeyState",store:"hyperliquid_ro_address"},
+};
+const getExKeys=ex=>{try{return JSON.parse(localStorage.getItem(EX_FIELDS[ex].store)||"null");}catch{return null;}};
+function refreshExKeyState(ex){
+  const f=EX_FIELDS[ex],k=getExKeys(ex),el=document.getElementById(f.state);
+  el.innerHTML=k?'<span class="pos">● сохранено</span>':'<span class="neu">не задано</span>';
+}
+function saveExKeys(ex){
+  const f=EX_FIELDS[ex],k=document.getElementById(f.key).value.trim();
+  if(!f.secret){
+    if(!k){alert("Введи адрес кошелька");return;}
+    localStorage.setItem(f.store,JSON.stringify({address:k}));
+    document.getElementById(f.key).value="";
+  }else{
+    const s=document.getElementById(f.secret).value.trim();
+    if(!k||!s){alert("Введи key и secret");return;}
+    localStorage.setItem(f.store,JSON.stringify({apiKey:k,apiSecret:s}));
+    document.getElementById(f.key).value="";document.getElementById(f.secret).value="";
+  }
+  refreshExKeyState(ex);
+}
+function forgetExKeys(ex){localStorage.removeItem(EX_FIELDS[ex].store);refreshExKeyState(ex);}
+function fmtFetchError(e,ex){
+  if(e instanceof TypeError)return `сеть/CORS — браузер заблокировал прямой запрос к ${ex}. Нужен локальный прокси (см. README).`;
+  return e.message||String(e);
+}
+
+async function binanceSignedGet(path,params){
+  const k=getExKeys("binance");if(!k)throw new Error("ключ Binance не задан");
+  const qs=new URLSearchParams({...params,timestamp:Date.now(),recvWindow:5000}).toString();
+  const sig=await hmacHex(k.apiSecret,qs);
+  const r=await fetch(`https://fapi.binance.com${path}?${qs}&signature=${sig}`,{headers:{"X-MBX-APIKEY":k.apiKey}});
+  const j=await r.json();
+  if(!r.ok)throw new Error(`Binance ${j.code}: ${j.msg}`);
+  return j;
+}
+async function loadBinance(){
+  const acc=await binanceSignedGet("/fapi/v2/account",{});
+  const positions=(acc.positions||[]).filter(p=>+p.positionAmt!==0);
+  return{exchange:"Binance (USDT-M фьючи)",equity:+acc.totalWalletBalance,upnl:+acc.totalUnrealizedProfit,margin:+acc.totalMaintMargin,
+    positions:positions.map(p=>({symbol:p.symbol,side:+p.positionAmt>0?"LONG":"SHORT",size:Math.abs(+p.positionAmt),entry:+p.entryPrice,upnl:+p.unrealizedProfit}))};
+}
+
+async function mexcSignedGet(path,params){
+  const k=getExKeys("mexc");if(!k)throw new Error("ключ MEXC не задан");
+  const qs=new URLSearchParams({...params,timestamp:Date.now(),recvWindow:5000}).toString();
+  const sig=await hmacHex(k.apiSecret,qs);
+  const r=await fetch(`https://api.mexc.com${path}?${qs}&signature=${sig}`,{headers:{"X-MEXC-APIKEY":k.apiKey}});
+  const j=await r.json();
+  if(!r.ok)throw new Error(`MEXC ${j.code}: ${j.msg}`);
+  return j;
+}
+async function loadMexc(){
+  const acc=await mexcSignedGet("/api/v3/account",{});
+  const coins=(acc.balances||[]).filter(b=>+b.free+ +b.locked>1e-9);
+  return{exchange:"MEXC (спот)",equity:null,positions:[],coins:coins.map(c=>({coin:c.asset,qty:+c.free+ +c.locked}))};
+}
+
+async function bitfinexSignedPost(path,body={}){
+  const k=getExKeys("bitfinex");if(!k)throw new Error("ключ Bitfinex не задан");
+  const nonce=String(Date.now()*1000);
+  const bodyStr=JSON.stringify(body);
+  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(k.apiSecret),{name:"HMAC",hash:"SHA-384"},false,["sign"]);
+  const sigBuf=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(`/api${path}${nonce}${bodyStr}`));
+  const sig=[...new Uint8Array(sigBuf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+  const r=await fetch(`https://api.bitfinex.com${path}`,{method:"POST",
+    headers:{"Content-Type":"application/json","bfx-apikey":k.apiKey,"bfx-nonce":nonce,"bfx-signature":sig},body:bodyStr});
+  const j=await r.json();
+  if(Array.isArray(j)&&j[0]==="error")throw new Error(`Bitfinex ${j[1]}: ${j[2]}`);
+  return j;
+}
+async function loadBitfinex(){
+  const[wallets,positions]=await Promise.all([bitfinexSignedPost("/v2/auth/r/wallets"),bitfinexSignedPost("/v2/auth/r/positions")]);
+  const coins=(wallets||[]).filter(w=>Math.abs(w[2])>1e-9).map(w=>({coin:w[1],qty:w[2]}));
+  const pos=(positions||[]).map(p=>({symbol:p[0],side:p[2]>0?"LONG":"SHORT",size:Math.abs(p[2]),entry:p[3],upnl:p[6]}));
+  return{exchange:"Bitfinex",equity:null,positions:pos,coins};
+}
+
+async function loadHyperliquid(){
+  const k=getExKeys("hyperliquid");if(!k)throw new Error("адрес не задан");
+  const r=await fetch("https://api.hyperliquid.xyz/info",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({type:"clearinghouseState",user:k.address})});
+  const j=await r.json();
+  const ms=j.marginSummary||{};
+  const positions=(j.assetPositions||[]).map(a=>{const p=a.position;return{symbol:p.coin,side:+p.szi>0?"LONG":"SHORT",size:Math.abs(+p.szi),entry:+p.entryPx,upnl:+p.unrealizedPnl};});
+  return{exchange:"Hyperliquid",equity:+ms.accountValue,margin:+ms.totalMarginUsed,positions};
+}
+
+function renderExCard(data){
+  const posRows=(data.positions||[]).length?`<table><tr><th>Символ</th><th>Сторона</th><th>Размер</th><th>Вход</th><th>uPnL</th></tr>
+    ${data.positions.map(p=>`<tr><td>${p.symbol}</td><td class="${p.side==="LONG"?'pos':'neg'}">${p.side}</td><td>${fmt(p.size,4)}</td><td>${fmt(p.entry)}</td><td>${sign(p.upnl)}</td></tr>`).join("")}</table>`:"";
+  const coinRows=(data.coins||[]).length?`<table><tr><th>Монета</th><th>Кол-во</th></tr>
+    ${data.coins.map(c=>`<tr><td>${c.coin}</td><td>${fmt(c.qty,4)}</td></tr>`).join("")}</table>`:"";
+  const empty=!posRows&&!coinRows&&data.equity==null?'<p class="hint">Пусто.</p>':"";
+  return`<div class="card"><h3>${data.exchange}</h3>
+    ${data.equity!=null?rows({"Эквити":fmt(data.equity)+" $","Маржа исп.":fmt(data.margin||0)+" $","uPnL":sign(data.upnl||0)}):""}
+    ${posRows}${coinRows}${empty}</div>`;
+}
+
+async function loadOtherExchanges(){
+  const out=document.getElementById("otherExCards");
+  const loaders=[["binance",loadBinance],["mexc",loadMexc],["bitfinex",loadBitfinex],["hyperliquid",loadHyperliquid]]
+    .filter(([ex])=>getExKeys(ex));
+  if(!loaders.length){out.innerHTML=`<div class="card err">Сохрани хотя бы один ключ/адрес выше.</div>`;return;}
+  out.innerHTML=loaders.map(([ex])=>`<div class="card" id="exCard_${ex}">Читаю ${ex}…</div>`).join("");
+  await Promise.all(loaders.map(async([ex,fn])=>{
+    const el=document.getElementById(`exCard_${ex}`);
+    try{const data=await fn();el.outerHTML=renderExCard(data);}
+    catch(e){el.outerHTML=`<div class="card err" id="exCard_${ex}">${ex}: ${fmtFetchError(e,ex)}</div>`;}
+  }));
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -658,6 +984,110 @@ async function loadFarm(){
     calcFarmEV();
     st.textContent="ок · "+new Date().toLocaleTimeString("ru");st.className="ok";
   }catch(e){st.textContent="✗ "+e.message;st.className="err";}
+}
+function calcGridStats(entry,atr,widthPct,invest,lev,feePct,N){
+  const lower=entry*(1-widthPct/100),upper=entry*(1+widthPct/100);
+  const range=upper-lower,step=range/N,cellValue=invest/N,fee=feePct/100;
+  const profitPerFill=step*(cellValue/entry)-2*fee*cellValue;
+  const fillsPerDay=Math.max(0,(atr*0.6)/step);
+  const dailyPnl=profitPerFill*fillsPerDay*N*0.3;
+  const apr=invest?dailyPnl*365/invest*100:0;
+  const minStep=2*fee*entry;
+  const liqPrice=entry*(1-1/lev+0.005);
+  const liqSafe=lower>liqPrice*1.3;
+  return{lower,upper,step,stepPct:step/lower*100,minStep,fillsPerDay,dailyPnl,apr,liqPrice,liqSafe};
+}
+function solveGridNForTheta(entry,atr,widthPct,invest,feePct,targetDaily){
+  const fee=feePct/100,K=0.18*atr*invest,maxDaily=K/entry;
+  if(targetDaily<=0)return{ok:true,step:null};
+  if(targetDaily>=maxDaily)return{ok:false,maxDaily};
+  const denom=1/entry-targetDaily/K,step=2*fee/denom,range=entry*widthPct/100*2;
+  return{ok:true,N:range/step};
+}
+function calcGridVsTheta(){
+  const entry=+document.getElementById("gt_entry").value||0;
+  const atr=+document.getElementById("gt_atr").value||0;
+  const width=+document.getElementById("gt_width").value||0;
+  const invest=+document.getElementById("gt_inv").value||0;
+  const lev=+document.getElementById("gt_lev").value||1;
+  const feePct=+document.getElementById("gt_fee").value||0;
+  const theta=+document.getElementById("gt_theta").value||0;
+  const nManual=+document.getElementById("gt_n").value||0;
+  const out=document.getElementById("gt_out");
+  if(!entry||!atr||!width||!invest){out.innerHTML=`<p class="hint">Заполни спот/ATR/ширину/капитал.</p>`;return;}
+  let N=nManual,solveNote="";
+  if(!N){
+    const sol=solveGridNForTheta(entry,atr,width,invest,feePct,theta);
+    if(!sol.ok){out.innerHTML=`<div class="card err">Недостижимо этим капиталом/ATR — максимум ≈ $${fmt(sol.maxDaily,2)}/день (при N→1). Увеличь капитал или ширину/ATR.</div>`;return;}
+    if(sol.step==null){N=10;solveNote="тета=0 — сетка не обязана её покрывать, N по умолчанию 10.";}
+    else{N=Math.max(3,Math.round(sol.N));solveNote=`решено под тету: N≈${fmt(sol.N,1)} → округлено до ${N}.`;}
+  }
+  const st=calcGridStats(entry,atr,width,invest,lev,feePct,N);
+  const surplus=st.dailyPnl-theta;
+  window.GT_LAST={surplus,theta,dailyPnl:st.dailyPnl};
+  out.innerHTML=`
+    <div class="grid">
+      <div class="card"><h3>Сетка (N=${N})</h3>${rows({
+        "Диапазон":`${fmt(st.lower,2)} – ${fmt(st.upper,2)}`,
+        "Шаг":`${fmt(st.step,4)} (${fmt(st.stepPct,3)}%)`,
+        "Мин. шаг (б/у)":fmt(st.minStep,4),
+        "Срабатываний/день":fmt(st.fillsPerDay,1),
+        "DailyPnL сетки":sign(st.dailyPnl,2)+" $",
+        "APR сетки":fmt(st.apr,1)+"%",
+        "Ликв. безопасно":st.liqSafe?'<span class="pos">да</span>':'<span class="neg">НЕТ — расширь диапазон/снизь плечо</span>'})}</div>
+      <div class="card"><h3>Против теты страховки</h3>${rows({
+        "Тета страховки":'<span class="neg">−'+fmt(theta,2)+"</span> $/день",
+        "DailyPnL сетки":sign(st.dailyPnl,2)+" $/день",
+        "Излишек/дефицит":sign(surplus,2)+" $/день"})}
+        <p class="hint">${solveNote}</p>
+        <p class="hint">${surplus>=0?'<span class="pos">Сетка полностью закрывает тету, ещё и в плюсе.</span>':'<span class="neg">Сетка НЕ закрывает тету целиком — остаток $'+fmt(Math.abs(surplus),2)+'/день ложится на скальп/премию.</span>'}</p></div>
+    </div>`;
+}
+async function fetchGtAtr(){
+  const sym=document.getElementById("gt_sym").value.trim();
+  try{
+    const c=await candles("linear",sym,"60",21);
+    if(c.length<2)throw new Error("мало баров");
+    let trSum=0;
+    for(let i=1;i<c.length;i++)trSum+=Math.max(c[i].high-c[i].low,Math.abs(c[i].high-c[i-1].close),Math.abs(c[i].low-c[i-1].close));
+    document.getElementById("gt_atr").value=(trSum/(c.length-1)).toFixed(4);
+    document.getElementById("gt_entry").value=c[c.length-1].close.toFixed(4);
+    calcGridVsTheta();
+  }catch(e){alert("Ошибка ATR: "+e.message);}
+}
+function pushGtThetaToEV(){
+  if(!window.GT_LAST)return;
+  document.getElementById("farm_theta").value=Math.max(0,window.GT_LAST.theta-window.GT_LAST.dailyPnl).toFixed(2);
+  calcFarmEV();
+}
+const VIP_TIERS=[
+  {name:"Regular",vol:0,assets:0,maker:0.0200,taker:0.0550},
+  {name:"VIP 1",vol:10e6,assets:100e3,maker:0.0180,taker:0.0400},
+  {name:"VIP 2",vol:25e6,assets:250e3,maker:0.0160,taker:0.0375},
+  {name:"VIP 3",vol:50e6,assets:500e3,maker:0.0140,taker:0.0350},
+  {name:"VIP 4",vol:100e6,assets:1e6,maker:0.0120,taker:0.0320},
+  {name:"VIP 5",vol:250e6,assets:2e6,maker:0.0100,taker:0.0320},
+  {name:"Supreme VIP",vol:500e6,assets:Infinity,maker:0.0000,taker:0.0300},
+];
+function calcVipProgress(){
+  const vol=+document.getElementById("vip_vol").value||0;
+  const assets=+document.getElementById("vip_assets").value||0;
+  const daily=+document.getElementById("vip_daily").value||0;
+  const out=document.getElementById("vip_out");
+  const qualifies=t=>vol>=t.vol||assets>=t.assets;
+  let curIdx=0;
+  for(let i=VIP_TIERS.length-1;i>=0;i--){if(qualifies(VIP_TIERS[i])){curIdx=i;break;}}
+  const cur=VIP_TIERS[curIdx],next=VIP_TIERS[curIdx+1];
+  if(!next){out.innerHTML=`<p class="pos">Уже Supreme VIP — максимум обычной лестницы (maker ${fmt(cur.maker,3)}%).</p>`;return;}
+  const volGap=Math.max(0,next.vol-vol);
+  const daysByVol=daily>0?volGap/daily:Infinity;
+  out.innerHTML=rows({
+    "Текущий тир":`<b>${cur.name}</b> (maker ${fmt(cur.maker,3)}% / taker ${fmt(cur.taker,3)}%)`,
+    "Следующий тир":`<b>${next.name}</b> (maker ${fmt(next.maker,3)}% / taker ${fmt(next.taker,3)}%)`,
+    "Нужно ещё объёма (30д)":"$"+fmt(volGap,0)+(assets>=next.assets?' <span class="hint">(по активам уже хватает)</span>':''),
+    "Или активов на счёте":"$"+fmt(Math.max(0,next.assets-assets),0),
+    "Дней при текущем доп. обороте":Number.isFinite(daysByVol)?fmt(daysByVol,0)+" дн":"— (укажи доп. оборот/день)",
+    "Экономия maker на $1М оборота":"$"+fmt((cur.maker-next.maker)/100*1e6,0)});
 }
 function calcFarmEV(){
   const vol=+document.getElementById("farm_vol").value||0;
@@ -1230,7 +1660,7 @@ function optDraw(){
 // FORM PERSISTENCE  (все input/select → localStorage, кроме apiKey/apiSecret)
 // ══════════════════════════════════════════════════════════════════════════════
 const FP="calc_form_v1";
-const SKIP_IDS=new Set(["apiKey","apiSecret"]);
+const SKIP_IDS=new Set(["apiKey","apiSecret","binApiKey","binApiSecret","mexcApiKey","mexcApiSecret","bfxApiKey","bfxApiSecret","hlAddress"]);
 
 function fpSave(id,val){
   try{const d=JSON.parse(localStorage.getItem(FP)||"{}");d[id]=val;localStorage.setItem(FP,JSON.stringify(d));}catch{}
@@ -1279,12 +1709,13 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
     if(!tvWidgets[`tv_${tab}`])tvChart(`tv_${tab}`,sym,int);
   }
   if(tab==="opt")optDraw();
-  if(tab==="farm")calcFarmEV();
+  if(tab==="farm"){calcFarmEV();calcGridVsTheta();calcVipProgress();}
 });
 
 async function init(){
   restoreForms();
   refreshKeyState();
+  Object.keys(EX_FIELDS).forEach(refreshExKeyState);
   updateTickerBar();setInterval(updateTickerBar,15000);
 }
 init();
