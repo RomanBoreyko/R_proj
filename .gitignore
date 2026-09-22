@@ -1,0 +1,34 @@
+# Obsidian local workspace/cache (keep shared config, ignore per-machine state)
+# ** prefix so this also applies to nested vaults, not just the root one
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+**/.obsidian/graph.json
+**/.obsidian/plugins/
+**/.obsidian/community-plugins.json
+
+# Claude Code / Claudesidian / Smart Connections (session & cache data)
+.claude/
+.claudian/
+.smart-env/
+
+# Dependencies
+node_modules/
+dist/
+
+# Secrets — never commit API keys
+.bybit/
+.exchanges/
+credentials.json
+config.json
+*.key
+.env
+
+# R_trade_proj_sin-arb has its own separate git repo (nested), backed up via its
+# own push — NOT added as submodule here because its remote is the SAME GitHub
+# repo (RomanBoreyko/R_proj) as this outer vault repo, which would be circular.
+# [поправь: реши, как это должно быть организовано на самом деле]
+R-trade/R_trade_proj_sin-arb/
+
+# OS / misc
+desktop.ini
+*.log
