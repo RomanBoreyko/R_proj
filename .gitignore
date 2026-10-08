@@ -42,3 +42,7 @@ TRADING-SYSTEM/scripts/portfolio/data/
 
 # Telegram-экспорт (медиа, не для git)
 ChatExport_*/
+
+# Заброшенные проекты со своими репозиториями — не входят в волт
+BR_zalgo/
+r_cod2/
