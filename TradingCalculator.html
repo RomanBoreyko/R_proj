@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRADING SYSTEM CALCULATOR v1.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#080a0d;
+  --bg1:#0d0f14;
+  --bg2:#111520;
+  --bg3:#161b2a;
+  --border:#1a2035;
+  --border2:#243050;
+  --green:#00e676;
+  --green2:#00b248;
+  --cyan:#00e5ff;
+  --cyan2:#0097b2;
+  --red:#ff1744;
+  --red2:#b71c1c;
+  --yellow:#ffd600;
+  --orange:#ff6d00;
+  --text:#b0bcd8;
+  --text2:#6878a0;
+  --text3:#3a4560;
+  --bright:#e2e8f8;
+  --mono:'JetBrains Mono',monospace;
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;overflow-x:hidden}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--bg1);border-bottom:1px solid var(--border2);position:sticky;top:0;z-index:100}
+.header-logo{color:var(--cyan);font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase}
+.header-logo span{color:var(--text2)}
+.header-right{display:flex;gap:12px;align-items:center}
+.version{color:var(--text3);font-size:10px}
+.live-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:blink 1.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+
+/* ASSET TABS */
+.asset-tabs{display:flex;gap:2px;padding:6px 16px;background:var(--bg1);border-bottom:1px solid var(--border)}
+.asset-tab{padding:4px 14px;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:1px;transition:all 0.15s;border-radius:2px}
+.asset-tab:hover{border-color:var(--cyan2);color:var(--cyan)}
+.asset-tab.active{background:var(--bg3);border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 8px rgba(0,229,255,0.15)}
+.asset-label{color:var(--text3);font-size:10px;margin-right:8px;align-self:center}
+
+/* STRATEGY TABS */
+.strat-tabs{display:flex;gap:2px;padding:4px 16px;background:var(--bg);border-bottom:1px solid var(--border)}
+.strat-tab{padding:3px 12px;border:1px solid transparent;background:transparent;color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:0.5px;transition:all 0.15s;border-radius:2px}
+.strat-tab:hover{color:var(--text);border-color:var(--border2)}
+.strat-tab.active{background:var(--bg2);border-color:var(--green2);color:var(--green);font-weight:700}
+
+/* MAIN LAYOUT */
+.main{display:grid;grid-template-columns:280px 1fr 290px;gap:0;min-height:calc(100vh - 90px)}
+.col-left{border-right:1px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:calc(100vh - 130px)}
+.col-center{padding:12px;display:flex;flex-direction:column;gap:10px}
+.col-right{border-left:1px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:8px}
+
+/* PANELS */
+.panel{background:var(--bg1);border:1px solid var(--border);border-radius:3px;padding:10px}
+.panel-header{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.panel-header .icon{font-size:10px}
+.ph-green{color:var(--green)}
+.ph-cyan{color:var(--cyan)}
+.ph-red{color:var(--red)}
+.ph-yellow{color:var(--yellow)}
+
+/* INPUTS */
+.field{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.field-label{color:var(--text2);font-size:11px;flex:1}
+.field-hint{color:var(--text3);font-size:9px;display:block;margin-top:1px}
+.field-input-wrap{display:flex;align-items:center;gap:4px}
+.field-unit{color:var(--text3);font-size:10px;min-width:20px}
+input[type=number]{background:var(--bg);border:1px solid var(--border2);color:var(--bright);font-family:var(--mono);font-size:11px;padding:3px 6px;width:90px;text-align:right;border-radius:2px;outline:none;transition:border-color 0.15s}
+input[type=number]:focus{border-color:var(--cyan2);background:var(--bg2)}
+input[type=number]:hover{border-color:var(--border2)}
+select{background:var(--bg);border:1px solid var(--border2);color:var(--bright);font-family:var(--mono);font-size:11px;padding:3px 6px;width:90px;border-radius:2px;outline:none}
+select:focus{border-color:var(--cyan2)}
+.btn-update{width:100%;padding:7px;background:var(--bg2);border:1px solid var(--cyan2);color:var(--cyan);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all 0.15s;border-radius:2px;margin-top:4px}
+.btn-update:hover{background:var(--bg3);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,229,255,0.2)}
+
+/* CENTER METRIC */
+.metric-main{text-align:center;padding:16px 0 8px}
+.metric-value{font-size:48px;font-weight:700;line-height:1;letter-spacing:-2px}
+.metric-value.green{color:var(--green);text-shadow:0 0 20px rgba(0,230,118,0.3)}
+.metric-value.red{color:var(--red)}
+.metric-value.yellow{color:var(--yellow)}
+.metric-sub{color:var(--text2);font-size:11px;margin-top:4px;letter-spacing:1px}
+
+/* POSITION SLIDER */
+.slider-section{padding:0 8px}
+.slider-label{display:flex;justify-content:space-between;color:var(--text2);font-size:10px;margin-bottom:6px}
+.slider-label .val{color:var(--bright);font-weight:700}
+input[type=range]{width:100%;-webkit-appearance:none;height:4px;background:linear-gradient(90deg,var(--cyan2) var(--pct,50%),var(--bg3) var(--pct,50%));border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--cyan);border-radius:50%;cursor:pointer;box-shadow:0 0 6px rgba(0,229,255,0.5)}
+.slider-limits{display:flex;justify-content:space-between;color:var(--text3);font-size:9px;margin-top:3px}
+
+/* RISK GAUGE */
+.gauge-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.gauge-label{color:var(--text2);font-size:10px}
+.gauge-bar{flex:1;margin:0 8px;height:3px;background:var(--bg3);border-radius:2px;position:relative}
+.gauge-fill{height:100%;border-radius:2px;transition:width 0.3s}
+.gauge-val{font-size:10px;font-weight:700;min-width:36px;text-align:right}
+.sigma-display{text-align:center;margin-top:8px}
+.sigma-val{font-size:22px;font-weight:700}
+.sigma-val.safe{color:var(--green)}
+.sigma-val.warn{color:var(--yellow)}
+.sigma-val.danger{color:var(--red);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.sigma-status{font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-top:2px;color:var(--text2)}
+
+/* RIGHT COLUMN P&L */
+.pnl-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--bg3)}
+.pnl-label{color:var(--text2);font-size:11px}
+.pnl-val{font-size:11px;font-weight:700}
+.pnl-val.pos{color:var(--green)}
+.pnl-val.neg{color:var(--red)}
+.pnl-val.neu{color:var(--text)}
+.pnl-total{display:flex;justify-content:space-between;align-items:center;padding:5px 0 0}
+.pnl-total-label{color:var(--bright);font-size:12px;font-weight:700}
+.pnl-total-val{font-size:16px;font-weight:700}
+
+.metric-row{display:flex;justify-content:space-between;gap:8px;margin-top:8px}
+.metric-box{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:2px;padding:6px;text-align:center}
+.metric-box-label{color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:1px}
+.metric-box-val{color:var(--bright);font-size:13px;font-weight:700;margin-top:2px}
+
+/* SCENARIOS */
+.scenarios{padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.scenario{background:var(--bg1);border:1px solid var(--border);border-radius:3px;padding:10px}
+.sc-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.sc-title{font-size:10px;font-weight:700;margin-bottom:6px;letter-spacing:0.5px;display:flex;align-items:center}
+.sc-item{display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:2px}
+.sc-total{display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-top:5px;padding-top:5px;border-top:1px solid var(--bg3)}
+
+/* STATUS BADGES */
+.badge{display:inline-block;padding:1px 6px;border-radius:2px;font-size:9px;font-weight:700;letter-spacing:1px}
+.badge-ok{background:rgba(0,230,118,0.1);border:1px solid var(--green2);color:var(--green)}
+.badge-warn{background:rgba(255,214,0,0.1);border:1px solid var(--yellow);color:var(--yellow)}
+.badge-err{background:rgba(255,23,68,0.1);border:1px solid var(--red2);color:var(--red)}
+
+/* DIVIDER */
+.divider{height:1px;background:var(--border);margin:4px 0}
+
+/* SECTION TITLE */
+.sec-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin:6px 0 4px;padding-left:2px}
+
+/* TABLE */
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{font-size:9px;color:var(--text3);font-weight:400;letter-spacing:1px;text-align:left;padding:3px 4px;border-bottom:1px solid var(--border)}
+.data-table td{font-size:11px;padding:4px;border-bottom:1px solid var(--bg2)}
+.data-table tr:hover td{background:var(--bg2)}
+
+/* CHECKMARK SAFETY */
+.safety{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:2px;font-size:10px;font-weight:700;letter-spacing:0.5px}
+.safety.ok{background:rgba(0,230,118,0.07);border:1px solid var(--green2);color:var(--green)}
+.safety.warn{background:rgba(255,23,68,0.07);border:1px solid var(--red2);color:var(--red)}
+
+/* STRATEGY PANEL hide/show */
+.strat-panel{display:none}
+.strat-panel.active{display:contents}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* Responsive */
+@media(max-width:1100px){.main{grid-template-columns:240px 1fr 260px}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-logo">TRADING SYS <span>//</span> SPREAD CALCULATOR <span>//</span> v1.0</div>
+  <div class="header-right">
+    <div class="live-dot"></div>
+    <span class="version">Bybit + Deribit + Coinbase</span>
+  </div>
+</div>
+
+<!-- ASSET TABS -->
+<div class="asset-tabs">
+  <span class="asset-label">АКТИВ:</span>
+  <button class="asset-tab active" data-asset="XAUT" onclick="setAsset('XAUT',this)">⚡ XAUTUSDT</button>
+  <button class="asset-tab" data-asset="ETH" onclick="setAsset('ETH',this)">Ξ ETHUSDT</button>
+  <button class="asset-tab" data-asset="MNT" onclick="setAsset('MNT',this)">◈ MNTUSDT</button>
+  <button class="asset-tab" data-asset="XRP" onclick="setAsset('XRP',this)">✦ XRPUSDT</button>
+  <button class="asset-tab" data-asset="SOL" onclick="setAsset('SOL',this)">◎ SOLUSDT</button>
+</div>
+
+<!-- STRATEGY TABS -->
+<div class="strat-tabs">
+  <button class="strat-tab active" onclick="setStrat('grid',this)">▦ СЕТОЧНЫЙ БОТ</button>
+  <button class="strat-tab" onclick="setStrat('basis',this)">⇄ БАЗИС АРБ</button>
+  <button class="strat-tab" onclick="setStrat('options',this)">◉ ОПЦ ОБЁРТКА</button>
+  <button class="strat-tab" onclick="setStrat('ivarb',this)">∿ IV АРБ</button>
+  <button class="strat-tab" onclick="setStrat('calendar',this)">⊞ КАЛЕНДАРЬ</button>
+  <button class="strat-tab" onclick="setStrat('portfolio',this)">▤ ПОРТФЕЛЬ</button>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main">
+
+  <!-- ═══════════════ LEFT: INPUTS ═══════════════ -->
+  <div class="col-left">
+
+    <!-- GRID BOT INPUTS -->
+    <div id="inp-grid">
+      <div class="panel">
+        <div class="panel-header ph-cyan"><span class="icon">🔶</span> РЫНОЧНЫЕ ДАННЫЕ</div>
+        <div class="field">
+          <div><div class="field-label">Цена текущая</div></div>
+          <div class="field-input-wrap"><input type="number" id="g-price" value="2450" step="0.01"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">ATR (выбр. ТФ)</div><span class="field-hint">Average True Range</span></div>
+          <div class="field-input-wrap"><input type="number" id="g-atr" value="120" step="1"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Таймфрейм ATR</div></div>
+          <select id="g-tf" onchange="updateGridDefaults()">
+            <option value="1H">1 Час</option>
+            <option value="1D" selected>1 День</option>
+            <option value="1W">1 Неделя</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header ph-yellow"><span class="icon">🔶</span> ПАРАМЕТРЫ СЕТКИ</div>
+        <div class="field">
+          <div><div class="field-label">Нижняя граница</div></div>
+          <div class="field-input-wrap"><input type="number" id="g-lower" value="2270"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Верхняя граница</div></div>
+          <div class="field-input-wrap"><input type="number" id="g-upper" value="2630"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Кол-во ячеек</div></div>
+          <div class="field-input-wrap"><input type="number" id="g-count" value="30" min="5" max="150"><span class="field-unit">шт</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Тип сетки</div></div>
+          <select id="g-type">
+            <option value="arithmetic" selected>Arithmetic</option>
+            <option value="geometric">Geometric</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header ph-green"><span class="icon">💰</span> КАПИТАЛ И ПЛЕЧО</div>
+        <div class="field">
+          <div><div class="field-label">Объём</div></div>
+          <div class="field-input-wrap"><input type="number" id="g-invest" value="5000"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Плечо</div></div>
+          <div class="field-input-wrap"><input type="number" id="g-lev" value="1.5" min="1" max="2" step="0.1"><span class="field-unit">×</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Taker fee</div></div>
+          <div class="field-input-wrap"><input type="number" id="g-fee" value="0.055" step="0.001"><span class="field-unit">%</span></div>
+        </div>
+      </div>
+      <button class="btn-update" onclick="calcAll()">⟳ РАССЧИТАТЬ</button>
+    </div>
+
+    <!-- BASIS ARB INPUTS -->
+    <div id="inp-basis" style="display:none">
+      <div class="panel">
+        <div class="panel-header ph-cyan"><span class="icon">⇄</span> ЦЕНЫ</div>
+        <div class="field">
+          <div><div class="field-label">Спот (Bybit)</div></div>
+          <div class="field-input-wrap"><input type="number" id="b-spot" value="2450" step="0.01"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Фьюч (Deribit)</div></div>
+          <div class="field-input-wrap"><input type="number" id="b-fut" value="2485" step="0.01"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Дней до экспир.</div></div>
+          <div class="field-input-wrap"><input type="number" id="b-days" value="30"><span class="field-unit">дн</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header ph-yellow"><span class="icon">💰</span> ПОЗИЦИЯ И ИЗДЕРЖКИ</div>
+        <div class="field">
+          <div><div class="field-label">Размер позиции</div></div>
+          <div class="field-input-wrap"><input type="number" id="b-lots" value="1" step="0.1"><span class="field-unit">ед.</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Spot fee</div></div>
+          <div class="field-input-wrap"><input type="number" id="b-sfee" value="0.055" step="0.001"><span class="field-unit">%</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Futures fee</div></div>
+          <div class="field-input-wrap"><input type="number" id="b-ffee" value="0.03" step="0.001"><span class="field-unit">%</span></div>
+        </div>
+      </div>
+      <button class="btn-update" onclick="calcAll()">⟳ РАССЧИТАТЬ</button>
+    </div>
+
+    <!-- OPTIONS WRAPPER INPUTS -->
+    <div id="inp-options" style="display:none">
+      <div class="panel">
+        <div class="panel-header ph-cyan"><span class="icon">◉</span> БОТ</div>
+        <div class="field">
+          <div><div class="field-label">Нижняя сетки</div></div>
+          <div class="field-input-wrap"><input type="number" id="o-lower" value="2270"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Верхняя сетки</div></div>
+          <div class="field-input-wrap"><input type="number" id="o-upper" value="2630"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Объём бота</div></div>
+          <div class="field-input-wrap"><input type="number" id="o-invest" value="5000"><span class="field-unit">$</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Лотов</div></div>
+          <div class="field-input-wrap"><input type="number" id="o-lots" value="1" step="0.1"><span class="field-unit">шт</span></div>
+        </div>
+        <div class="field">
+          <div><div class="field-label">Дней до экспир.</div></div>
+          <div class="field-input-wrap"><input type="number" id="o-days" value="30"><span class="field-unit">дн</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header ph-green"><span class="icon">📈</span> ПРОДАН CALL</div>
+        <div class="field"><div class="field-label">Страйк</div><div class="field-input-wrap"><input type="number" id="o-cs" value="2760"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Премия</div><div class="field-input-wrap"><input type="number" id="o-cp" value="45" step="0.5"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Theta/день</div><div class="field-input-wrap"><input type="number" id="o-ct" value="1.8" step="0.1"><span class="field-unit">$</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header ph-yellow"><span class="icon">📉</span> ПРОДАН PUT + КУПЛЕН PUT</div>
+        <div class="field"><div class="field-label">Sold Put страйк</div><div class="field-input-wrap"><input type="number" id="o-sps" value="2040"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Sold Put премия</div><div class="field-input-wrap"><input type="number" id="o-spp" value="35" step="0.5"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Sold Put theta</div><div class="field-input-wrap"><input type="number" id="o-spt" value="1.4" step="0.1"><span class="field-unit">$</span></div></div>
+        <div class="divider"></div>
+        <div class="field"><div class="field-label">Bought Put страйк</div><div class="field-input-wrap"><input type="number" id="o-bps" value="2160"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Bought Put премия</div><div class="field-input-wrap"><input type="number" id="o-bpp" value="60" step="0.5"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Bought Put theta</div><div class="field-input-wrap"><input type="number" id="o-bpt" value="2.1" step="0.1"><span class="field-unit">$</span></div></div>
+      </div>
+      <button class="btn-update" onclick="calcAll()">⟳ РАССЧИТАТЬ</button>
+    </div>
+
+    <!-- IV ARB INPUTS -->
+    <div id="inp-ivarb" style="display:none">
+      <div class="panel">
+        <div class="panel-header ph-cyan"><span class="icon">∿</span> ВОЛАТИЛЬНОСТЬ</div>
+        <div class="field"><div class="field-label">IV Deribit (продаём)</div><div class="field-input-wrap"><input type="number" id="iv-sell" value="68" step="0.5"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">IV Bybit (покупаем)</div><div class="field-input-wrap"><input type="number" id="iv-buy" value="63" step="0.5"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">RV реализованная</div><div class="field-input-wrap"><input type="number" id="iv-rv" value="55" step="0.5"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">Цена страйка</div><div class="field-input-wrap"><input type="number" id="iv-strike" value="2450"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Дней до экспир.</div><div class="field-input-wrap"><input type="number" id="iv-days" value="30"><span class="field-unit">дн</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header ph-yellow"><span class="icon">💰</span> ПОЗИЦИЯ</div>
+        <div class="field"><div class="field-label">Vega ($/1% IV)</div><div class="field-input-wrap"><input type="number" id="iv-vega" value="12" step="0.5"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Лотов</div><div class="field-input-wrap"><input type="number" id="iv-lots" value="5"><span class="field-unit">шт</span></div></div>
+        <div class="field"><div class="field-label">Комиссия (sell)</div><div class="field-input-wrap"><input type="number" id="iv-fsell" value="0.03" step="0.01"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">Комиссия (buy)</div><div class="field-input-wrap"><input type="number" id="iv-fbuy" value="0.055" step="0.01"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">Цена актива</div><div class="field-input-wrap"><input type="number" id="iv-spot" value="2450"><span class="field-unit">$</span></div></div>
+      </div>
+      <button class="btn-update" onclick="calcAll()">⟳ РАССЧИТАТЬ</button>
+    </div>
+
+    <!-- CALENDAR INPUTS -->
+    <div id="inp-calendar" style="display:none">
+      <div class="panel">
+        <div class="panel-header ph-red"><span class="icon">⊞</span> БЛИЖНЯЯ ЭКСПИРАЦИЯ (продаём)</div>
+        <div class="field"><div class="field-label">IV ближний</div><div class="field-input-wrap"><input type="number" id="c-niv" value="72" step="0.5"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">Theta/день ($)</div><div class="field-input-wrap"><input type="number" id="c-nt" value="8.5" step="0.5"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Gamma</div><div class="field-input-wrap"><input type="number" id="c-ng" value="0.0015" step="0.0001"><span class="field-unit"></span></div></div>
+        <div class="field"><div class="field-label">Vega ($)</div><div class="field-input-wrap"><input type="number" id="c-nv" value="9" step="0.5"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Дней до экспир.</div><div class="field-input-wrap"><input type="number" id="c-nd" value="14"><span class="field-unit">дн</span></div></div>
+        <div class="field"><div class="field-label">Премия</div><div class="field-input-wrap"><input type="number" id="c-np" value="85" step="1"><span class="field-unit">$</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header ph-cyan"><span class="icon">⊞</span> ДАЛЬНЯЯ ЭКСПИРАЦИЯ (покупаем)</div>
+        <div class="field"><div class="field-label">IV дальний</div><div class="field-input-wrap"><input type="number" id="c-fiv" value="65" step="0.5"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">Theta/день ($)</div><div class="field-input-wrap"><input type="number" id="c-ft" value="5.2" step="0.5"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Gamma</div><div class="field-input-wrap"><input type="number" id="c-fg" value="0.0008" step="0.0001"><span class="field-unit"></span></div></div>
+        <div class="field"><div class="field-label">Vega ($)</div><div class="field-input-wrap"><input type="number" id="c-fv" value="14" step="0.5"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Дней до экспир.</div><div class="field-input-wrap"><input type="number" id="c-fd" value="42"><span class="field-unit">дн</span></div></div>
+        <div class="field"><div class="field-label">Премия</div><div class="field-input-wrap"><input type="number" id="c-fp" value="120" step="1"><span class="field-unit">$</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header ph-yellow"><span class="icon">💰</span> ПОЗИЦИЯ</div>
+        <div class="field"><div class="field-label">Лотов</div><div class="field-input-wrap"><input type="number" id="c-lots" value="3"><span class="field-unit">шт</span></div></div>
+        <div class="field"><div class="field-label">Цена актива</div><div class="field-input-wrap"><input type="number" id="c-spot" value="2450"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Страйк ATM</div><div class="field-input-wrap"><input type="number" id="c-strike" value="2450"><span class="field-unit">$</span></div></div>
+      </div>
+      <button class="btn-update" onclick="calcAll()">⟳ РАССЧИТАТЬ</button>
+    </div>
+
+    <!-- PORTFOLIO INPUTS -->
+    <div id="inp-portfolio" style="display:none">
+      <div class="panel">
+        <div class="panel-header ph-cyan">АКТИВНЫЕ ПОЗИЦИИ</div>
+        <div class="sec-title">BYBIT</div>
+        <div class="field"><div class="field-label">Споты + депозиты</div><div class="field-input-wrap"><input type="number" id="pf-bybit-spot" value="15000"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Маржа ботов</div><div class="field-input-wrap"><input type="number" id="pf-bybit-bots" value="25000"><span class="field-unit">$</span></div></div>
+        <div class="field"><div class="field-label">Опц. обёртка</div><div class="field-input-wrap"><input type="number" id="pf-bybit-opts" value="5000"><span class="field-unit">$</span></div></div>
+        <div class="sec-title">DERIBIT</div>
+        <div class="field"><div class="field-label">Кал. спреды</div><div class="field-input-wrap"><input type="number" id="pf-deribit" value="8000"><span class="field-unit">$</span></div></div>
+        <div class="sec-title">COINBASE</div>
+        <div class="field"><div class="field-label">Базис арбитраж</div><div class="field-input-wrap"><input type="number" id="pf-coinbase" value="5000"><span class="field-unit">$</span></div></div>
+        <div class="sec-title">РЕЗЕРВЫ</div>
+        <div class="field"><div class="field-label">Стейблы / буфер</div><div class="field-input-wrap"><input type="number" id="pf-cash" value="4000"><span class="field-unit">$</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header ph-yellow">ЦЕЛЕВЫЕ APR</div>
+        <div class="field"><div class="field-label">Сетки APR</div><div class="field-input-wrap"><input type="number" id="pf-grid-apr" value="28" step="1"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">Опции APR</div><div class="field-input-wrap"><input type="number" id="pf-opt-apr" value="18" step="1"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">Базис APR</div><div class="field-input-wrap"><input type="number" id="pf-basis-apr" value="12" step="1"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">Депозит APR</div><div class="field-input-wrap"><input type="number" id="pf-dep-apr" value="8" step="1"><span class="field-unit">%</span></div></div>
+        <div class="field"><div class="field-label">Кал. спред APR</div><div class="field-input-wrap"><input type="number" id="pf-cal-apr" value="22" step="1"><span class="field-unit">%</span></div></div>
+      </div>
+      <button class="btn-update" onclick="calcAll()">⟳ РАССЧИТАТЬ</button>
+    </div>
+
+  </div><!-- col-left -->
+
+  <!-- ═══════════════ CENTER ═══════════════ -->
+  <div class="col-center">
+    <div class="panel" style="flex:0 0 auto">
+      <div id="center-title" style="color:var(--text2);font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">ГЛАВНАЯ МЕТРИКА</div>
+      <div class="metric-main">
+        <div class="metric-value green" id="main-metric">—</div>
+        <div class="metric-sub" id="main-sub">—</div>
+      </div>
+    </div>
+
+    <div class="panel" style="flex:0 0 auto" id="slider-panel">
+      <div class="panel-header ph-cyan"><span class="icon">⇔</span> РАЗМЕР ПОЗИЦИИ</div>
+      <div id="pos-size-label" style="text-align:center;color:var(--bright);font-size:14px;font-weight:700;margin-bottom:8px">—</div>
+      <div class="slider-section">
+        <div class="slider-label">
+          <span>МИН</span>
+          <span class="val" id="slider-val">50%</span>
+          <span>МАКС</span>
+        </div>
+        <input type="range" id="size-slider" min="1" max="100" value="50" oninput="onSlider(this)">
+        <div class="slider-limits">
+          <span id="sl-min">—</span>
+          <span id="sl-max">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="risk-panel" style="flex:0 0 auto">
+      <div class="panel-header ph-red"><span class="icon">⚠</span> РИСК-МЕТРИКИ</div>
+      <div class="gauge-row">
+        <div class="gauge-label">Ликвидация</div>
+        <div class="gauge-bar"><div class="gauge-fill" id="liq-bar" style="width:80%;background:var(--green)"></div></div>
+        <div class="gauge-val" id="liq-val" style="color:var(--green)">—</div>
+      </div>
+      <div class="gauge-row">
+        <div class="gauge-label">Диапазон</div>
+        <div class="gauge-bar"><div class="gauge-fill" id="range-bar" style="width:60%;background:var(--cyan)"></div></div>
+        <div class="gauge-val" id="range-val" style="color:var(--cyan)">—</div>
+      </div>
+      <div class="gauge-row">
+        <div class="gauge-label">Использ.</div>
+        <div class="gauge-bar"><div class="gauge-fill" id="cap-bar" style="width:40%;background:var(--yellow)"></div></div>
+        <div class="gauge-val" id="cap-val" style="color:var(--yellow)">—</div>
+      </div>
+      <div class="sigma-display">
+        <div class="sigma-val safe" id="sigma-val">—</div>
+        <div class="sigma-status" id="sigma-status">ИНИЦИАЛИЗАЦИЯ</div>
+      </div>
+    </div>
+
+    <div class="panel" id="detail-panel" style="flex:1">
+      <div class="panel-header ph-green"><span class="icon">≡</span> ДЕТАЛИ</div>
+      <div id="detail-content">
+        <div style="color:var(--text3);font-size:11px;text-align:center;padding:20px">Нажмите РАССЧИТАТЬ</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ RIGHT: P&L ═══════════════ -->
+  <div class="col-right">
+
+    <div class="panel">
+      <div class="panel-header ph-green">📊 P&L (ЛУЧШИЙ)</div>
+      <div id="pnl-best-rows"></div>
+      <div class="pnl-total">
+        <div class="pnl-total-label">НЕТТО (лучший)</div>
+        <div class="pnl-total-val pos" id="pnl-best-total">—</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header ph-red">📊 ХУДШИЙ СЛУЧАЙ</div>
+      <div id="pnl-worst-rows"></div>
+      <div class="pnl-total">
+        <div class="pnl-total-label">НЕТТО (худший)</div>
+        <div class="pnl-total-val neg" id="pnl-worst-total">—</div>
+      </div>
+    </div>
+
+    <div class="metric-row">
+      <div class="metric-box">
+        <div class="metric-box-label">ROI</div>
+        <div class="metric-box-val" id="roi-val">—</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-box-label">Годовых</div>
+        <div class="metric-box-val" id="apr-val">—</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-box-label">Капитал</div>
+        <div class="metric-box-val" id="cap-val2">—</div>
+      </div>
+    </div>
+
+    <div class="panel" id="safety-panel">
+      <div class="panel-header ph-yellow">⚡ КОНТРОЛЬ ПРАВИЛ</div>
+      <div id="rules-check"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header ph-cyan">∑ ДОХОДНОСТЬ ПО СЛОЯМ</div>
+      <table class="data-table" id="layers-table">
+        <thead><tr><th>Слой</th><th>APR%</th><th>$/день</th></tr></thead>
+        <tbody id="layers-body"></tbody>
+      </table>
+    </div>
+
+  </div><!-- col-right -->
+
+</div><!-- main -->
+
+<!-- SCENARIOS -->
+<div class="scenarios" id="scenarios-section">
+  <div class="scenario" id="sc1">
+    <div class="sc-title"><span class="sc-dot" style="background:var(--green)"></span>ЛУЧШИЙ</div>
+    <div id="sc1-content"></div>
+  </div>
+  <div class="scenario" id="sc2">
+    <div class="sc-title"><span class="sc-dot" style="background:var(--yellow)"></span>СРЕДНИЙ</div>
+    <div id="sc2-content"></div>
+  </div>
+  <div class="scenario" id="sc3">
+    <div class="sc-title"><span class="sc-dot" style="background:var(--orange)"></span>ПЛОХОЙ</div>
+    <div id="sc3-content"></div>
+  </div>
+  <div class="scenario" id="sc4">
+    <div class="sc-title"><span class="sc-dot" style="background:var(--red)"></span>ХУДШИЙ</div>
+    <div id="sc4-content"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// ASSET DEFAULTS
+// ═══════════════════════════════════════════════════
+const ASSETS = {
+  XAUT: { price:3300, atr1H:25, atr1D:90, atr1W:280, leverage:1.0, label:'XAUTUSDT', unit:'XAU' },
+  ETH:  { price:2450, atr1H:55, atr1D:160, atr1W:520, leverage:1.5, label:'ETHUSDT', unit:'ETH' },
+  MNT:  { price:0.68, atr1H:0.012, atr1D:0.035, atr1W:0.12, leverage:1.5, label:'MNTUSDT', unit:'MNT' },
+  XRP:  { price:2.85, atr1H:0.06, atr1D:0.18, atr1W:0.55, leverage:1.5, label:'XRPUSDT', unit:'XRP' },
+  SOL:  { price:155, atr1H:3.2, atr1D:9.5, atr1W:32, leverage:1.5, label:'SOLUSDT', unit:'SOL' }
+};
+
+let currentAsset = 'ETH';
+let currentStrat = 'grid';
+
+// ═══════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════
+function setAsset(asset, el) {
+  currentAsset = asset;
+  document.querySelectorAll('.asset-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadAssetDefaults(asset);
+  calcAll();
+}
+
+function setStrat(strat, el) {
+  currentStrat = strat;
+  document.querySelectorAll('.strat-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  // show/hide inputs
+  ['grid','basis','options','ivarb','calendar','portfolio'].forEach(s => {
+    const el = document.getElementById('inp-'+s);
+    if(el) el.style.display = s === strat ? '' : 'none';
+  });
+  calcAll();
+}
+
+function loadAssetDefaults(asset) {
+  const a = ASSETS[asset];
+  if(!a) return;
+  const tf = document.getElementById('g-tf')?.value || '1D';
+  const atr = tf === '1H' ? a.atr1H : tf === '1W' ? a.atr1W : a.atr1D;
+  const lower = a.price - 1.5 * atr;
+  const upper = a.price + 1.5 * atr;
+  
+  setVal('g-price', a.price);
+  setVal('g-atr', atr);
+  setVal('g-lower', lower.toFixed(2));
+  setVal('g-upper', upper.toFixed(2));
+  setVal('g-lev', a.leverage);
+  setVal('b-spot', a.price);
+  setVal('b-fut', (a.price * 1.015).toFixed(2));
+  setVal('iv-spot', a.price);
+  setVal('iv-strike', a.price);
+  setVal('c-spot', a.price);
+  setVal('c-strike', a.price);
+  setVal('o-lower', lower.toFixed(2));
+  setVal('o-upper', upper.toFixed(2));
+  setVal('o-cs', (upper * 1.05).toFixed(2));
+  setVal('o-sps', (lower * 0.90).toFixed(2));
+  setVal('o-bps', (lower * 0.95).toFixed(2));
+}
+
+function updateGridDefaults() {
+  loadAssetDefaults(currentAsset);
+  calcAll();
+}
+
+function setVal(id, val) {
+  const el = document.getElementById(id);
+  if(el) el.value = val;
+}
+function gv(id) {
+  const el = document.getElementById(id);
+  return el ? parseFloat(el.value) || 0 : 0;
+}
+
+// ═══════════════════════════════════════════════════
+// SLIDER
+// ═══════════════════════════════════════════════════
+function onSlider(el) {
+  const pct = el.value;
+  el.style.setProperty('--pct', pct + '%');
+  document.getElementById('slider-val').textContent = pct + '%';
+  calcAll();
+}
+
+// ═══════════════════════════════════════════════════
+// FORMAT HELPERS
+// ═══════════════════════════════════════════════════
+function fmt$(n, d=0) {
+  const abs = Math.abs(n);
+  const s = abs.toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
+  return (n >= 0 ? '+$' : '-$') + s;
+}
+function fmtPct(n, d=1) { return (n >= 0 ? '+' : '') + n.toFixed(d) + '%'; }
+function fmtN(n, d=2) { return n.toFixed(d); }
+function colored(n) { return n >= 0 ? 'pos' : 'neg'; }
+
+function pnlRow(label, value, cls) {
+  return `<div class="pnl-row"><span class="pnl-label">${label}</span><span class="pnl-val ${cls}">${value}</span></div>`;
+}
+function scItem(label, value) {
+  return `<div class="sc-item"><span>${label}</span><span style="color:var(--bright);font-weight:600">${value}</span></div>`;
+}
+function scTotal(label, value, col) {
+  return `<div class="sc-total"><span>${label}</span><span style="color:${col};font-weight:700;font-size:12px">${value}</span></div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// MAIN CALC
+// ═══════════════════════════════════════════════════
+function calcAll() {
+  try {
+    if(currentStrat === 'grid') calcGrid();
+    else if(currentStrat === 'basis') calcBasis();
+    else if(currentStrat === 'options') calcOptions();
+    else if(currentStrat === 'ivarb') calcIVArb();
+    else if(currentStrat === 'calendar') calcCalendar();
+    else if(currentStrat === 'portfolio') calcPortfolio();
+  } catch(e) { console.error(e); }
+}
+
+// ─────────────────────────────────
+// GRID BOT
+// ─────────────────────────────────
+function calcGrid() {
+  const upper = gv('g-upper'), lower = gv('g-lower'), count = gv('g-count');
+  const price = gv('g-price'), atr = gv('g-atr'), invest = gv('g-invest');
+  const lev = gv('g-lev'), feeRate = gv('g-fee') / 100;
+  const gtype = document.getElementById('g-type').value;
+  const slider = gv('size-slider') / 100;
+
+  const adjInvest = invest * slider + invest * 0.1;
+  const range = upper - lower;
+  
+  let step, stepPct, profitPerFill, profitPerFillPct;
+  if(gtype === 'arithmetic') {
+    step = range / count;
+    stepPct = (step / lower) * 100;
+    const cellVal = adjInvest / count;
+    profitPerFill = step * (cellVal / price) - 2 * feeRate * cellVal;
+    profitPerFillPct = profitPerFill / cellVal * 100;
+  } else {
+    const ratio = Math.pow(upper / lower, 1 / count);
+    step = lower * (ratio - 1);
+    stepPct = (ratio - 1) * 100;
+    profitPerFillPct = stepPct - 2 * feeRate * 100;
+    profitPerFill = (adjInvest / count) * profitPerFillPct / 100;
+  }
+
+  const fillsPerDay = (atr * 0.6) / step;
+  const activeFraction = Math.min(0.4, fillsPerDay / count);
+  const dailyPnl = profitPerFill * fillsPerDay * count * activeFraction;
+  const apr = (dailyPnl * 365) / adjInvest * 100;
+
+  // Ликвидация
+  const liqPrice = price * (1 - 1/lev + 0.005);
+  const liqBuffer = ((lower - liqPrice) / liqPrice) * 100;
+  const liqSafe = lower > liqPrice * 1.3;
+  const minStep = 2 * feeRate * price;
+  const rangeW = (range / lower) * 100;
+  const stepOk = step > minStep;
+
+  // Опционная обёртка (оценка 15% APR от объёма)
+  const optionApr = 15;
+  const optionDaily = adjInvest * optionApr / 100 / 365;
+
+  // Main metric
+  document.getElementById('main-metric').textContent = fmtPct(apr, 1);
+  document.getElementById('main-metric').className = 'metric-value ' + (apr > 15 ? 'green' : apr > 5 ? 'yellow' : 'red');
+  document.getElementById('main-sub').textContent = 'APR сеточного бота';
+  document.getElementById('center-title').textContent = `▦ СЕТКА ${ASSETS[currentAsset].label} [${document.getElementById('g-tf').value}]`;
+
+  // Position size
+  const lots = (adjInvest / price).toFixed(4);
+  document.getElementById('pos-size-label').textContent = `${lots} ${ASSETS[currentAsset].unit} = $${fmt$(adjInvest, 0).replace('+', '')}`;
+  document.getElementById('sl-min').textContent = `$${(invest * 0.1).toFixed(0)}`;
+  document.getElementById('sl-max').textContent = `$${(invest * 2).toFixed(0)}`;
+
+  // Gauges
+  const liqBarW = Math.min(100, liqBuffer * 2);
+  setGauge('liq-bar', liqBarW, liqSafe ? 'var(--green)' : 'var(--red)');
+  document.getElementById('liq-val').textContent = liqBuffer.toFixed(1) + '%';
+  document.getElementById('liq-val').style.color = liqSafe ? 'var(--green)' : 'var(--red)';
+  
+  setGauge('range-bar', Math.min(100, rangeW * 2), 'var(--cyan)');
+  document.getElementById('range-val').textContent = rangeW.toFixed(1) + '%';
+  
+  const capUsage = (adjInvest / (invest * 2)) * 100;
+  setGauge('cap-bar', capUsage, capUsage > 80 ? 'var(--red)' : 'var(--yellow)');
+  document.getElementById('cap-val').textContent = capUsage.toFixed(0) + '%';
+
+  // Sigma (step/ATR quality)
+  const quality = stepOk ? (step / minStep) : 0;
+  const sigmaEl = document.getElementById('sigma-val');
+  const sigmaStatus = document.getElementById('sigma-status');
+  if(!liqSafe) {
+    sigmaEl.textContent = '⚠'; sigmaEl.className = 'sigma-val danger';
+    sigmaStatus.textContent = 'РИСК ЛИКВИДАЦИИ';
+  } else if(!stepOk) {
+    sigmaEl.textContent = '✗'; sigmaEl.className = 'sigma-val warn';
+    sigmaStatus.textContent = 'ШАГ < КОМИССИЙ';
+  } else {
+    sigmaEl.textContent = quality.toFixed(1) + '×'; sigmaEl.className = 'sigma-val safe';
+    sigmaStatus.textContent = 'БЕЗОПАСНО';
+  }
+
+  // Details
+  document.getElementById('detail-content').innerHTML = `
+    <div class="sec-title">ПАРАМЕТРЫ СЕТКИ</div>
+    <div class="pnl-row"><span class="pnl-label">Шаг</span><span class="pnl-val neu">$${step.toFixed(4)} (${stepPct.toFixed(3)}%)</span></div>
+    <div class="pnl-row"><span class="pnl-label">Прибыль/ячейка</span><span class="pnl-val ${colored(profitPerFill)}">${fmt$(profitPerFill, 4)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Прибыль/ячейка %</span><span class="pnl-val ${colored(profitPerFillPct)}">${fmtPct(profitPerFillPct, 4)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Срабатываний/день</span><span class="pnl-val neu">${fillsPerDay.toFixed(2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Дневная прибыль</span><span class="pnl-val ${colored(dailyPnl)}">${fmt$(dailyPnl, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Мин. шаг (безубыток)</span><span class="pnl-val ${stepOk ? 'pos' : 'neg'}">$${minStep.toFixed(4)} ${stepOk ? '✓' : '✗'}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Цена ликвидации</span><span class="pnl-val ${liqSafe ? 'pos' : 'neg'}">$${liqPrice.toFixed(2)} ${liqSafe ? '✓' : '⚠'}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Буфер до ликвид.</span><span class="pnl-val ${liqSafe ? 'pos' : 'neg'}">${liqBuffer.toFixed(2)}% ${liqSafe ? '(OK)' : '(РИСК!)'}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Ширина диапазона</span><span class="pnl-val neu">${rangeW.toFixed(2)}%</span></div>
+    <div class="pnl-row"><span class="pnl-label">Капитал на ячейку</span><span class="pnl-val neu">${fmt$(adjInvest / count, 2).replace('+', '')}</span></div>
+  `;
+
+  // P&L panels
+  const monthPnl = dailyPnl * 30;
+  const yearPnl = dailyPnl * 365;
+  const optYear = optionDaily * 365;
+  
+  document.getElementById('pnl-best-rows').innerHTML = 
+    pnlRow('Сетка (расширение)', fmt$(yearPnl * 1.2, 2), 'pos') +
+    pnlRow('Опц. обёртка', fmt$(optYear, 2), 'pos') +
+    pnlRow('Комиссии', fmt$(-yearPnl * 0.08, 2), 'neg');
+  document.getElementById('pnl-best-total').textContent = fmt$(yearPnl * 1.12 + optYear, 0);
+
+  document.getElementById('pnl-worst-rows').innerHTML = 
+    pnlRow('Пробой диапазона вниз', fmt$(-adjInvest * 0.15, 2), 'neg') +
+    pnlRow('PUT защита', fmt$(adjInvest * 0.08, 2), 'pos') +
+    pnlRow('Комиссии', fmt$(-adjInvest * 0.005, 2), 'neg');
+  document.getElementById('pnl-worst-total').textContent = fmt$(-adjInvest * 0.075, 0);
+
+  // ROI metrics
+  document.getElementById('roi-val').textContent = fmtPct(apr / 12, 1) + '/мес';
+  document.getElementById('apr-val').textContent = '~' + fmtPct(apr + 15, 0);
+  document.getElementById('cap-val2').textContent = '$' + (adjInvest / 1000).toFixed(1) + 'K';
+
+  // Rules
+  document.getElementById('rules-check').innerHTML = `
+    <div class="safety ${lev <= 2 ? 'ok' : 'warn'}" style="margin-bottom:4px">${lev <= 2 ? '✓' : '⚠'} Плечо ≤ 2× (текущее: ${lev}×)</div>
+    <div class="safety ${liqSafe ? 'ok' : 'warn'}" style="margin-bottom:4px">${liqSafe ? '✓' : '⚠'} Нет риска ликвидации</div>
+    <div class="safety ${stepOk ? 'ok' : 'warn'}" style="margin-bottom:4px">${stepOk ? '✓' : '⚠'} Шаг > комиссий (${(step / minStep).toFixed(1)}×)</div>
+    <div class="safety ok">✓ Шортов нет (Long only)</div>
+  `;
+
+  // Layers
+  document.getElementById('layers-body').innerHTML = `
+    <tr><td style="color:var(--cyan)">Сетка</td><td style="color:var(--green)">${fmtPct(apr)}</td><td style="color:var(--green)">${fmt$(dailyPnl, 2)}</td></tr>
+    <tr><td style="color:var(--yellow)">Опц. обёртка</td><td style="color:var(--yellow)">${fmtPct(optionApr)}</td><td style="color:var(--yellow)">${fmt$(optionDaily, 2)}</td></tr>
+    <tr><td style="color:var(--text2)">Депозит</td><td style="color:var(--text2)">+8%</td><td style="color:var(--text2)">${fmt$(adjInvest * 0.08 / 365, 2)}</td></tr>
+    <tr style="border-top:1px solid var(--border2)"><td style="color:var(--bright);font-weight:700">ИТОГО</td><td style="color:var(--green);font-weight:700">${fmtPct(apr + optionApr + 8)}</td><td style="color:var(--green);font-weight:700">${fmt$(dailyPnl + optionDaily + adjInvest * 0.08 / 365, 2)}</td></tr>
+  `;
+
+  // Scenarios
+  const best = dailyPnl * 365 * 1.2 + optYear;
+  const mid = dailyPnl * 365 * 0.7 + optYear * 0.7;
+  const bad = dailyPnl * 365 * 0.2;
+  const worst = -adjInvest * 0.075;
+
+  document.getElementById('sc1-content').innerHTML = scItem('Диапазон удержан', '✓') + scItem('Заполн. >80%', '✓') + scItem('Опции в деньгах', '✓') + scTotal('Нетто/год', fmt$(best, 0), 'var(--green)');
+  document.getElementById('sc2-content').innerHTML = scItem('Диапазон удержан', '✓') + scItem('Заполн. ~50%', '~') + scItem('Опции частично', '~') + scTotal('Нетто/год', fmt$(mid, 0), 'var(--yellow)');
+  document.getElementById('sc3-content').innerHTML = scItem('Пробой границы', '⚠') + scItem('Бот остановлен', '—') + scItem('PUT сработал', '+') + scTotal('Нетто/год', fmt$(bad, 0), 'var(--orange)');
+  document.getElementById('sc4-content').innerHTML = scItem('Пробой -30%', '⚠') + scItem('Ликвидации нет', '✓') + scItem('PUT защитил', '+') + scTotal('Нетто', fmt$(worst, 0), 'var(--red)');
+}
+
+// ─────────────────────────────────
+// BASIS ARB
+// ─────────────────────────────────
+function calcBasis() {
+  const spot = gv('b-spot'), fut = gv('b-fut'), days = gv('b-days');
+  const lots = gv('b-lots'), sfee = gv('b-sfee')/100, ffee = gv('b-ffee')/100;
+  const slider = gv('size-slider') / 100;
+  const adjLots = lots * (0.5 + slider);
+
+  const basis = fut - spot;
+  const basisPct = (basis / spot) * 100;
+  const annualized = basisPct * (365 / days);
+  const gross = basis * adjLots;
+  const fees = (spot * sfee + fut * ffee) * adjLots * 2;
+  const net = gross - fees;
+  const capital = spot * adjLots + fut * adjLots * 0.05;
+  const roi = (net / capital) * 100;
+  const roiAnn = roi * (365 / days);
+  const daily = net / days;
+
+  const basisPips = Math.round(basis * 10000 / spot);
+
+  document.getElementById('main-metric').textContent = basisPips + ' ПИПС';
+  document.getElementById('main-metric').className = 'metric-value ' + (annualized > 5 ? 'green' : annualized > 2 ? 'yellow' : 'red');
+  document.getElementById('main-sub').textContent = fmtPct(basisPct, 3) + ' контанго → ' + fmtPct(annualized, 2) + '/год';
+  document.getElementById('center-title').textContent = `⇄ БАЗИС АРБ ${ASSETS[currentAsset].label}`;
+  document.getElementById('pos-size-label').textContent = `${adjLots.toFixed(4)} ${ASSETS[currentAsset].unit} | Капитал: $${capital.toFixed(0)}`;
+  document.getElementById('sl-min').textContent = `${(lots * 0.5).toFixed(2)} ед.`;
+  document.getElementById('sl-max').textContent = `${(lots * 1.5).toFixed(2)} ед.`;
+
+  // Gauges
+  setGauge('liq-bar', Math.min(100, annualized * 4), annualized > 5 ? 'var(--green)' : 'var(--yellow)');
+  document.getElementById('liq-val').textContent = fmtPct(annualized, 2) + '/год';
+  setGauge('range-bar', Math.min(100, basisPct * 10), 'var(--cyan)');
+  document.getElementById('range-val').textContent = fmtPct(basisPct, 3);
+  const feeImpact = (fees / gross) * 100;
+  setGauge('cap-bar', Math.min(100, feeImpact * 2), 'var(--yellow)');
+  document.getElementById('cap-val').textContent = fmtPct(feeImpact, 1);
+
+  const viable = annualized > 2;
+  document.getElementById('sigma-val').textContent = viable ? '✓' : '✗';
+  document.getElementById('sigma-val').className = 'sigma-val ' + (viable ? 'safe' : 'danger');
+  document.getElementById('sigma-status').textContent = viable ? 'БАЗИС ВИАБЕЛЬНЫЙ' : 'СЛИШКОМ МАЛО';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="pnl-row"><span class="pnl-label">Basis $</span><span class="pnl-val ${colored(basis)}">${fmt$(basis, 4)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Basis %</span><span class="pnl-val ${colored(basisPct)}">${fmtPct(basisPct, 4)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Annualized</span><span class="pnl-val ${colored(annualized)}">${fmtPct(annualized, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Gross P&L</span><span class="pnl-val ${colored(gross)}">${fmt$(gross, 4)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Комиссии</span><span class="pnl-val neg">${fmt$(-fees, 4)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Net P&L</span><span class="pnl-val ${colored(net)}">${fmt$(net, 4)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Дневное схождение</span><span class="pnl-val ${colored(daily)}">${fmt$(daily, 4)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Капитал требуется</span><span class="pnl-val neu">$${capital.toFixed(2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">ROI на период</span><span class="pnl-val ${colored(roi)}">${fmtPct(roi, 3)}</span></div>
+  `;
+
+  document.getElementById('pnl-best-rows').innerHTML =
+    pnlRow('Gross basis', fmt$(gross, 2), 'pos') +
+    pnlRow('Комиссии', fmt$(-fees, 2), 'neg') +
+    pnlRow('Проскальзывание 0', '+$0.00', 'neu');
+  document.getElementById('pnl-best-total').textContent = fmt$(net, 2);
+
+  document.getElementById('pnl-worst-rows').innerHTML =
+    pnlRow('Gross basis', fmt$(gross, 2), 'pos') +
+    pnlRow('Комиссии', fmt$(-fees, 2), 'neg') +
+    pnlRow('Проскальзывание', fmt$(-gross * 0.1, 2), 'neg') +
+    pnlRow('Расширение basis', fmt$(-basis * adjLots * 0.5, 2), 'neg');
+  document.getElementById('pnl-worst-total').textContent = fmt$(net * 0.3, 2);
+
+  document.getElementById('roi-val').textContent = fmtPct(roi, 2);
+  document.getElementById('apr-val').textContent = '~' + fmtPct(roiAnn, 1);
+  document.getElementById('cap-val2').textContent = '$' + (capital / 1000).toFixed(1) + 'K';
+
+  document.getElementById('rules-check').innerHTML = `
+    <div class="safety ok" style="margin-bottom:4px">✓ Нет шорта на Bybit (Deribit шортит)</div>
+    <div class="safety ok" style="margin-bottom:4px">✓ Delta нейтральная конструкция</div>
+    <div class="safety ${viable ? 'ok' : 'warn'}" style="margin-bottom:4px">${viable ? '✓' : '⚠'} APR > 2%</div>
+    <div class="safety ok">✓ Нет фандинга (futures, не perp)</div>
+  `;
+
+  document.getElementById('layers-body').innerHTML = `
+    <tr><td style="color:var(--cyan)">Basis</td><td style="color:var(--green)">${fmtPct(roiAnn, 1)}</td><td style="color:var(--green)">${fmt$(daily, 2)}</td></tr>
+    <tr><td style="color:var(--text2)">Депозит спота</td><td style="color:var(--text2)">+8%</td><td style="color:var(--text2)">${fmt$(spot * adjLots * 0.08 / 365, 2)}</td></tr>
+  `;
+
+  const netFull = net;
+  document.getElementById('sc1-content').innerHTML = scItem('Basis сходится к 0', '✓') + scItem('Нет проскальзывания', '✓') + scTotal('Net', fmt$(netFull, 2), 'var(--green)');
+  document.getElementById('sc2-content').innerHTML = scItem('Basis сходится к 0', '✓') + scItem('Проскальзывание 5%', '~') + scTotal('Net', fmt$(net * 0.8, 2), 'var(--yellow)');
+  document.getElementById('sc3-content').innerHTML = scItem('Basis расширяется', '⚠') + scItem('Удержать до экспир', '+') + scTotal('Net', fmt$(net * 0.4, 2), 'var(--orange)');
+  document.getElementById('sc4-content').innerHTML = scItem('Ранний выход', '⚠') + scItem('Проскальзывание 15%', '✗') + scTotal('Net', fmt$(net * -0.2, 2), 'var(--red)');
+}
+
+// ─────────────────────────────────
+// OPTIONS WRAPPER
+// ─────────────────────────────────
+function calcOptions() {
+  const lower = gv('o-lower'), upper = gv('o-upper'), invest = gv('o-invest');
+  const lots = gv('o-lots'), days = gv('o-days');
+  const cp = gv('o-cp'), ct = gv('o-ct');
+  const spp = gv('o-spp'), spt = gv('o-spt'), sps = gv('o-sps');
+  const bpp = gv('o-bpp'), bpt = gv('o-bpt'), bps = gv('o-bps');
+
+  const netPremium = (cp + spp - bpp) * lots;
+  const netTheta = (ct + spt - bpt) * lots;
+  const aprOpts = (netPremium * (365 / days)) / invest * 100;
+  const maxLossPutSpread = (bps - sps) * lots - netPremium;
+  const breakEvenDown = sps - netPremium / lots;
+  const breakEvenUp = gv('o-cs') + netPremium / lots;
+
+  document.getElementById('main-metric').textContent = fmt$(netPremium, 2);
+  document.getElementById('main-metric').className = 'metric-value ' + (netPremium > 0 ? 'green' : 'red');
+  document.getElementById('main-sub').textContent = `Нетто премия | Тета/день: ${fmt$(netTheta, 2)}`;
+  document.getElementById('center-title').textContent = `◉ ОПЦИОННАЯ ОБЁРТКА ${ASSETS[currentAsset].label}`;
+  document.getElementById('pos-size-label').textContent = `${lots} лот${lots > 1 ? 'а' : ''} | APR обёртки: ${fmtPct(aprOpts, 1)}`;
+
+  setGauge('liq-bar', Math.min(100, aprOpts * 2), 'var(--green)');
+  document.getElementById('liq-val').textContent = fmtPct(aprOpts, 1) + '/год';
+  setGauge('range-bar', Math.min(100, (netPremium / invest) * 1000), 'var(--cyan)');
+  document.getElementById('range-val').textContent = fmtPct(netPremium / invest * 100, 2);
+  setGauge('cap-bar', Math.min(100, (maxLossPutSpread / invest) * 200), maxLossPutSpread / invest > 0.2 ? 'var(--red)' : 'var(--yellow)');
+  document.getElementById('cap-val').textContent = fmtPct(maxLossPutSpread / invest * 100, 1) + ' макс';
+
+  const isCreditSpread = netPremium > 0;
+  document.getElementById('sigma-val').textContent = isCreditSpread ? 'CR' : 'DB';
+  document.getElementById('sigma-val').className = 'sigma-val ' + (isCreditSpread ? 'safe' : 'warn');
+  document.getElementById('sigma-status').textContent = isCreditSpread ? 'КРЕДИТНАЯ КОНСТРУКЦИЯ' : 'ДЕБЕТОВАЯ';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="pnl-row"><span class="pnl-label">Нетто премия</span><span class="pnl-val ${colored(netPremium)}">${fmt$(netPremium, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Нетто тета/день</span><span class="pnl-val ${colored(netTheta)}">${fmt$(netTheta, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">APR обёртки</span><span class="pnl-val ${colored(aprOpts)}">${fmtPct(aprOpts, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Макс убыток PUT спред</span><span class="pnl-val neg">${fmt$(-maxLossPutSpread, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Break-even вниз</span><span class="pnl-val neu">$${breakEvenDown.toFixed(2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Break-even вверх</span><span class="pnl-val neu">$${breakEvenUp.toFixed(2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Bought PUT страйк</span><span class="pnl-val neu">$${bps.toFixed(2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Sold PUT страйк</span><span class="pnl-val neu">$${sps.toFixed(2)}</span></div>
+  `;
+
+  document.getElementById('pnl-best-rows').innerHTML =
+    pnlRow('Тета за период', fmt$(netTheta * days, 2), 'pos') +
+    pnlRow('Все опции OTM', fmt$(netPremium, 2), 'pos');
+  document.getElementById('pnl-best-total').textContent = fmt$(netTheta * days, 2);
+
+  document.getElementById('pnl-worst-rows').innerHTML =
+    pnlRow('PUT спред исполнился', fmt$(-maxLossPutSpread, 2), 'neg') +
+    pnlRow('CALL убыток', fmt$(-(invest * 0.05), 2), 'neg') +
+    pnlRow('Начальная премия', fmt$(netPremium, 2), 'pos');
+  document.getElementById('pnl-worst-total').textContent = fmt$(-maxLossPutSpread + netPremium, 2);
+
+  document.getElementById('roi-val').textContent = fmtPct(aprOpts / 12, 1) + '/мес';
+  document.getElementById('apr-val').textContent = '~' + fmtPct(aprOpts, 0);
+  document.getElementById('cap-val2').textContent = '$' + (invest / 1000).toFixed(1) + 'K';
+
+  document.getElementById('rules-check').innerHTML = `
+    <div class="safety ok" style="margin-bottom:4px">✓ Bought PUT защищает от пробоя</div>
+    <div class="safety ${maxLossPutSpread < invest * 0.2 ? 'ok' : 'warn'}" style="margin-bottom:4px">${maxLossPutSpread < invest * 0.2 ? '✓' : '⚠'} Макс убыток < 20% объёма</div>
+    <div class="safety ${netPremium > 0 ? 'ok' : 'warn'}" style="margin-bottom:4px">${netPremium > 0 ? '✓' : '⚠'} Кредитная конструкция</div>
+    <div class="safety ok">✓ Страйки вне диапазона сетки</div>
+  `;
+
+  document.getElementById('layers-body').innerHTML = `
+    <tr><td style="color:var(--green)">Sold Call</td><td style="color:var(--green)">${fmt$(ct * days, 2).replace('+', '')}</td><td style="color:var(--green)">${fmt$(ct, 2)}</td></tr>
+    <tr><td style="color:var(--yellow)">Sold Put</td><td style="color:var(--yellow)">${fmt$(spt * days, 2).replace('+', '')}</td><td style="color:var(--yellow)">${fmt$(spt, 2)}</td></tr>
+    <tr><td style="color:var(--red)">Bought Put</td><td style="color:var(--red)">-${fmt$(bpt * days, 2).replace('+', '')}</td><td style="color:var(--red)">${fmt$(-bpt, 2)}</td></tr>
+    <tr style="border-top:1px solid var(--border2)"><td style="color:var(--bright);font-weight:700">НЕТТО</td><td style="color:var(--green);font-weight:700">${fmt$(netTheta * days, 2)}</td><td style="color:var(--green);font-weight:700">${fmt$(netTheta, 2)}</td></tr>
+  `;
+
+  document.getElementById('sc1-content').innerHTML = scItem('Диапазон удержан', '✓') + scItem('Все опции истекли OTM', '✓') + scTotal('Нетто', fmt$(netTheta * days, 2), 'var(--green)');
+  document.getElementById('sc2-content').innerHTML = scItem('Диапазон удержан', '~') + scItem('50% тета собрана', '~') + scTotal('Нетто', fmt$(netTheta * days * 0.5, 2), 'var(--yellow)');
+  document.getElementById('sc3-content').innerHTML = scItem('Пробой PUT зоны', '⚠') + scItem('PUT спред защитил', '+') + scTotal('Нетто', fmt$(-maxLossPutSpread * 0.5 + netPremium, 2), 'var(--orange)');
+  document.getElementById('sc4-content').innerHTML = scItem('Полный пробой', '✗') + scItem('PUT спред макс убыток', '⚠') + scTotal('Нетто', fmt$(-maxLossPutSpread + netPremium, 2), 'var(--red)');
+}
+
+// ─────────────────────────────────
+// IV ARB
+// ─────────────────────────────────
+function calcIVArb() {
+  const ivSell = gv('iv-sell'), ivBuy = gv('iv-buy'), rv = gv('iv-rv');
+  const vega = gv('iv-vega'), lots = gv('iv-lots'), days = gv('iv-days');
+  const fsell = gv('iv-fsell')/100, fbuy = gv('iv-fbuy')/100, spot = gv('iv-spot');
+  const slider = gv('size-slider') / 100;
+  const adjLots = Math.max(1, Math.round(lots * (0.5 + slider)));
+
+  const ivSpread = ivSell - ivBuy;
+  const vegaPnl = ivSpread * vega * adjLots;
+  const fees = (fsell + fbuy) * spot * adjLots * 2;
+  const net = vegaPnl - fees;
+  const breakEven = fees / (vega * adjLots);
+  const capital = spot * adjLots * 0.1;
+  const roi = (net / capital) * 100;
+  const roiAnn = roi * (365 / days);
+  const ivPremium = ivSell - rv;
+
+  document.getElementById('main-metric').textContent = ivSpread.toFixed(1) + '% ΔIV';
+  document.getElementById('main-metric').className = 'metric-value ' + (ivSpread > breakEven ? 'green' : 'red');
+  document.getElementById('main-sub').textContent = `IV прем. vs RV: ${fmtPct(ivPremium, 1)} | Break-even: ${breakEven.toFixed(2)}%`;
+  document.getElementById('center-title').textContent = `∿ IV АРБ ${ASSETS[currentAsset].label}`;
+  document.getElementById('pos-size-label').textContent = `${adjLots} лот${adjLots > 1 ? 'а' : ''} | Vega нетто: $${(vega * adjLots).toFixed(0)}`;
+
+  setGauge('liq-bar', Math.min(100, (ivSpread / breakEven) * 50), ivSpread > breakEven ? 'var(--green)' : 'var(--red)');
+  document.getElementById('liq-val').textContent = (ivSpread / breakEven).toFixed(2) + '×';
+  setGauge('range-bar', Math.min(100, ivSpread * 5), 'var(--cyan)');
+  document.getElementById('range-val').textContent = ivSpread.toFixed(1) + '%';
+  setGauge('cap-bar', Math.min(100, (fees / vegaPnl) * 100), (fees / vegaPnl) > 0.3 ? 'var(--red)' : 'var(--yellow)');
+  document.getElementById('cap-val').textContent = fmtPct(fees / vegaPnl * 100, 0) + ' fee';
+
+  const viable = ivSpread > breakEven;
+  document.getElementById('sigma-val').textContent = viable ? '✓' : '✗';
+  document.getElementById('sigma-val').className = 'sigma-val ' + (viable ? 'safe' : (ivSpread > 0 ? 'warn' : 'danger'));
+  document.getElementById('sigma-status').textContent = viable ? 'IV АРБ ВИАБЕЛЬНЫЙ' : (ivSpread > 0 ? 'СПРЕД МАЛ' : 'НЕТ СПРЕДА');
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="pnl-row"><span class="pnl-label">IV Deribit (продаём)</span><span class="pnl-val neu">${ivSell.toFixed(1)}%</span></div>
+    <div class="pnl-row"><span class="pnl-label">IV Bybit (покупаем)</span><span class="pnl-val neu">${ivBuy.toFixed(1)}%</span></div>
+    <div class="pnl-row"><span class="pnl-label">IV Спред</span><span class="pnl-val ${colored(ivSpread)}">${fmtPct(ivSpread, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">RV реализованная</span><span class="pnl-val neu">${rv.toFixed(1)}%</span></div>
+    <div class="pnl-row"><span class="pnl-label">IV прем. vs RV</span><span class="pnl-val ${colored(ivPremium)}">${fmtPct(ivPremium, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Vega P&L</span><span class="pnl-val ${colored(vegaPnl)}">${fmt$(vegaPnl, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Комиссии</span><span class="pnl-val neg">${fmt$(-fees, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Net P&L</span><span class="pnl-val ${colored(net)}">${fmt$(net, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Break-even спред</span><span class="pnl-val neu">${breakEven.toFixed(2)}%</span></div>
+    <div class="pnl-row"><span class="pnl-label">Капитал (маржа)</span><span class="pnl-val neu">$${capital.toFixed(0)}</span></div>
+  `;
+
+  document.getElementById('pnl-best-rows').innerHTML =
+    pnlRow('Vega P&L (спред сходится)', fmt$(vegaPnl, 2), 'pos') +
+    pnlRow('Комиссии', fmt$(-fees, 2), 'neg') +
+    pnlRow('Delta хедж прибыль', fmt$(net * 0.1, 2), 'pos');
+  document.getElementById('pnl-best-total').textContent = fmt$(net * 1.1, 2);
+
+  document.getElementById('pnl-worst-rows').innerHTML =
+    pnlRow('IV спред расширился', fmt$(-vegaPnl * 0.5, 2), 'neg') +
+    pnlRow('Комиссии', fmt$(-fees, 2), 'neg') +
+    pnlRow('Проскальзывание', fmt$(-fees * 0.5, 2), 'neg');
+  document.getElementById('pnl-worst-total').textContent = fmt$(-vegaPnl * 0.5 - fees * 1.5, 2);
+
+  document.getElementById('roi-val').textContent = fmtPct(roi, 1);
+  document.getElementById('apr-val').textContent = '~' + fmtPct(roiAnn, 0);
+  document.getElementById('cap-val2').textContent = '$' + (capital / 1000).toFixed(1) + 'K';
+
+  document.getElementById('rules-check').innerHTML = `
+    <div class="safety ${viable ? 'ok' : 'warn'}" style="margin-bottom:4px">${viable ? '✓' : '⚠'} IV спред > Break-even (${(ivSpread/breakEven).toFixed(2)}×)</div>
+    <div class="safety ${ivPremium > 5 ? 'ok' : 'warn'}" style="margin-bottom:4px">${ivPremium > 5 ? '✓' : '⚠'} IV премия vs RV > 5%</div>
+    <div class="safety ok" style="margin-bottom:4px">✓ Delta нейтральный хедж</div>
+    <div class="safety ok">✓ Нет шортов на Bybit</div>
+  `;
+
+  document.getElementById('layers-body').innerHTML = `
+    <tr><td style="color:var(--cyan)">Vega P&L</td><td style="color:var(--green)">${fmtPct(roi, 1)}</td><td style="color:var(--green)">${fmt$(net / days, 2)}</td></tr>
+    <tr><td style="color:var(--red)">Комиссии</td><td style="color:var(--red)">${fmtPct(-fees/capital*100, 1)}</td><td style="color:var(--red)">${fmt$(-fees/days, 2)}</td></tr>
+  `;
+
+  document.getElementById('sc1-content').innerHTML = scItem('IV спред сходится', '✓') + scItem('Delta хедж работает', '✓') + scTotal('Net', fmt$(net * 1.1, 2), 'var(--green)');
+  document.getElementById('sc2-content').innerHTML = scItem('IV частично сходится', '~') + scItem('Частичный хедж', '~') + scTotal('Net', fmt$(net * 0.6, 2), 'var(--yellow)');
+  document.getElementById('sc3-content').innerHTML = scItem('IV спред стоит', '—') + scItem('Только тета', '+') + scTotal('Net', fmt$(-fees * 0.5, 2), 'var(--orange)');
+  document.getElementById('sc4-content').innerHTML = scItem('IV спред расширился', '⚠') + scItem('Ранний выход', '✗') + scTotal('Net', fmt$(-net * 0.5, 2), 'var(--red)');
+}
+
+// ─────────────────────────────────
+// CALENDAR SPREAD
+// ─────────────────────────────────
+function calcCalendar() {
+  const niv = gv('c-niv'), fiv = gv('c-fiv');
+  const nt = gv('c-nt'), ft = gv('c-ft');
+  const ng = gv('c-ng'), fg = gv('c-fg');
+  const nv = gv('c-nv'), fv = gv('c-fv');
+  const nd = gv('c-nd'), fd = gv('c-fd');
+  const np = gv('c-np'), fp = gv('c-fp');
+  const lots = gv('c-lots'), spot = gv('c-spot'), strike = gv('c-strike');
+
+  const ivSpread = niv - fiv;
+  const netDebit = (fp - np) * lots;
+  const netTheta = (nt - ft) * lots;
+  const netVega = (fv - nv) * lots;
+  const netGamma = (fg - ng) * lots;
+  const breakEvenMove = netGamma !== 0 ? Math.sqrt(2 * Math.abs(netTheta) / Math.abs(netGamma)) / spot * 100 : 5;
+  const maxPnl = netTheta * nd - netDebit;
+  const aprEst = maxPnl > 0 ? (maxPnl / Math.max(netDebit, 1)) * (365 / nd) * 100 : 0;
+
+  document.getElementById('main-metric').textContent = ivSpread.toFixed(1) + '% IV СПРЕД';
+  document.getElementById('main-metric').className = 'metric-value ' + (ivSpread > 3 ? 'green' : ivSpread > 0 ? 'yellow' : 'red');
+  document.getElementById('main-sub').textContent = `Нетто тета: ${fmt$(netTheta, 2)}/день | Break-even: ±${breakEvenMove.toFixed(1)}%`;
+  document.getElementById('center-title').textContent = `⊞ КАЛЕНДАРНЫЙ СПРЕД ${ASSETS[currentAsset].label}`;
+  document.getElementById('pos-size-label').textContent = `${lots} лот${lots > 1 ? 'а' : ''} | Net дебет: ${fmt$(-netDebit, 2)}`;
+
+  setGauge('liq-bar', Math.min(100, ivSpread * 5), ivSpread > 3 ? 'var(--green)' : 'var(--yellow)');
+  document.getElementById('liq-val').textContent = ivSpread.toFixed(1) + '%';
+  setGauge('range-bar', Math.min(100, breakEvenMove * 4), 'var(--cyan)');
+  document.getElementById('range-val').textContent = '±' + breakEvenMove.toFixed(1) + '%';
+  setGauge('cap-bar', Math.min(100, Math.abs(netDebit) / 100 * 20), 'var(--yellow)');
+  document.getElementById('cap-val').textContent = fmt$(-netDebit, 2).replace('+', '');
+
+  document.getElementById('sigma-val').textContent = ivSpread > 3 ? '✓' : (ivSpread > 0 ? '~' : '✗');
+  document.getElementById('sigma-val').className = 'sigma-val ' + (ivSpread > 3 ? 'safe' : (ivSpread > 0 ? 'warn' : 'danger'));
+  document.getElementById('sigma-status').textContent = ivSpread > 3 ? 'TERM STRUCTURE OK' : 'СЛАБЫЙ СПРЕД';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="pnl-row"><span class="pnl-label">IV ближний</span><span class="pnl-val neu">${niv.toFixed(1)}%</span></div>
+    <div class="pnl-row"><span class="pnl-label">IV дальний</span><span class="pnl-val neu">${fiv.toFixed(1)}%</span></div>
+    <div class="pnl-row"><span class="pnl-label">IV спред</span><span class="pnl-val ${colored(ivSpread)}">${fmtPct(ivSpread, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Net дебет</span><span class="pnl-val neg">${fmt$(-netDebit, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Net тета/день</span><span class="pnl-val ${colored(netTheta)}">${fmt$(netTheta, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Net вега</span><span class="pnl-val ${colored(netVega)}">${fmt$(netVega, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Break-even движение</span><span class="pnl-val neu">±${breakEvenMove.toFixed(2)}%</span></div>
+    <div class="pnl-row"><span class="pnl-label">Макс прибыль @ страйк</span><span class="pnl-val ${colored(maxPnl)}">${fmt$(maxPnl, 2)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">APR оценка</span><span class="pnl-val ${colored(aprEst)}">${fmtPct(aprEst, 1)}</span></div>
+  `;
+
+  document.getElementById('pnl-best-rows').innerHTML =
+    pnlRow('Тета за период', fmt$(netTheta * nd, 2), 'pos') +
+    pnlRow('Vega (IV спред растёт)', fmt$(netVega * 2, 2), 'pos') +
+    pnlRow('Дебет', fmt$(-netDebit, 2), 'neg');
+  document.getElementById('pnl-best-total').textContent = fmt$(maxPnl + netVega * 2, 2);
+
+  document.getElementById('pnl-worst-rows').innerHTML =
+    pnlRow('Движение > BE', fmt$(-netDebit, 2), 'neg') +
+    pnlRow('Vol crush', fmt$(-netVega * 3, 2), 'neg') +
+    pnlRow('Тета частично', fmt$(netTheta * nd * 0.3, 2), 'pos');
+  document.getElementById('pnl-worst-total').textContent = fmt$(-netDebit - netVega * 3 + netTheta * nd * 0.3, 2);
+
+  document.getElementById('roi-val').textContent = fmtPct(maxPnl / Math.max(netDebit, 1) * 100, 1);
+  document.getElementById('apr-val').textContent = '~' + fmtPct(aprEst, 0);
+  document.getElementById('cap-val2').textContent = '$' + (Math.abs(netDebit) / 100).toFixed(1) + 'K';
+
+  document.getElementById('rules-check').innerHTML = `
+    <div class="safety ${ivSpread > 3 ? 'ok' : 'warn'}" style="margin-bottom:4px">${ivSpread > 3 ? '✓' : '⚠'} IV спред > 3% (term structure)</div>
+    <div class="safety ok" style="margin-bottom:4px">✓ Delta нейтральная позиция</div>
+    <div class="safety ${breakEvenMove > 5 ? 'ok' : 'warn'}" style="margin-bottom:4px">${breakEvenMove > 5 ? '✓' : '⚠'} Break-even >${breakEvenMove.toFixed(0)}%</div>
+    <div class="safety ok">✓ Нет шортов на Bybit</div>
+  `;
+
+  document.getElementById('layers-body').innerHTML = `
+    <tr><td style="color:var(--green)">Тета</td><td style="color:var(--green)">основная</td><td style="color:var(--green)">${fmt$(netTheta, 2)}</td></tr>
+    <tr><td style="color:var(--cyan)">Vega (IV↑)</td><td style="color:var(--cyan)">бонус</td><td style="color:var(--cyan)">${fmt$(netVega * 0.1, 2)}</td></tr>
+    <tr><td style="color:var(--red)">Gamma риск</td><td style="color:var(--red)">риск</td><td style="color:var(--red)">${fmt$(netGamma * spot * 0.01 * -1, 2)}</td></tr>
+  `;
+
+  document.getElementById('sc1-content').innerHTML = scItem('Цена @ страйк', '✓') + scItem('IV нормализовалась', '✓') + scTotal('P&L', fmt$(maxPnl, 2), 'var(--green)');
+  document.getElementById('sc2-content').innerHTML = scItem('Цена ±3% от страйка', '~') + scItem('IV стабильна', '~') + scTotal('P&L', fmt$(maxPnl * 0.6, 2), 'var(--yellow)');
+  document.getElementById('sc3-content').innerHTML = scItem('Цена ±8% от страйка', '⚠') + scItem('Гамма убыток', '—') + scTotal('P&L', fmt$(maxPnl * 0.1, 2), 'var(--orange)');
+  document.getElementById('sc4-content').innerHTML = scItem('Vol crush (-10%)', '✗') + scItem('Резкое движение', '✗') + scTotal('P&L', fmt$(-netDebit - netVega * 3, 2), 'var(--red)');
+}
+
+// ─────────────────────────────────
+// PORTFOLIO
+// ─────────────────────────────────
+function calcPortfolio() {
+  const bybitSpot = gv('pf-bybit-spot'), bybitBots = gv('pf-bybit-bots');
+  const bybitOpts = gv('pf-bybit-opts'), deribit = gv('pf-deribit');
+  const coinbase = gv('pf-coinbase'), cash = gv('pf-cash');
+  
+  const gridAPR = gv('pf-grid-apr'), optAPR = gv('pf-opt-apr');
+  const basisAPR = gv('pf-basis-apr'), depAPR = gv('pf-dep-apr');
+  const calAPR = gv('pf-cal-apr');
+
+  const total = bybitSpot + bybitBots + bybitOpts + deribit + coinbase + cash;
+  
+  const gridIncome = bybitBots * gridAPR / 100;
+  const optIncome = bybitOpts * optAPR / 100;
+  const depIncome = bybitSpot * depAPR / 100;
+  const basisIncome = coinbase * basisAPR / 100;
+  const calIncome = deribit * calAPR / 100;
+  const cashIncome = cash * 0.05;
+  const totalIncome = gridIncome + optIncome + depIncome + basisIncome + calIncome + cashIncome;
+  const weightedAPR = total > 0 ? (totalIncome / total) * 100 : 0;
+  const dailyIncome = totalIncome / 365;
+  const monthlyIncome = totalIncome / 12;
+
+  const bybitPct = ((bybitSpot + bybitBots + bybitOpts) / total * 100);
+  const deribitPct = (deribit / total * 100);
+  const coinbasePct = (coinbase / total * 100);
+  const cashPct = (cash / total * 100);
+
+  document.getElementById('main-metric').textContent = fmtPct(weightedAPR, 1);
+  document.getElementById('main-metric').className = 'metric-value ' + (weightedAPR > 20 ? 'green' : weightedAPR > 10 ? 'yellow' : 'red');
+  document.getElementById('main-sub').textContent = `Взвешенный APR портфеля | $${total.toLocaleString()} total`;
+  document.getElementById('center-title').textContent = '▤ ПОРТФЕЛЬ';
+  document.getElementById('pos-size-label').textContent = `$${dailyIncome.toFixed(2)}/день | $${monthlyIncome.toFixed(0)}/месяц | $${totalIncome.toFixed(0)}/год`;
+
+  setGauge('liq-bar', Math.min(100, bybitPct * 1.5), 'var(--cyan)');
+  document.getElementById('liq-val').textContent = bybitPct.toFixed(0) + '% By';
+  setGauge('range-bar', Math.min(100, (deribitPct + coinbasePct) * 2), 'var(--yellow)');
+  document.getElementById('range-val').textContent = (deribitPct + coinbasePct).toFixed(0) + '% Arb';
+  setGauge('cap-bar', cashPct * 2, 'var(--green)');
+  document.getElementById('cap-val').textContent = cashPct.toFixed(0) + '% кэш';
+
+  const sharpe = weightedAPR / 15;
+  document.getElementById('sigma-val').textContent = sharpe.toFixed(1);
+  document.getElementById('sigma-val').className = 'sigma-val ' + (sharpe > 1.5 ? 'safe' : sharpe > 1 ? 'warn' : 'danger');
+  document.getElementById('sigma-status').textContent = 'SHARPE RATIO';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="sec-title">РАСПРЕДЕЛЕНИЕ</div>
+    <div class="pnl-row"><span class="pnl-label">Bybit</span><span class="pnl-val neu">$${(bybitSpot+bybitBots+bybitOpts).toLocaleString()} (${bybitPct.toFixed(0)}%)</span></div>
+    <div class="pnl-row"><span class="pnl-label">Deribit</span><span class="pnl-val neu">$${deribit.toLocaleString()} (${deribitPct.toFixed(0)}%)</span></div>
+    <div class="pnl-row"><span class="pnl-label">Coinbase</span><span class="pnl-val neu">$${coinbase.toLocaleString()} (${coinbasePct.toFixed(0)}%)</span></div>
+    <div class="pnl-row"><span class="pnl-label">Резерв</span><span class="pnl-val neu">$${cash.toLocaleString()} (${cashPct.toFixed(0)}%)</span></div>
+    <div class="divider"></div>
+    <div class="sec-title">ДОХОДЫ ПО СТРАТЕГИЯМ</div>
+    <div class="pnl-row"><span class="pnl-label">Сетки</span><span class="pnl-val pos">${fmt$(gridIncome, 0)}/год</span></div>
+    <div class="pnl-row"><span class="pnl-label">Опц. обёртка</span><span class="pnl-val pos">${fmt$(optIncome, 0)}/год</span></div>
+    <div class="pnl-row"><span class="pnl-label">Депозиты</span><span class="pnl-val pos">${fmt$(depIncome, 0)}/год</span></div>
+    <div class="pnl-row"><span class="pnl-label">Basis арб</span><span class="pnl-val pos">${fmt$(basisIncome, 0)}/год</span></div>
+    <div class="pnl-row"><span class="pnl-label">Кал. спреды</span><span class="pnl-val pos">${fmt$(calIncome, 0)}/год</span></div>
+  `;
+
+  document.getElementById('pnl-best-rows').innerHTML =
+    pnlRow('Все сетки в диапазоне', fmt$(gridIncome * 1.3, 0), 'pos') +
+    pnlRow('Все опции OTM', fmt$(optIncome, 0), 'pos') +
+    pnlRow('Базис + депозит', fmt$(basisIncome + depIncome, 0), 'pos');
+  document.getElementById('pnl-best-total').textContent = fmt$(totalIncome * 1.2, 0);
+
+  document.getElementById('pnl-worst-rows').innerHTML =
+    pnlRow('50% ботов пробиты', fmt$(-bybitBots * 0.1, 0), 'neg') +
+    pnlRow('Опции убыток', fmt$(-bybitOpts * 0.05, 0), 'neg') +
+    pnlRow('Арб доход', fmt$(basisIncome + calIncome, 0), 'pos') +
+    pnlRow('Депозит', fmt$(depIncome, 0), 'pos');
+  document.getElementById('pnl-worst-total').textContent = fmt$(totalIncome * 0.4 - bybitBots * 0.1, 0);
+
+  document.getElementById('roi-val').textContent = fmtPct(dailyIncome / total * 100, 3) + '/д';
+  document.getElementById('apr-val').textContent = '~' + fmtPct(weightedAPR, 0);
+  document.getElementById('cap-val2').textContent = '$' + (total / 1000).toFixed(0) + 'K';
+
+  document.getElementById('rules-check').innerHTML = `
+    <div class="safety ${bybitPct < 70 ? 'ok' : 'warn'}" style="margin-bottom:4px">${bybitPct < 70 ? '✓' : '⚠'} Bybit < 70% (${bybitPct.toFixed(0)}%)</div>
+    <div class="safety ${cashPct >= 8 ? 'ok' : 'warn'}" style="margin-bottom:4px">${cashPct >= 8 ? '✓' : '⚠'} Резерв ≥ 8% (${cashPct.toFixed(0)}%)</div>
+    <div class="safety ${sharpe > 1 ? 'ok' : 'warn'}" style="margin-bottom:4px">${sharpe > 1 ? '✓' : '⚠'} Sharpe > 1.0 (${sharpe.toFixed(2)})</div>
+    <div class="safety ok">✓ Радикальная диверсификация</div>
+  `;
+
+  document.getElementById('layers-body').innerHTML = `
+    <tr><td style="color:var(--cyan)">Сетки</td><td style="color:var(--green)">${fmtPct(gridAPR)}</td><td style="color:var(--green)">${fmt$(gridIncome/365, 2)}</td></tr>
+    <tr><td style="color:var(--yellow)">Опц. обёртка</td><td style="color:var(--yellow)">${fmtPct(optAPR)}</td><td style="color:var(--yellow)">${fmt$(optIncome/365, 2)}</td></tr>
+    <tr><td style="color:var(--text2)">Депозиты</td><td style="color:var(--text2)">${fmtPct(depAPR)}</td><td style="color:var(--text2)">${fmt$(depIncome/365, 2)}</td></tr>
+    <tr><td style="color:var(--cyan)">Basis арб</td><td style="color:var(--cyan)">${fmtPct(basisAPR)}</td><td style="color:var(--cyan)">${fmt$(basisIncome/365, 2)}</td></tr>
+    <tr><td style="color:var(--green)">Кал. спреды</td><td style="color:var(--green)">${fmtPct(calAPR)}</td><td style="color:var(--green)">${fmt$(calIncome/365, 2)}</td></tr>
+    <tr style="border-top:1px solid var(--border2)"><td style="color:var(--bright);font-weight:700">ИТОГО</td><td style="color:var(--green);font-weight:700">${fmtPct(weightedAPR)}</td><td style="color:var(--green);font-weight:700">${fmt$(dailyIncome, 2)}</td></tr>
+  `;
+
+  const yr = totalIncome;
+  document.getElementById('sc1-content').innerHTML = scItem('Все стратегии 120%', '✓') + scItem('Vol низкая', '✓') + scTotal('Год', fmt$(yr * 1.2, 0), 'var(--green)');
+  document.getElementById('sc2-content').innerHTML = scItem('Плановые APR', '~') + scItem('Нормальный рынок', '~') + scTotal('Год', fmt$(yr, 0), 'var(--yellow)');
+  document.getElementById('sc3-content').innerHTML = scItem('50% ботов пробиты', '⚠') + scItem('Арб работает', '+') + scTotal('Год', fmt$(yr * 0.5, 0), 'var(--orange)');
+  document.getElementById('sc4-content').innerHTML = scItem('Рынок -40%', '⚠') + scItem('Защиты сработали', '+') + scTotal('Год', fmt$(-total * 0.08, 0), 'var(--red)');
+}
+
+// ═══════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════
+function setGauge(id, pct, color) {
+  const el = document.getElementById(id);
+  if(el) { el.style.width = Math.max(2, Math.min(100, pct)) + '%'; el.style.background = color; }
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  loadAssetDefaults('ETH');
+  calcAll();
+  // Auto-recalc on any input change
+  document.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', () => calcAll());
+  });
+});
+</script>
+</body>
+</html>

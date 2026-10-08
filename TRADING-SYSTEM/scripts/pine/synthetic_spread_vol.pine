@@ -1,0 +1,88 @@
+//@version=5
+// =============================================================================
+// Синтетический спред + вола + уровни для стренглов
+// -----------------------------------------------------------------------------
+// Идея под стратегию:
+//   Нога A (chart)  : текущий символ графика  (напр. BYBIT:XAUUSDT.P  — перп)
+//   Нога B (input)  : второй символ           (напр. BYBIT:XAUTUSDT.P — спот/перп XAUT)
+//   Спред           : A - B  (синтетический спред золота)
+//   Торгуем волу спреда: продаём центр (стренгл), края покрыты крыльями.
+//   Бэнды mean ± k*sigma подсказывают, где ставить проданные страйки и крылья.
+// -----------------------------------------------------------------------------
+// Вешать на график ноги A. Ногу B задать в инпутах.
+// =============================================================================
+indicator("Синт. спред + вола (стренглы)", shorttitle="SYNTH SPREAD", overlay=false)
+
+// ---------- Инпуты -----------------------------------------------------------
+grpSym = "Символы"
+legB_sym = input.symbol("BYBIT:XAUTUSDT.P", "Нога B (вторая)", group=grpSym,
+     tooltip="Нога A берётся с текущего графика. Спред = A − B.")
+useLog   = input.bool(false, "Спред в % (а не в $)", group=grpSym,
+     tooltip="Вкл — спред считается как (A−B)/B*100. Выкл — абсолютный в котировке.")
+
+grpStat = "Статистика спреда"
+lookback = input.int(200, "Окно среднего/сигмы", minval=5, group=grpStat)
+kInner   = input.float(1.0, "k для проданных страйков (центр)", step=0.25, group=grpStat,
+     tooltip="Бэнд mean ± k*sigma — ориентир для проданных краёв стренгла.")
+kOuter   = input.float(2.0, "k для крыльев (покрытие)", step=0.25, group=grpStat,
+     tooltip="Внешний бэнд — ориентир для защитных крыльев.")
+
+grpVol = "Волатильность спреда"
+volLen   = input.int(100, "Окно волы (баров)", minval=5, group=grpVol)
+annFactor= input.float(0.0, "Бары в год для аннуализации (0=выкл)", step=1, group=grpVol,
+     tooltip="Пример для 1H: 24*365=8760. 0 — показывать сырую сигму ретёрнов.")
+
+// ---------- Данные ноги B ----------------------------------------------------
+B = request.security(legB_sym, timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+A = close
+
+// ---------- Спред ------------------------------------------------------------
+spread = useLog ? (A - B) / B * 100.0 : (A - B)
+
+mean  = ta.sma(spread, lookback)
+sigma = ta.stdev(spread, lookback)
+z     = sigma > 0 ? (spread - mean) / sigma : 0.0
+
+innerUp = mean + kInner * sigma
+innerDn = mean - kInner * sigma
+outerUp = mean + kOuter * sigma
+outerDn = mean - kOuter * sigma
+
+// ---------- Вола спреда (на ретёрнах спреда) --------------------------------
+ret      = useLog ? spread - spread[1] : (B != 0 ? (spread - spread[1]) / B * 100.0 : na)
+volRaw   = ta.stdev(ret, volLen)
+volAnn   = annFactor > 0 ? volRaw * math.sqrt(annFactor) : volRaw
+
+// ---------- Отрисовка спреда -------------------------------------------------
+pSpread = plot(spread, "Спред (A−B)", color=color.new(color.aqua, 0), linewidth=2)
+pMean   = plot(mean, "Среднее", color=color.new(color.gray, 0))
+
+pIU = plot(innerUp, "Центр +", color=color.new(color.orange, 0))
+pID = plot(innerDn, "Центр −", color=color.new(color.orange, 0))
+pOU = plot(outerUp, "Крыло +", color=color.new(color.red, 30))
+pOD = plot(outerDn, "Крыло −", color=color.new(color.red, 30))
+
+fill(pIU, pID, color=color.new(color.orange, 92), title="Зона проданного центра")
+fill(pOU, pIU, color=color.new(color.red, 95),    title="Покрытие верх")
+fill(pID, pOD, color=color.new(color.red, 95),    title="Покрытие низ")
+
+// ---------- Таблица состояния -----------------------------------------------
+var table tb = table.new(position.top_right, 2, 6, border_width=1)
+f_row(_i, _k, _v) =>
+    table.cell(tb, 0, _i, _k, text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(tb, 1, _i, _v, text_color=color.white, text_size=size.small, text_halign=text.align_right)
+
+if barstate.islast
+    table.cell(tb, 0, 0, "Спред", text_color=color.aqua, text_size=size.small)
+    table.cell(tb, 1, 0, str.tostring(spread, format.mintick), text_color=color.aqua, text_size=size.small)
+    f_row(1, "Z-score", str.tostring(z, "#.##"))
+    f_row(2, "Сигма", str.tostring(sigma, format.mintick))
+    f_row(3, "Вола (окно)", str.tostring(volRaw, "#.####"))
+    f_row(4, annFactor > 0 ? "Вола год." : "Вола (сырая)", str.tostring(volAnn, "#.####"))
+    f_row(5, "Центр±/Крыло±", str.tostring(kInner, "#.#") + " / " + str.tostring(kOuter, "#.#"))
+
+// ---------- Алерты -----------------------------------------------------------
+alertcondition(ta.crossover(spread, innerUp),  "Спред выше центра +", "Спред пробил верхний проданный страйк")
+alertcondition(ta.crossunder(spread, innerDn), "Спред ниже центра −", "Спред пробил нижний проданный страйк")
+alertcondition(ta.crossover(spread, outerUp),  "Спред у крыла +", "Спред дошёл до верхнего крыла")
+alertcondition(ta.crossunder(spread, outerDn), "Спред у крыла −", "Спред дошёл до нижнего крыла")
