@@ -27,12 +27,6 @@ config.json
 TRADING_BOOK.xlsx
 .~lock.*#
 
-# R_trade_proj_sin-arb has its own separate git repo (nested), backed up via its
-# own push — NOT added as submodule here because its remote is the SAME GitHub
-# repo (RomanBoreyko/R_proj) as this outer vault repo, which would be circular.
-# [поправь: реши, как это должно быть организовано на самом деле]
-R-trade/R_trade_proj_sin-arb/
-
 # OS / misc
 desktop.ini
 *.log
