@@ -39,3 +39,6 @@ desktop.ini
 
 # Live data logs (collector output)
 TRADING-SYSTEM/scripts/portfolio/data/
+
+# Telegram-экспорт (медиа, не для git)
+ChatExport_*/
