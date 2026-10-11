@@ -1,0 +1,13 @@
+{
+  "intensity_min": 1,
+  "intensity_max": 3,
+  "log_file": "zalgo_log.txt",
+  "sound_enabled": true,
+  "auto_backspace": true,
+  "description": "Конфигурация Demon Zalgo",
+  "zalgo_chars": {
+    "up": "̍̎̄̅̿̑̐͒͗͛̋̾͌͂̓̚",
+    "mid": "̕̚",
+    "down": "̖̗̘̙̜̝̞̟̠̤̥̦̩̪̫̬̮̯̰̱̲̳̹̺̻̼͇̽ͅ"
+  }
+}

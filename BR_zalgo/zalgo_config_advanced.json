@@ -1,0 +1,30 @@
+{
+  "intensity_min": 1,
+  "intensity_max": 3,
+  "log_file": "zalgo_log_advanced.txt",
+  "sound_enabled": true,
+  "auto_backspace": true,
+  "hotkey_toggle": "ctrl+shift+z",
+  "hotkey_stats": "ctrl+shift+s",
+  "show_notifications": true,
+  "auto_save_stats": true,
+  "stats_file": "zalgo_stats.json",
+  "description": "Расширенная конфигурация Demon Zalgo Advanced",
+  "zalgo_chars": {
+    "up": "̍̎̄̅̿̑̐͒͗͛̋̾͌͂̓̚",
+    "mid": "̕̚",
+    "down": "̖̗̘̙̜̝̞̟̠̤̥̦̩̪̫̬̮̯̰̱̲̳̹̺̻̼͇̽ͅ"
+  },
+  "sound_settings": {
+    "activation_frequency": 800,
+    "activation_duration": 150,
+    "deactivation_frequency": 400,
+    "deactivation_duration": 200
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s | %(levelname)s | %(message)s",
+    "max_file_size_mb": 10,
+    "backup_count": 5
+  }
+}
