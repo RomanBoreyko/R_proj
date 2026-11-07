@@ -62,8 +62,8 @@ AfterClass:
     gymReceptionist
     salesform platform
     login: wodrom@gmail.com_gymp_cw3
-    password: K4XiaKSx3DCrTfa
-    answer: r0
+    password: [удалено]
+    answer: [удалено]
 
 Setup > Sharing Settings
     gym visit -> edit -> Default Internal Access: Private -> save

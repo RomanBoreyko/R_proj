@@ -43,3 +43,7 @@ ChatExport_*/
 .trash/
 
 # Моно-репо: r_tail03 архивируется локально (D:\Backup), не в git
+
+# Python bytecode
+__pycache__/
+*.pyc

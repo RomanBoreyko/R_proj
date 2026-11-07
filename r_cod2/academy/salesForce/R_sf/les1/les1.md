@@ -12,7 +12,7 @@ https://www.salesforce.com/products/platform/customer-stories/
 
 appexchange>search>getitnow>
 login: wodrom@resourceful-badger-3c8wd6.com
-Pass: NS3tbxE9Yb9Nxf3
+Pass: [удалено]
 Setup>findBox: Installed Packages > ... > View Components
 
 [//]: # (make an account)
