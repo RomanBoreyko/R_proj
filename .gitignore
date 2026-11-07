@@ -47,3 +47,13 @@ ChatExport_*/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# R_tail: личная переписка (даже вычищенная) — только локально / Google Drive, не в публичный git
+**/_telegram_archive/
+**/.obsidian/workspace*.json
+
+# Чужие книги/PDF — не распространяем в публичном git (лежат на D:, Google Drive и смарте)
+R_tail.0.4/**/*.pdf
+R_tail.0.4/**/*.fb2*
+R_tail.0.4/**/*.epub
+R_tail.0.4/**/*.djvu

@@ -1,0 +1,17 @@
+# OS-мусор
+desktop.ini
+
+# Obsidian: машинное состояние (конфиг шарим, workspace — нет)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/workspace-*.json
+.obsidian/graph.json
+.obsidian/plugins/
+.obsidian/community-plugins.json
+.trash/
+
+# Секреты — никогда
+credentials.json
+*.key
+.env
+old_5-3-25/R_tail04/
