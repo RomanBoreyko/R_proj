@@ -466,6 +466,7 @@ def snapshot():
     for sc in ("USDT","USDC"):
         for p in sget("/v5/position/list", {"category":"linear","settleCoin":sc,"limit":"200"})["result"]["list"]:
             if ff(p["size"]) > 0: perps.append(p)
+    perps += tail_pairs.inverse_positions(sget)   # ETHUSD (инверс) → size в монетах
     B = {"n":0,"d":0,"g":0,"t":0,"v":0}; S = {"n":0,"d":0,"g":0,"t":0,"v":0}
     OG = {}   # греки опционов ПО АКТИВУ (future-proof: ETH/SOL/BTC/XAUT/любой)
     legs = []; legs_out = []

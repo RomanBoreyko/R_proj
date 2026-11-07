@@ -22,6 +22,27 @@ def _bs(S, K, T, s, cp):
     d1 = (math.log(S/K)+0.5*s*s*T)/(s*math.sqrt(T)); d2 = d1-s*math.sqrt(T)
     return S*_N(d1)-K*_N(d2) if cp == "C" else K*_N(-d2)-S*_N(-d1)
 
+def inverse_positions(sget):
+    """Инверсные перпы/фьючи (ETHUSD, BTCUSD, ETHUSDZ26…) в «линейном» виде.
+    P&L$ инверса = (Q/E)·(S−E) → это линейный перп размером Q/E монет со входом E.
+    size — в монетах, unrealisedPnl — в $, usd — исходный размер в USD. Ошибка API → []."""
+    out = []
+    try:
+        for p in sget("/v5/position/list", {"category": "inverse", "limit": "200"})["result"]["list"]:
+            q, e = ff(p.get("size")), ff(p.get("avgPrice"))
+            if q <= 0 or e <= 0: continue
+            mk = ff(p.get("markPrice")) or e
+            out.append({"symbol": p["symbol"], "side": p["side"], "size": str(q / e), "avgPrice": str(e),
+                        "markPrice": str(mk), "unrealisedPnl": str(ff(p.get("unrealisedPnl")) * mk),
+                        "inv": True, "usd": q})
+    except Exception:
+        return []
+    return out
+
+def inv_base(sym):
+    m = re.match(r"^([A-Z0-9]+?)USD([FGHJKMNQUVXZ]\d\d)?$", sym or "")
+    return m.group(1) if m else None
+
 _C = {}
 def cached(key, ttl, fn):
     v = _C.get(key)
@@ -72,7 +93,12 @@ def tail_snapshot(sget, pub):
     eq = ff(wb["totalEquity"]); mm = ff(wb["totalMaintenanceMargin"]); mmp = round(mm/eq*100, 1) if eq else 0
     eth_spot = sum(ff(c["walletBalance"]) for c in wb["coin"] if c["coin"] == "ETH")
     opts = [o for o in sget("/v5/position/list", {"category":"option","baseCoin":"ETH","limit":"200"})["result"]["list"] if ff(o["size"]) > 0]
-    perp = sum((ff(p["size"]) if p["side"] == "Buy" else -ff(p["size"])) for p in sget("/v5/position/list", {"category":"linear","symbol":"ETHUSDT"})["result"]["list"])
+    _pl = []
+    for _sc in ("USDT", "USDC"):   # ETHUSDT + ETHPERP (USDC) + инверс ETHUSD
+        _pl += [p for p in sget("/v5/position/list", {"category":"linear","settleCoin":_sc,"limit":"200"})["result"]["list"]
+                if p["symbol"] in ("ETHUSDT", "ETHPERP") or p["symbol"].startswith("ETH-")]
+    _pl += [p for p in inverse_positions(sget) if inv_base(p["symbol"]) == "ETH"]
+    perp = sum((ff(p["size"]) if p["side"] == "Buy" else -ff(p["size"])) for p in _pl)
     legs = []
     for o in opts:
         pr = o["symbol"].split("-")

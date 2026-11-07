@@ -77,7 +77,8 @@
 - **Подписанные:**
   - `/v5/account/wallet-balance?accountType=UNIFIED` — эквити, IM, MM, свободные средства, баланс монет (`walletBalance`);
   - `/v5/position/list?category=option` — с пагинацией;
-  - `/v5/position/list?category=linear&settleCoin=USDT|USDC`.
+  - `/v5/position/list?category=linear&settleCoin=USDT|USDC`;
+  - `/v5/position/list?category=inverse` — через `tail_pairs.inverse_positions` (ETHUSD, BTCUSD, ETHUSDZ26…).
 - **Earn:** `earn_fn()` (это `book_dashboard.earn_snapshot`, кэш 300с) → `pos` в формате `{coin: amount}`.
 - **Публичные, через `cached`:**
 
@@ -91,6 +92,7 @@
 ### Разбор символов
 - **Опцион:** `BASE-DDMMMYY-STRIKE-C|P-USDT`, например `ETH-25DEC26-2000-P-USDT` или `MNT-25DEC26-0.46-C-USDT`. Страйк может быть дробным, поэтому всегда `ff()`, а не `int()`.
 - **Перп:** `_perp_base(sym)` отрезает `USDT`/`USDC`/`PERP` от части до первого `-`: `ETHPERP` → ETH, `SAMSUNGEMUSDT` → SAMSUNGEM.
+- **Инверс:** `ETHUSD`, `ETHUSDZ26` → ETH через `tail_pairs.inv_base` (проверяется после USDT/USDC/PERP). Размер инверса — в USD (Q); P&L$ = (Q/E)·(S−E), поэтому `inverse_positions` отдаёт его как линейный перп `size = Q/E` монет, вход E, uPnL × mark → $. В таблице позиций — `ETHUSD (инв.)`. Без этого инверс не попадал ни в истинную Δ, ни в payoff, ни в стресс.
 - **Группа** определяется по **точному** совпадению базы (`_grp`). Подстроку не использовать: старый `snapshot()` проверял `"ETH" in symbol` и ловил лишние символы.
 
 ### Единицы и формулы
@@ -154,6 +156,7 @@
 - `_T(code)` — время до экспирации в годах.
 - `_N`, `_bs(S,K,T,σ,cp)` — Black-Scholes без ставки.
 - `cached(key, ttl, fn)` — общий кэш модуля (`_C`).
+- `inverse_positions(sget)`, `inv_base(sym)` — инверсные позиции в линейном эквиваленте (см. §2 «Разбор символов»). Используются в `/port`, `/data` и `/tail`.
 
 ### 3.1 `tail_snapshot` — продажа дальних путов ETH и вола
 - **Конфиг `TAIL_CFG`:**
@@ -312,3 +315,4 @@ import portfolio_book as pb; pb.portfolio_snapshot(sget, pub)
 - **2026-11-07**
   - ETH-пары в «Факторных спредах» (сессия `ALL`), комиссии и нетто в бэктесте (`CRYPTO`, `_fee`).
   - «Портфель»: β-взвешенная Δ в ETH-эквиваленте и стресс «ETH против корзины» (`_betas`, `_shock`, блок `#betawrap`).
+  - Учёт инверсных перпов (ETHUSD) в «Портфеле», `/data` и «Хвостах»; в «Хвостах» перп ETH = ETHUSDT + ETHPERP (USDC) + инверс (раньше только ETHUSDT).

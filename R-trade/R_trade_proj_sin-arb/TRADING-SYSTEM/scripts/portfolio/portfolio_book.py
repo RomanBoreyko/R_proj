@@ -4,7 +4,7 @@
 Только чтение API. Вызывается из book_dashboard.py: portfolio_snapshot(sget, pub, earn_fn)."""
 import math, time, datetime
 from collections import deque
-from tail_pairs import ff, _T, _bs, cached, CRYPTO
+from tail_pairs import ff, _T, _bs, cached, CRYPTO, inverse_positions, inv_base
 
 # группа -> базовые активы; первый — «главный» (ось payoff и датчик волы)
 GROUPS = {"ETH": ["ETH"], "MNT": ["MNT"], "SOL": ["SOL"], "BTC": ["BTC"], "QQQ": ["QQQ"],
@@ -27,7 +27,7 @@ def _perp_base(sym):
     s = sym.split("-")[0]
     for suf in ("USDT", "USDC", "PERP"):
         if s.endswith(suf) and len(s) > len(suf): return s[:-len(suf)]
-    return s
+    return inv_base(s) or s
 
 def _lin_px(pub):
     def f():
@@ -146,6 +146,7 @@ def portfolio_snapshot(sget, pub, earn_fn=None):
     perps = []
     for sc in STABLE:
         perps += [p for p in sget("/v5/position/list", {"category": "linear", "settleCoin": sc, "limit": "200"})["result"]["list"] if ff(p["size"]) > 0]
+    perps += inverse_positions(sget)      # ETHUSD и пр.: size уже в монетах (Q/E), uPnL в $
     try: earn = (earn_fn() if earn_fn else {}).get("pos", {}) or {}
     except Exception: earn = {}
     LP = _lin_px(pub)
@@ -168,7 +169,7 @@ def portfolio_snapshot(sget, pub, earn_fn=None):
     for p in perps:
         b = _perp_base(p["symbol"]); sd = 1 if p["side"] == "Buy" else -1; sz = ff(p["size"])
         S = ff(p.get("markPrice")) or px(b)
-        inst.append({"k": "perp", "sym": p["symbol"], "base": b, "grp": _grp(b), "side": sd, "sz": sz, "S": S,
+        inst.append({"k": "perp", "sym": p["symbol"] + (" (инв.)" if p.get("inv") else ""), "base": b, "grp": _grp(b), "side": sd, "sz": sz, "S": S,
                      "entry": ff(p.get("avgPrice")), "d": sd * sz, "g": 0.0, "t": 0.0, "v": 0.0,
                      "dusd": sd * sz * S, "g1": 0.0, "up": ff(p.get("unrealisedPnl"))})
 
@@ -241,7 +242,7 @@ def portfolio_snapshot(sget, pub, earn_fn=None):
                     out.append(round(P[k - 1][0] + (P[k][0] - P[k - 1][0]) * (-y0) / (y1 - y0), 4 if Sm < 10 else 0))
             return sorted(set(out))
         def sk(i): return (list(GNAME).index(i["grp"]) if i["grp"] in GNAME else 99, i["base"], i["k"] != "opt", i["T"] if i["k"] == "opt" else 0, i.get("K", 0))
-        pos = [{"grp": GNAME.get(i["grp"], i["grp"]), "sym": i["sym"], "side": "B" if i["side"] > 0 else "S", "sz": i["sz"],
+        pos = [{"grp": GNAME.get(i["grp"], i["grp"]), "sym": i["sym"], "side": "B" if i["side"] > 0 else "S", "sz": round(i["sz"], 6),
                 "d": round(i["d"], 4 if i["k"] == "opt" else 6), "dusd": round(i["dusd"], 1), "g": round(i["g"], 5),
                 "t": round(i["t"], 2), "v": round(i["v"], 2), "up": round(i["up"], 2),
                 "iv": round(i["iv"] * 100, 1) if i["k"] == "opt" else None} for i in sorted(sel, key=sk)]
