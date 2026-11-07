@@ -54,7 +54,10 @@ def git(*a, check=True):
 
 def log(msg):
     line = f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S}  {msg}"
-    print(line)
+    try:  # pythonw: stdout = None; консоль cp1251 — не падаем из-за вывода
+        print(line.encode("ascii", "replace").decode() if sys.stdout and sys.stdout.encoding.lower() != "utf-8" else line)
+    except Exception:
+        pass
     with open(LOG, "a", encoding="utf-8") as f:
         f.write(line + "\n")
 
