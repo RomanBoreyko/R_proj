@@ -28,7 +28,8 @@
 ```
 браузер ──fetch каждые 4–6с──> ThreadingHTTPServer (127.0.0.1:8899, book_dashboard.Handler)
                                  ├─ /        → HTML (одна строка HTML = r'''...''' внутри book_dashboard.py)
-                                 ├─ /port    → portfolio_book.portfolio_snapshot(sget, pub, earn_snapshot)
+                                 ├─ /port    → _port() = кэш 3с над portfolio_book.portfolio_snapshot(sget, pub, earn_snapshot)
+                                 ├─ /arb     → arb_book.arb_snapshot(sget, pub, _port)   (скан — в фоновом потоке)
                                  ├─ /gold    → book_dashboard.gold_snapshot()
                                  ├─ /tail    → tail_pairs.tail_snapshot(sget, pub)
                                  ├─ /pairs   → tail_pairs.pairs_snapshot(sget, pub)
@@ -47,11 +48,14 @@
 | Кнопка | id вкладки | Маршрут | Бэкенд | JS-рендер | Интервал |
 |---|---|---|---|---|---|
 | Портфель | `tabE` | `/port` | `portfolio_book.portfolio_snapshot` | `tick` → `renderPort` → `renderPVol`, `renderPSpot`, `renderPBS`, `drawPPay`, `renderPPos` | 4с |
-| Золото XAUT/XAU | `tabG` | `/gold` | `gold_snapshot`, `gold_wings` | `gtick`, `renderGold`, `renderWings`, `drawSpread` | 4с |
+| Арбитраж → Мой арб-портфель / Сканер | `tabA` → `asMine` / `asScan` | `/arb` | `arb_book.arb_snapshot` (`book` + `scan`) | `atick` → `renderArb`, `drawRisk` | 6с |
+| Арбитраж → Золото XAUT/XAU | `tabA` → `asGold` | `/gold` | `gold_snapshot` | `gtick`, `renderGold`, `drawSpread` | 4с |
+| Арбитраж → Стат-арб (пары) | `tabA` → `asPairs` | `/pairs` | `tail_pairs.pairs_snapshot` (тяжёлая часть в фоне) | `ptick`, `drawZ` | 6с |
+| Золото: опционы | `tabG` | `/gold` | `gold_snapshot`, `gold_wings` | `gtick`, `renderWings` (+ `#ggreeks`, `#gpos` из `renderGold`) | 4с |
 | Хвосты ETH | `tabT` | `/tail` | `tail_pairs.tail_snapshot` | `ttick`, `drawDV` | 6с |
-| Факторные спреды | `tabP` | `/pairs` | `tail_pairs.pairs_snapshot` (тяжёлая часть в фоне) | `ptick`, `drawZ` | 6с |
 
-- Переключение вкладок — `showTab(t)`, где `t` ∈ `'E','G','T','P'`.
+- Переключение вкладок — `showTab(t)`, где `t` ∈ `'E','A','G','T'`. Подвкладки «Арбитража» — `setASub(k)`, `k` ∈ `mine`, `scan`, `gold`, `pairs` (глобальная `ASUB`, localStorage `asub`).
+- **2026-11-07 перенос:** вкладка «Факторные спреды» (`tabP`) удалена — её блоки с теми же id живут в `#asPairs`. Блоки спреда XAUT/XAU (`#gacct`, `#gbar`, `#gwarn`, `#gtiles`, `#gconv`, `#gdiv`, кнопки окон, `#gcv`, `#gstat`, `#gspread`, сноска) перенесены в `#asGold` с теми же id. Поэтому `renderGold` пишет в обе вкладки, а `gtick` работает при `TAB=='G'` **или** `TAB=='A' && ASUB=='gold'`; `ptick` — только при `TAB=='A' && ASUB=='pairs'`. Сохранённая вкладка `'P'` открывается как «Арбитраж → пары».
 - Таймеры работают всегда, но каждый `*tick` сразу выходит, если активна не его вкладка. Исключение — `tick()` для `/port`: он опрашивает всегда, поэтому вкладка «Портфель» открывается мгновенно.
 
 ---
@@ -207,6 +211,27 @@
 
 ---
 
+## 3a. Модуль `arb_book.py` — вкладка «Арбитраж»
+
+Импорт безопасен (только определения), `sget`/`pub` передаются снаружи, утилиты — из `tail_pairs` (`ff`, `_T`, `cached`, `inverse_positions`, `inv_base`). Параметры — `ARB_CFG`, `OPT_BASES`, `BASKET`, `FEE_FALLBACK`.
+
+- **`book(port, pub)`** — поверх готового `/port`, своих запросов к позициям не делает:
+  - **остаточный риск** = max − min по всем ячейкам `groups.ALL.beta.stress.rows[*].pnl` и 0; история `RISK_H` (deque 720, точка не чаще раза в 20 с, живёт в процессе);
+  - **связки** — жадно по количеству в монетах, порядок: кэрри (спот+Earn ↔ шорт перпа) → базис золота (XAUT спот/перп ↔ XAU) → конверсия (лонг P K + шорт C K + лонг базы) / реверсия → межперп (лонг ↔ шорт перпов одного актива: USDT/USDC/инверс). Боксы и разные страйки не распознаются;
+  - **открытые ноги** — остаток после связок; `close_ok` = uPnL > 0 (правило «не фиксировать убытки»);
+  - **фандинг $/день** = Σ −знак·|dusd|·rate·24/интервал (tickers linear+inverse, кэш 30 с).
+- **`scan(sget, pub)`** — неблокирующий: отдаёт последний скан, обновляет в фоновом потоке (`_SCAN`, лок `_SL`, TTL 30 с; первый прогон ~25–30 с). Мейкерские ставки — `/v5/account/fee-rate` (кэш 1 ч; опционы по baseCoin, линейные по перпу базы, спот по символу), иначе `FEE_FALLBACK` и флаг `est`. Цены — исполнимая сторона стакана. Ставка 0.
+  - **Паритет** (`OPT_BASES`): хедж — фьючерс той же экспирации (`BASEUSDT-DDMMMYY`), иначе перп. Конверсия = cb − pa + K − Fa − комиссии, реверсия = Fb − K − ca + pb − комиссии; комиссии = 2·мейкер_опц·S + мейкер_лин·F + поставка (принята = мейкер_опц·S). **Фандинг перпа до экспирации — отдельно** (`fund`, `edge_f`, `fund_only`): по ценам эдж ≤ 0, а плюс только с фандингом — это ставка на фандинг, не арбитраж. Страйки ±30% от F.
+  - **Боксы**: лонг = (K2−K1) − (ca1 − cb2 + pa2 − pb1) − 6·мейкер_опц·S; шорт — зеркально.
+  - **Cash-and-carry**: (Fbid − Sask)/Sask − мейкер_спот − мейкер_лин − deliveryFeeRate; обратное (шорт спот) помечено «нужен спот».
+  - **Календарь** перп ↔ датированный фьючерс с учётом фандинга до экспирации.
+  - **Кэрри** спот+перп: % годовых = ставка·(24/интервал)·365·100 (баг ×100 из `basis_desk.py` не повторён), средний за 7д (`/v5/market/funding/history`, кэш 15 мин) для корзины; вне корзины — топ по рынку (оборот ≥ $5M), комиссии — оценка.
+  - **Инверс vs линейный** — разница фандингов в % годовых.
+- **Формат `/arb`:** `{t, tiles{resid,min,max,dusd,eq,g1,t,v,fund_day,links,open}, links[{kind,q,legs,up,note}], open[{sym,side,rem,q,part,dusd,t,up,close_ok}], fund[{sym,rate,apy,usd_day}], hist[[ts,$]], acct, scan{parity,box,cc,cal,carry,inv,nscan,est,ts}|null, scan_age, scan_busy, scan_err}`.
+- **Не считается:** маржа под связку и доходность на маржу; кэп опционной комиссии от премии; дивиденды QQQ; часы торговли TradFi-перпов.
+
+---
+
 ## 4. `book_dashboard.py` — сервер, вкладка «Золото» и legacy
 
 - **Константы:** `CREDS`, `BASE`, `MON`, `EARN` (ручной фолбэк Earn), `EARN_WATCH`, `SCALP` (legacy).
@@ -225,7 +250,8 @@
 
 - **Весь HTML, CSS и JS** — одна Python raw-строка `HTML = r'''...'''`. Внутри нельзя писать `'''`. JS-шаблоны `${...}` использовать можно: строка не форматируется Python.
 - **Все `<script>` делят одну глобальную область видимости.** Повторное объявление `let` или `const` роняет **весь** скрипт: кнопки перестают работать, в консоли `Identifier 'X' has already been declared`. Это уже случалось с `PD` и `sg`.
-  - Занятые глобальные имена: `$`, `tile`, `sg`, `TAB`, `renderPBeta`, `LAST`, `GREEK`, `GL`, `PORT`, `PG`, `PSEL`, `PD`, `GW`, `GLD`, `cl`, `vcls`.
+  - Занятые глобальные имена: `$`, `tile`, `sg`, `pm`, `TAB`, `renderPBeta`, `LAST`, `GREEK`, `GL`, `PORT`, `PG`, `PSEL`, `PD`, `GW`, `GLD`, `cl`, `vcls`, `ASUB`, `setASub`, `atick`, `renderArb`, `drawRisk`.
+  - `sg` и `pm` объявлены `const` в середине скрипта (раздел «ЗОЛОТО»): вызывать их на верхнем уровне **до** этой строки нельзя (TDZ), внутри функций — можно.
   - Перед добавлением имени проверить его так: `grep -nE "(const|let|function) ИМЯ\b" book_dashboard.py`.
   - Новый код вкладки лучше давать с префиксом (`port*`, `tail*`, `pair*`).
 - **Хелперы:**
@@ -236,7 +262,8 @@
 - **Тема только тёмная** (фон `#0d1117`).
 - **Canvas рисуется вручную** (`drawPPay`, `drawSpread`, `drawDV`, `drawZ`): оси, подписи и легенда — функциями 2D-контекста.
 - **localStorage:**
-  - `tab` — восстанавливаются только G, T и P; по умолчанию открывается E;
+  - `tab` — восстанавливаются A, G и T (старое `P` → «Арбитраж → пары»); по умолчанию открывается E;
+  - `asub` — подвкладка «Арбитража»;
   - `pg` — группа портфеля;
   - `gw` — окно золота.
 
@@ -316,3 +343,4 @@ import portfolio_book as pb; pb.portfolio_snapshot(sget, pub)
   - ETH-пары в «Факторных спредах» (сессия `ALL`), комиссии и нетто в бэктесте (`CRYPTO`, `_fee`).
   - «Портфель»: β-взвешенная Δ в ETH-эквиваленте и стресс «ETH против корзины» (`_betas`, `_shock`, блок `#betawrap`).
   - Учёт инверсных перпов (ETHUSD) в «Портфеле», `/data` и «Хвостах»; в «Хвостах» перп ETH = ETHUSDT + ETHPERP (USDC) + инверс (раньше только ETHUSDT).
+  - Вкладка **«Арбитраж»** (`arb_book.py`, `/arb`): мой арб-портфель (остаточный риск = разброс стресса, связки, открытые ноги, фандинг $/день), сканер (паритет с отдельным фандингом, боксы, cash-and-carry, календарь, кэрри, инверс vs линейный; мейкерские комиссии). «Факторные спреды» и спред XAUT/XAU перенесены в неё подвкладками; «Золото» → «Золото: опционы». Общий кэш `_port()` для `/port` и `/arb`.

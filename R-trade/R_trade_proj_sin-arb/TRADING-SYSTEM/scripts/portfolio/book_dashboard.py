@@ -6,7 +6,7 @@ payoff, профиль греков и структурный срез пут/к
 import json, hmac, hashlib, time, re, datetime, math, urllib.request, urllib.parse
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import tail_pairs, portfolio_book
+import tail_pairs, portfolio_book, arb_book
 
 CREDS = r"C:\Users\DoOs\.bybit\credentials.json"; BASE = "https://api.bybit.com"
 d = json.load(open(CREDS, encoding="utf-8")); KEY, SECRET = d["api_key"], d["api_secret"]
@@ -577,6 +577,9 @@ def snapshot():
         "payoff":payoff,"be":sorted(set(bes)),"legs":legs_out,"hist":list(HIST),"positions":positions,
         "spot":spot,"true":trued,"earn":EA,"vol":VV,"scalp":SC}
 
+def _port():   # общий снимок портфеля для /port и /arb (кэш 3 с)
+    return tail_pairs.cached("port_snap", 3, lambda: portfolio_book.portfolio_snapshot(sget, pub, earn_snapshot))
+
 HTML = r'''<!doctype html><html><head><meta charset="utf-8"><title>Книга Bybit</title><style>
 body{background:#0d1117;color:#e6edf3;font:13px/1.4 Segoe UI,Roboto,sans-serif;margin:0;padding:12px}
 .hd{display:flex;justify-content:space-between;align-items:center}
@@ -593,7 +596,7 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 .gbtn{cursor:pointer;padding:2px 10px;border:1px solid #30363d;border-radius:6px;margin-right:4px;color:#8b949e}
 .gbtn.on{background:#1f6feb33;border-color:#1f6feb;color:#e6edf3}</style></head><body>
 <div class="hd"><b>Книга Bybit — реалтайм</b><span id="upd">загрузка...</span></div>
-<div style="margin:6px 0 4px"><span class="gbtn on" id="tbE" onclick="showTab('E')">Портфель</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото XAUT/XAU</span><span class="gbtn" id="tbT" onclick="showTab('T')">Хвосты ETH</span><span class="gbtn" id="tbP" onclick="showTab('P')">Факторные спреды</span></div>
+<div style="margin:6px 0 4px"><span class="gbtn on" id="tbE" onclick="showTab('E')">Портфель</span><span class="gbtn" id="tbA" onclick="showTab('A')">Арбитраж</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото: опционы</span><span class="gbtn" id="tbT" onclick="showTab('T')">Хвосты ETH</span></div>
 <div id="tabT" style="display:none">
 <div class="row" id="tacct"></div>
 <div id="twarn" style="font-size:12px;margin:0 0 4px"></div>
@@ -608,16 +611,28 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 <h3>Кандидаты в хеджированную продажу: пут-спреды (продать верхний / купить нижний), по доходу к риску в месяц</h3><table id="tcand"></table>
 <div style="color:#8b949e;font-size:11px;margin-top:6px">«Дальний» = страйк ≤ 85% цены ETH. «Собрано» = доля проданной премии, которую уже можно забрать (≥60% — тейк). «Покрытие» = сколько шортов закрыто купленными путами ниже в той же экспире; голая часть = неограниченный риск, «крыло» — самый дешёвый пут ниже для её закрытия (стоимость / макс. убыток после). P(убыток) ≈ |Δ| проданного пута, P(макс) ≈ |Δ| купленного (риск-нейтрально, по рынку). Стресс: Black-Scholes по markIv, без учёта изменения маржи. Параметры — TAIL_CFG в tail_pairs.py.</div>
 </div>
-<div id="tabP" style="display:none">
-<div id="pbar" style="margin:2px 0 4px;font-size:12px;color:#8b949e"></div>
-<h3>Пары: z сейчас, сигнал, размер ног из бюджета (без стопов: вход |z|≥2, добор |z|≥3, выход z=0, выход по времени 10д)</h3>
-<table id="ptab"></table>
-<canvas id="pcv" width="980" height="200"></canvas>
-<div id="pnote" style="color:#8b949e;font-size:11px;margin:2px 0 6px"></div>
-<h3>Корзина по факторам (нетто $, лимиты, бета к QQQ)</h3><table id="pfac"></table>
-<div style="color:#8b949e;font-size:11px;margin-top:6px">z = (ln A − β·ln B − среднее)/σ на окне 260 баров по 30м только в сессии пары (US — 14:30–21:00 UTC зимой, KR — 00:00–06:30 UTC, WK — будни 24ч). Live-z — по mid стакана с β/средним/σ последнего окна. Бэктест 80д без стопа: n сделок, % прибыльных, средняя, худшая и MAE (худшая просадка в позиции) в бп ноги A; «модель в позиции» — что бэктест держит сейчас. Нога A = бюджет / (2×|MAE|), нога B = β×A (противоположный знак). Мейкер 0% на TradFi-перпах; на крипто-перпах (ETH, BTC, SOL, ETHFI, LDO) мейкер 0.036% — «нетто» = средняя минус круг мейкером обеих ног; тейкером (0.1%) крипто-пары в минусе. Крипто-пары — сессия ALL (24/7, окно 260 баров ≈ 5.4 дня). Только лимитки. Параметры — PAIRS, PAIR_CFG, FACTORS в tail_pairs.py.</div>
+<div id="tabA" style="display:none">
+<div style="margin:2px 0 6px"><span class="gbtn" id="asb_mine" onclick="setASub('mine')">Мой арб-портфель</span><span class="gbtn" id="asb_scan" onclick="setASub('scan')">Сканер</span><span class="gbtn" id="asb_gold" onclick="setASub('gold')">Золото XAUT/XAU</span><span class="gbtn" id="asb_pairs" onclick="setASub('pairs')">Стат-арб (пары)</span></div>
+<div id="asMine">
+<div class="row" id="atiles"></div>
+<h3>Остаточный риск во времени, $ (разброс стресс-таблицы; цель → 0)</h3>
+<canvas id="acv" width="980" height="140"></canvas>
+<h3>Связки (арбитражные конструкции в книге)</h3><table id="alinks"></table>
+<h3>Открытые ноги (не вошли в связки)</h3><table id="aopen"></table>
+<h3>Фандинг книги</h3><table id="afund"></table>
+<div style="color:#8b949e;font-size:11px;margin-top:6px">Арбитражный портфель (APT, Ло): Σw=0 (без своих денег), Σwβ=0 (нет риска фактора), остаток диверсифицирован → доход только от зафиксированного эджа. «Остаточный риск» = лучший − худший исход по всем ячейкам стресса β-блока «Портфеля» (ETH отдельно / корзина отдельно / ETH против корзины / согласованно по β, ±5…20%) и 0; у арбитражного портфеля ≈ 0. Связки ищутся автоматически, жадно, по количеству в монетах: кэрри (спот+Earn против шорта перпа) → базис золота (XAUT против XAU) → конверсия (лонг пута K + шорт колла K + лонг базы) / реверсия → межперп (лонг и шорт перпов одного актива: USDT/USDC/инверс). Боксы и связки через опционы с разными страйками не распознаются. «Можно закрыть в плюс» — нога с uPnL &gt; 0 (правило «не фиксировать убытки»). Фандинг $/день = −знак × |позиция $| × ставка × периодов в день (лонг платит при ставке &gt; 0).</div>
 </div>
-<div id="tabG" style="display:none">
+<div id="asScan" style="display:none">
+<div id="asbar" style="margin:2px 0 4px;font-size:12px;color:#8b949e"></div>
+<h3>Паритет: конверсия / реверсия (опционы + фьючерс той же экспирации, иначе перп)</h3><table id="aspar"></table>
+<h3>Боксы (колл-спред + пут-спред, выплата K2−K1)</h3><table id="asbox"></table>
+<h3>Cash-and-carry: спот против датированного фьючерса</h3><table id="ascc"></table>
+<h3>Календарь: перп против датированного фьючерса</h3><table id="ascal"></table>
+<h3>Кэрри спот + перп (фандинг)</h3><table id="ascarry"></table>
+<h3>Инверс против линейного (разница фандингов)</h3><table id="asinv"></table>
+<div style="color:#8b949e;font-size:11px;margin-top:6px">Все эджи — после <b>мейкерских</b> комиссий (/v5/account/fee-rate; если недоступно — оценка, см. строку статуса) по <b>исполнимой стороне стакана</b> (покупка по ask, продажа по bid) — для мейкера это консервативно. Ставка = 0 (без дисконтирования): эдж конверсии/бокса сравнивай с доходностью USDT в Earn. Комиссия поставки опциона принята = мейкер опциона × S (допущение); опционная комиссия без кэпа от премии (консервативно). Паритет: конверсия = cb − pa + K − Fa − комиссии, реверсия = Fb − K − ca + pb − комиссии; хедж — фьючерс той же экспирации, если есть, иначе перп; ожидаемый фандинг перпа до экспирации (средний за 7д × дней) показан <b>отдельно</b>: «эдж по ценам» &gt; 0 — арбитраж, плюс «только с фандингом» — ставка на то, что фандинг не изменится. Страйки ±30% от F. TradFi-опционы (QQQ): перп торгуется не круглосуточно, риск гэпа и дивидендов. % годовых = эдж / цена × 365 / дней. Маржа и доходность на маржу пока не считаются. «Объём» = меньший из размеров лучшей котировки двух опционных ног. Серым в кэрри — активы вне корзины (топ по рынку, оборот ≥ $5M, комиссии — оценка). Скан — в фоне, раз в 30 с. Параметры — ARB_CFG в arb_book.py.</div>
+</div>
+<div id="asGold" style="display:none">
 <div class="row" id="gacct"></div>
 <h3>Сигнал спреда (пороги по окну 30д, исполнимые цены стакана)</h3>
 <div id="gbar" style="margin:2px 0 4px;padding:7px 10px;border-radius:8px;border:1px solid #30363d;background:#161b22;font-size:14px;font-weight:600"></div>
@@ -629,15 +644,28 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
  <span class="gbtn" id="gw2d" onclick="setGW('2d')">2д · 15м</span><span class="gbtn on" id="gw30d" onclick="setGW('30d')">30д · 1ч</span><span class="gbtn" id="gw166d" onclick="setGW('166d')">166д · 4ч</span></h3>
 <canvas id="gcv" width="980" height="300"></canvas>
 <div id="gstat" style="color:#8b949e;font-size:11px;margin:2px 0 6px"></div>
+<div id="gspread" style="font-size:12px;margin:2px 0 4px"></div>
+<div style="color:#8b949e;font-size:11px;margin-top:6px">Схождение входим по ask XAUT / bid XAU, расхождение — по bid XAUT / ask XAU. Эдж = (среднее30д − вход)×10 бп − круг комиссий (мейкер-мейкер) ± фандинг × полураспад (≤14д). Ноги 1:1 по унциям (обе = 1 oz золота); β&lt;1 на часовках — это запаздывание XAUT, а не другой хедж-коэффициент. Сначала тонкая нога XAUT лимиткой post-only, потом хедж XAU (тейкер там 0.0275%). Не держать через выходные. Параметры порогов — GOLD_CFG в начале блока «ЗОЛОТО» в скрипте.</div>
+</div>
+<div id="asPairs" style="display:none">
+<div style="margin:2px 0 6px;font-size:12px" class="warn">Статистический арбитраж, не чистый: пары β-нейтральны, но собственный риск ног остаётся (корреляция &lt; 1, β плавает).</div>
+<div id="pbar" style="margin:2px 0 4px;font-size:12px;color:#8b949e"></div>
+<h3>Пары: z сейчас, сигнал, размер ног из бюджета (без стопов: вход |z|≥2, добор |z|≥3, выход z=0, выход по времени 10д)</h3>
+<table id="ptab"></table>
+<canvas id="pcv" width="980" height="200"></canvas>
+<div id="pnote" style="color:#8b949e;font-size:11px;margin:2px 0 6px"></div>
+<h3>Корзина по факторам (нетто $, лимиты, бета к QQQ)</h3><table id="pfac"></table>
+<div style="color:#8b949e;font-size:11px;margin-top:6px">z = (ln A − β·ln B − среднее)/σ на окне 260 баров по 30м только в сессии пары (US — 14:30–21:00 UTC зимой, KR — 00:00–06:30 UTC, WK — будни 24ч). Live-z — по mid стакана с β/средним/σ последнего окна. Бэктест 80д без стопа: n сделок, % прибыльных, средняя, худшая и MAE (худшая просадка в позиции) в бп ноги A; «модель в позиции» — что бэктест держит сейчас. Нога A = бюджет / (2×|MAE|), нога B = β×A (противоположный знак). Мейкер 0% на TradFi-перпах; на крипто-перпах (ETH, BTC, SOL, ETHFI, LDO) мейкер 0.036% — «нетто» = средняя минус круг мейкером обеих ног; тейкером (0.1%) крипто-пары в минусе. Крипто-пары — сессия ALL (24/7, окно 260 баров ≈ 5.4 дня). Только лимитки. Параметры — PAIRS, PAIR_CFG, FACTORS в tail_pairs.py.</div>
+</div>
+</div>
+<div id="tabG" style="display:none">
 <h3>Однодневки XAUT: продажа самых далёких OTM + перп-стоп на страйке</h3>
 <div class="row" id="wtiles"></div>
 <div id="wstop" style="font-size:12px;margin:2px 0 4px"></div>
 <div id="wexps"></div>
 <div style="color:#8b949e;font-size:11px;margin:2px 0 6px">Берём самый далёкий страйк с живым bid (≥0.2, размер ≥0.1). Хедж — стоп-ордер перпа на страйке: колл → buy-stop, пут → sell-stop, объём = объёму опциона; снимать, когда цена вернулась за страйк. «Честная» цена — Black-Scholes по бОльшей из RV 30д / RV 2д; эдж = bid − честная − комиссия опциона (мейкер, кэп 7% премии, ≈). «Разворотов» = сколько кругов стопа (вход+выход тейкером) покрывает премия; &lt;1 значит, что один ложный пробой съест всю премию. Стоп на XAU дешевле (тейкер 0.0275%), но страйк надо пересчитать через базис (колонка «стоп XAU»), а базис ходит ±1‰ ≈ $4. Мин. лот опциона 0.1 oz. Параметры — WING_CFG в скрипте.</div>
 <h3>Греки и бета по золоту</h3><div class="row" id="ggreeks"></div>
-<div id="gspread" style="font-size:12px;margin:2px 0 4px"></div>
 <h3>Позиции по золоту (XAU*/XAUT перпы, фьючи, опционы XAUT)</h3><table id="gpos"></table>
-<div style="color:#8b949e;font-size:11px;margin-top:6px">Схождение входим по ask XAUT / bid XAU, расхождение — по bid XAUT / ask XAU. Эдж = (среднее30д − вход)×10 бп − круг комиссий (мейкер-мейкер) ± фандинг × полураспад (≤14д). Ноги 1:1 по унциям (обе = 1 oz золота); β&lt;1 на часовках — это запаздывание XAUT, а не другой хедж-коэффициент. Сначала тонкая нога XAUT лимиткой post-only, потом хедж XAU (тейкер там 0.0275%). Не держать через выходные. Параметры порогов — GOLD_CFG в начале блока «ЗОЛОТО» в скрипте.</div>
 </div>
 <div id="tabE">
 <div id="pgsel" style="margin:2px 0 6px"></div>
@@ -810,9 +838,10 @@ function heat(cv,xs,ys,grid,title){const x=cv.getContext('2d'),W=cv.width,H=cv.h
  x.fillStyle='#8b949e';x.font='8px sans-serif';xs.forEach((xl,xi)=>{if(xs.length<=7||xi%Math.ceil(xs.length/7)==0)x.fillText(xl,padL+xi*cw,H-3)});
  ys.forEach((yl,yi)=>x.fillText(yl,0,16+yi*ch+ch/2+3));}
 // ===================== ЗОЛОТО =====================
-let TAB='E', GW='30d', GLD=null;
-function showTab(t){TAB=t;['E','G','T','P'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
- try{localStorage.setItem('tab',t)}catch(e){} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T')ttick(); if(t=='P')ptick();}
+let TAB='E', GW='30d', GLD=null, ASUB='mine';
+try{const v=localStorage.getItem('asub');if(['mine','scan','gold','pairs'].includes(v))ASUB=v;}catch(e){}
+function showTab(t){TAB=t;['E','A','G','T'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
+ try{localStorage.setItem('tab',t)}catch(e){} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T')ttick(); if(t=='A')setASub(ASUB);}
 // ===================== ХВОСТЫ ETH =====================
 async function ttick(){ if(TAB!='T')return;
  let d; try{d=await (await fetch('/tail')).json()}catch(e){$('tvbar').textContent='offline';return}
@@ -865,7 +894,7 @@ function drawDV(v){const cv=$('tdv'),x=cv.getContext('2d'),W=cv.width,H=cv.heigh
  x.fillStyle='#8b949e';x.fillText(hi.toFixed(0),2,12);x.fillText(lo.toFixed(0),2,H-4);x.fillText('120д',36,H-2);}
 // ===================== ФАКТОРНЫЕ СПРЕДЫ =====================
 let PSEL=0, PD=null;
-async function ptick(){ if(TAB!='P')return;
+async function ptick(){ if(!(TAB=='A'&&ASUB=='pairs'))return;
  let d; try{d=await (await fetch('/pairs')).json()}catch(e){$('pbar').textContent='offline';return}
  if(d.err&&!d.loading){$('pbar').textContent='ошибка: '+d.err;return}
  if(d.loading){$('pbar').textContent='считаю историю пар (первый запуск ~30–60с)...'+(d.err?' ошибка: '+d.err:'');return}
@@ -897,7 +926,7 @@ function drawZ(r){const cv=$('pcv'),x=cv.getContext('2d'),W=cv.width,H=cv.height
  x.fillStyle='#e6edf3';x.font='bold 11px sans-serif';x.fillText(r.a+' / '+r.b+'  z '+r.z+'  (последние 400 баров сессии)',40,12);
  $('pnote').textContent='Ноги: '+r.a+' $'+r.legA+(r.qa!=null?' ('+r.qa+' шт @'+r.pa+')':'')+' против '+r.b+' $'+r.legB+(r.qb!=null?' ('+r.qb+' шт @'+r.pb+')':'')+' в противоположную сторону. Сначала тонкая нога лимиткой post-only, потом вторая.';}
 function setGW(w){GW=w;['2d','30d','166d'].forEach(k=>$('gw'+k).classList.toggle('on',k==w));try{localStorage.setItem('gw',w)}catch(e){} if(GLD)drawSpread(GLD);}
-async function gtick(){ if(TAB!='G')return;
+async function gtick(){ if(!(TAB=='G'||(TAB=='A'&&ASUB=='gold')))return;
  let g; try{g=await (await fetch('/gold')).json()}catch(e){$('gbar').textContent='золото: offline';return}
  if(g.err){$('gbar').textContent='золото: ошибка '+g.err;return}
  GLD=g; renderGold(g); drawSpread(g); renderWings(g);}
@@ -996,9 +1025,66 @@ function drawSpread(g){const cv=$('gcv'),x=cv.getContext('2d'),W=cv.width,H=cv.h
  x.strokeStyle='#58a6ff';x.lineWidth=1.4;x.beginPath();S.forEach((a,i)=>{const xx=X(a[0]),yy=Y(a[1]);i?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke();x.lineWidth=1;
  const cx=W-pr,cy=Y(g.mid);x.fillStyle='#e6edf3';x.beginPath();x.arc(cx,cy,3.5,0,7);x.fill();
  x.fillStyle='#58a6ff';x.fillRect(W-pr+2,cy-8,62,15);x.fillStyle='#0d1117';x.font='bold 10px sans-serif';x.fillText(g.mid.toFixed(2)+'‰',W-pr+6,cy+3);}
+// ===================== АРБИТРАЖ =====================
+function setASub(k){ASUB=k;['mine','scan','gold','pairs'].forEach(x=>{$('as'+x[0].toUpperCase()+x.slice(1)).style.display=x==k?'':'none';$('asb_'+x).classList.toggle('on',x==k);});
+ try{localStorage.setItem('asub',k)}catch(e){} if(k=='gold')gtick(); else if(k=='pairs')ptick(); else atick();}
+async function atick(){ if(!(TAB=='A'&&(ASUB=='mine'||ASUB=='scan')))return;
+ let d; try{d=await (await fetch('/arb')).json()}catch(e){$('upd').textContent='арбитраж: offline';return}
+ if(d.err){$('upd').textContent='арбитраж: ошибка '+d.err;return}
+ renderArb(d); $('upd').textContent='арбитраж · '+d.t;}
+function renderArb(d){
+ const T=d.tiles, f1=v=>v==null?'—':(+v).toFixed(1), f2=v=>v==null?'—':(+v).toFixed(2);
+ const rc=T.resid<150?'pos':(T.resid<1000?'warn':'neg');
+ $('atiles').innerHTML=tile('Остаточный риск $',f1(T.resid),rc)+tile('худший / лучший $',f1(T.min)+' / '+f1(T.max),'')
+  +tile('Δ$ портфеля',sg(T.dusd),Math.abs(T.dusd)<150?'pos':'warn')+tile('Δ ETH-экв. (β)',sg(T.eq),Math.abs(T.eq)<150?'pos':'warn')
+  +tile('Γ$ на 1%',sg(T.g1),'')+tile('Vega',sg(T.v),'')+tile('Θ / день',sg(T.t),cl(T.t))
+  +tile('Фандинг $/день',sg(T.fund_day),cl(T.fund_day))+tile('связок / открытых',T.links+' / '+T.open,'');
+ drawRisk(d.hist);
+ let h='<tr><th>связка</th><th>ноги</th><th>кол-во</th><th>uPnL $</th><th>смысл</th></tr>';
+ (d.links||[]).forEach(l=>{h+=`<tr><td>${l.kind}</td><td style="text-align:left">${l.legs}</td><td>${l.q}</td><td class="${cl(l.up)}">${f2(l.up)}</td><td style="text-align:left;color:#8b949e">${l.note}</td></tr>`});
+ if(!(d.links||[]).length)h+='<tr><td colspan=5 style="color:#8b949e">связок не найдено</td></tr>';
+ $('alinks').innerHTML=h;
+ h='<tr><th>нога</th><th>сторона</th><th>остаток / всего</th><th>Δ$</th><th>Θ/день</th><th>uPnL $</th><th>статус</th></tr>';
+ (d.open||[]).forEach(o=>{const st=o.close_ok?'<span class="pos">можно закрыть в плюс</span>':(o.up<0?'<span class="neg">в минусе — не закрывать, хеджировать</span>':'<span style="color:#8b949e">—</span>');
+  h+=`<tr><td>${o.sym}</td><td>${o.side}</td><td>${o.rem}${o.part?' / '+o.q:''}</td><td class="${cl(o.dusd)}">${sg(o.dusd)}</td><td class="${cl(o.t)}">${f2(o.t)}</td><td class="${cl(o.up)}">${f2(o.up)}</td><td style="text-align:left">${st}</td></tr>`});
+ $('aopen').innerHTML=h;
+ h='<tr><th>перп</th><th>ставка %</th><th>% годовых</th><th>$/день</th></tr>';
+ (d.fund||[]).forEach(r=>{h+=`<tr><td>${r.sym}</td><td>${r.rate}</td><td>${r.apy}</td><td class="${cl(r.usd_day)}">${sg(r.usd_day)}</td></tr>`});
+ h+=`<tr style="border-top:1px solid #30363d"><td><b>Итого</b></td><td></td><td></td><td class="${cl(T.fund_day)}"><b>${sg(T.fund_day)}</b></td></tr>`;
+ $('afund').innerHTML=h;
+ const s=d.scan;
+ $('asbar').textContent=!s?(d.scan_busy?'скан идёт (первый раз ~30 с)…':'скан не готов'+(d.scan_err?': '+d.scan_err:'')):
+  ('скан '+d.scan_age+' с назад · опционных пар просмотрено '+s.nscan+(s.est?' · ⚠ часть комиссий — оценка':' · комиссии из аккаунта')+(d.scan_busy?' · обновляется…':'')+(d.scan_err?' · ошибка: '+d.scan_err:''));
+ if(!s)return;
+ const ap=v=>`<td class="${cl(v)}"><b>${v==null?'—':v}</b></td>`, none=n=>`<tr><td colspan=${n} style="color:#8b949e">нет кандидатов с эджем &gt; 0</td></tr>`;
+ h='<tr><th>актив</th><th>эксп.</th><th>дней</th><th>K</th><th>тип</th><th>хедж</th><th>эдж по ценам $/ед.</th><th>% год.</th><th>фандинг до эксп. $</th><th>с фандингом $</th><th>% год. с фанд.</th><th>объём</th><th>ноги</th></tr>';
+ s.parity.forEach(r=>{h+=`<tr><td>${r.b}</td><td>${r.exp}</td><td>${r.dte}</td><td>${r.K}</td><td>${r.kind}</td><td>${r.hedge}${r.fund_only?' <span class="warn">только фандинг — не арбитраж</span>':''}</td><td class="${cl(r.edge)}">${r.edge}</td>${ap(r.apy)}<td class="${cl(r.fund)}">${r.fund}</td><td class="${cl(r.edge_f)}">${r.edge_f}</td><td class="${cl(r.apy_f)}">${r.apy_f}</td><td>${r.sz}</td><td style="text-align:left;color:#8b949e">${r.legs}</td></tr>`});
+ if(!s.parity.length)h+=none(13); $('aspar').innerHTML=h;
+ h='<tr><th>актив</th><th>эксп.</th><th>дней</th><th>K1–K2</th><th>тип</th><th>эдж $</th><th>эдж %</th><th>% год.</th></tr>';
+ s.box.forEach(r=>{h+=`<tr><td>${r.b}</td><td>${r.exp}</td><td>${r.dte}</td><td>${r.K1}–${r.K2}</td><td>${r.kind}</td><td>${r.edge}</td><td>${r.pct}</td>${ap(r.apy)}</tr>`});
+ if(!s.box.length)h+=none(8); $('asbox').innerHTML=h;
+ h='<tr><th>актив</th><th>фьючерс</th><th>дней</th><th>направление</th><th>эдж %</th><th>% год.</th></tr>';
+ s.cc.forEach(r=>{h+=`<tr><td>${r.b}</td><td>${r.fut}</td><td>${r.dte}</td><td>${r.kind}${r.need_spot?' <span class="warn">(нужен спот)</span>':''}</td><td class="${cl(r.pct)}">${r.pct}</td>${ap(r.apy)}</tr>`});
+ $('ascc').innerHTML=h;
+ h='<tr><th>актив</th><th>фьючерс</th><th>дней</th><th>направление</th><th>фандинг до эксп. %</th><th>эдж % (с фандингом)</th><th>% год.</th></tr>';
+ s.cal.forEach(r=>{h+=`<tr><td>${r.b}</td><td>${r.fut}</td><td>${r.dte}</td><td>${r.kind}</td><td>${r.fund_pct}</td><td class="${cl(r.pct)}">${r.pct}</td>${ap(r.apy)}</tr>`});
+ $('ascal').innerHTML=h;
+ h='<tr><th>актив</th><th>ставка % (период)</th><th>% год. сейчас</th><th>% год. 7д</th><th>базис входа %</th><th>круг комиссий %</th><th>безубыток, дней</th><th>направление</th></tr>';
+ s.carry.forEach(r=>{h+=`<tr${r.basket?'':' style="color:#8b949e"'}><td>${r.b}</td><td>${r.rate} (${r.ih}ч)</td>${ap(r.apy)}<td class="${cl(r.apy7)}">${r.apy7==null?'—':r.apy7}</td><td>${r.basis}</td><td>${r.fees_rt}</td><td>${r.be_days==null?'—':r.be_days}</td><td style="text-align:left">${r.dir}</td></tr>`});
+ $('ascarry').innerHTML=h;
+ h='<tr><th>актив</th><th>инверс % год.</th><th>линейный % год.</th><th>разница</th><th>направление</th></tr>';
+ s.inv.forEach(r=>{h+=`<tr><td>${r.b}</td><td>${r.inv}</td><td>${r.lin}</td>${ap(r.diff)}<td style="text-align:left">${r.dir}</td></tr>`});
+ $('asinv').innerHTML=h;}
+function drawRisk(H){const c=$('acv'),x=c.getContext('2d'),W=c.width,Hh=c.height;x.clearRect(0,0,W,Hh);
+ if(!H||H.length<2){x.fillStyle='#8b949e';x.font='11px sans-serif';x.fillText('история копится (точка раз в 20 с)…',10,20);return}
+ const pl=46,pr=10,pt=8,pb=16,ys=H.map(a=>a[1]),hi=Math.max(...ys)*1.05||1,lo=0,t0=H[0][0],t1=H[H.length-1][0]||t0+1;
+ const X=t=>pl+(W-pl-pr)*(t-t0)/Math.max(t1-t0,1),Y=v=>pt+(Hh-pt-pb)*(1-(v-lo)/(hi-lo));
+ x.strokeStyle='#21262d';[0,.5,1].forEach(k=>{const yy=Y(lo+(hi-lo)*k);x.beginPath();x.moveTo(pl,yy);x.lineTo(W-pr,yy);x.stroke();x.fillStyle='#8b949e';x.font='10px sans-serif';x.fillText((lo+(hi-lo)*k).toFixed(0),4,yy+3)});
+ x.strokeStyle='#d29922';x.lineWidth=1.4;x.beginPath();H.forEach((a,i)=>{const xx=X(a[0]),yy=Y(a[1]);i?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke();x.lineWidth=1;
+ const hm=s=>new Date(s*1000).toTimeString().slice(0,5);x.fillStyle='#8b949e';x.fillText(hm(t0),pl,Hh-3);x.fillText(hm(t1),W-pr-30,Hh-3);}
 try{const t=localStorage.getItem('gw');if(t&&['2d','30d','166d'].includes(t))setGW(t);}catch(e){}
-try{const t=localStorage.getItem('tab');if(['G','T','P'].includes(t))showTab(t);}catch(e){}
-setInterval(gtick,4000);setInterval(ttick,6000);setInterval(ptick,6000);
+try{let t=localStorage.getItem('tab');if(t=='P'){ASUB='pairs';t='A';} if(['A','G','T'].includes(t))showTab(t);}catch(e){}
+setInterval(gtick,4000);setInterval(ttick,6000);setInterval(ptick,6000);setInterval(atick,6000);
 tick();setInterval(tick,4000);
 </script></body></html>'''
 
@@ -1019,8 +1105,12 @@ class Handler(BaseHTTPRequestHandler):
             try: body = json.dumps(gold_snapshot()).encode()
             except Exception as e: body = json.dumps({"err":str(e)}).encode()
             self._write(body, "application/json")
+        elif self.path.startswith("/arb"):
+            try: body = json.dumps(arb_book.arb_snapshot(sget, pub, _port)).encode()
+            except Exception as e: body = json.dumps({"err":str(e)}).encode()
+            self._write(body, "application/json")
         elif self.path.startswith("/port"):
-            try: body = json.dumps(portfolio_book.portfolio_snapshot(sget, pub, earn_snapshot)).encode()
+            try: body = json.dumps(_port()).encode()
             except Exception as e: body = json.dumps({"err":str(e)}).encode()
             self._write(body, "application/json")
         elif self.path.startswith("/data"):
