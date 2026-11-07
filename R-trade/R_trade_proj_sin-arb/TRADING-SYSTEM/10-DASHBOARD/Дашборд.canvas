@@ -1,0 +1,418 @@
+{
+ "nodes": [
+  {
+   "id": "gsrc",
+   "type": "group",
+   "label": "Источник",
+   "x": -40,
+   "y": -40,
+   "width": 340,
+   "height": 380,
+   "color": "5"
+  },
+  {
+   "id": "api",
+   "x": 0,
+   "y": 0,
+   "width": 260,
+   "height": 120,
+   "type": "text",
+   "text": "**Bybit API v5**\nread-only ключ\n`C:\\Users\\DoOs\\.bybit\\credentials.json`"
+  },
+  {
+   "id": "rules",
+   "x": 0,
+   "y": 180,
+   "width": 260,
+   "height": 120,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/06-RISK/risk-rules.md"
+  },
+  {
+   "id": "gmod",
+   "type": "group",
+   "label": "Модули Python",
+   "x": 360,
+   "y": -40,
+   "width": 340,
+   "height": 380,
+   "color": "4"
+  },
+  {
+   "id": "mbd",
+   "x": 400,
+   "y": 0,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/10-DASHBOARD/mod book_dashboard.md"
+  },
+  {
+   "id": "mpb",
+   "x": 400,
+   "y": 120,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/10-DASHBOARD/mod portfolio_book.md"
+  },
+  {
+   "id": "mtp",
+   "x": 400,
+   "y": 240,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/10-DASHBOARD/mod tail_pairs.md"
+  },
+  {
+   "id": "gtab",
+   "type": "group",
+   "label": "Вкладки (localhost:8899)",
+   "x": 760,
+   "y": -40,
+   "width": 340,
+   "height": 500,
+   "color": "3"
+  },
+  {
+   "id": "tP",
+   "x": 800,
+   "y": 0,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/10-DASHBOARD/Вкладка Портфель.md"
+  },
+  {
+   "id": "tG",
+   "x": 800,
+   "y": 120,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/10-DASHBOARD/Вкладка Золото.md"
+  },
+  {
+   "id": "tT",
+   "x": 800,
+   "y": 240,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/10-DASHBOARD/Вкладка Хвосты ETH.md"
+  },
+  {
+   "id": "tF",
+   "x": 800,
+   "y": 360,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/10-DASHBOARD/Вкладка Факторные спреды.md"
+  },
+  {
+   "id": "gcon",
+   "type": "group",
+   "label": "Понятия",
+   "x": 1160,
+   "y": -40,
+   "width": 340,
+   "height": 740,
+   "color": "6"
+  },
+  {
+   "id": "c0",
+   "x": 1200,
+   "y": 0,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/12-CONCEPTS/Истинная дельта.md"
+  },
+  {
+   "id": "c1",
+   "x": 1200,
+   "y": 115,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/12-CONCEPTS/Бета к ETH.md"
+  },
+  {
+   "id": "c2",
+   "x": 1200,
+   "y": 230,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/12-CONCEPTS/Стресс ETH против корзины.md"
+  },
+  {
+   "id": "c3",
+   "x": 1200,
+   "y": 345,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/12-CONCEPTS/Вол-сенсор IV-RV.md"
+  },
+  {
+   "id": "c4",
+   "x": 1200,
+   "y": 460,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/12-CONCEPTS/Payoff и безубыток.md"
+  },
+  {
+   "id": "c5",
+   "x": 1200,
+   "y": 575,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/12-CONCEPTS/Portfolio Margin.md"
+  },
+  {
+   "id": "gast",
+   "type": "group",
+   "label": "Активы",
+   "x": 1560,
+   "y": -40,
+   "width": 340,
+   "height": 740,
+   "color": "2"
+  },
+  {
+   "id": "a0",
+   "x": 1600,
+   "y": 0,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/11-ASSETS/ETH.md"
+  },
+  {
+   "id": "a1",
+   "x": 1600,
+   "y": 115,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/11-ASSETS/MNT.md"
+  },
+  {
+   "id": "a2",
+   "x": 1600,
+   "y": 230,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/11-ASSETS/SOL.md"
+  },
+  {
+   "id": "a3",
+   "x": 1600,
+   "y": 345,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/11-ASSETS/BTC.md"
+  },
+  {
+   "id": "a4",
+   "x": 1600,
+   "y": 460,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/11-ASSETS/QQQ.md"
+  },
+  {
+   "id": "a5",
+   "x": 1600,
+   "y": 575,
+   "width": 260,
+   "height": 80,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/11-ASSETS/ЗОЛОТО.md"
+  },
+  {
+   "id": "hub",
+   "x": 400,
+   "y": 420,
+   "width": 260,
+   "height": 120,
+   "type": "file",
+   "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/10-DASHBOARD/Дашборд.md",
+   "color": "1"
+  }
+ ],
+ "edges": [
+  {
+   "id": "e0",
+   "fromNode": "api",
+   "toNode": "mbd",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "sget / pub"
+  },
+  {
+   "id": "e1",
+   "fromNode": "api",
+   "toNode": "mpb",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e2",
+   "fromNode": "api",
+   "toNode": "mtp",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e3",
+   "fromNode": "mtp",
+   "toNode": "mpb",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "утилиты"
+  },
+  {
+   "id": "e4",
+   "fromNode": "mpb",
+   "toNode": "tP",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "/port"
+  },
+  {
+   "id": "e5",
+   "fromNode": "mbd",
+   "toNode": "tG",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "/gold"
+  },
+  {
+   "id": "e6",
+   "fromNode": "mtp",
+   "toNode": "tT",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "/tail"
+  },
+  {
+   "id": "e7",
+   "fromNode": "mtp",
+   "toNode": "tF",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "/pairs"
+  },
+  {
+   "id": "e8",
+   "fromNode": "tP",
+   "toNode": "c0",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e9",
+   "fromNode": "tP",
+   "toNode": "c1",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e10",
+   "fromNode": "tP",
+   "toNode": "c2",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e11",
+   "fromNode": "tP",
+   "toNode": "c3",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e12",
+   "fromNode": "tP",
+   "toNode": "c4",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e13",
+   "fromNode": "tP",
+   "toNode": "c5",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e14",
+   "fromNode": "tT",
+   "toNode": "c3",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e15",
+   "fromNode": "tG",
+   "toNode": "c4",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e16",
+   "fromNode": "tF",
+   "toNode": "c1",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e17",
+   "fromNode": "c1",
+   "toNode": "a0",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "β к ETH"
+  },
+  {
+   "id": "e18",
+   "fromNode": "c2",
+   "toNode": "a0",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e19",
+   "fromNode": "tF",
+   "toNode": "a0",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e20",
+   "fromNode": "tG",
+   "toNode": "a5",
+   "fromSide": "right",
+   "toSide": "left"
+  },
+  {
+   "id": "e21",
+   "fromNode": "rules",
+   "toNode": "tP",
+   "fromSide": "right",
+   "toSide": "left",
+   "label": "лимиты",
+   "color": "1"
+  }
+ ]
+}

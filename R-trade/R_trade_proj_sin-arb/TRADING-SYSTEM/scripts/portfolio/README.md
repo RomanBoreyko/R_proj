@@ -5,7 +5,7 @@
 
 | Скрипт | Что делает |
 |---|---|
-| `book_dashboard.py` | Real-time дашборд http://localhost:8899 (Портфель / Золото / Хвосты ETH / Факторные спреды) + `portfolio_book.py`, `tail_pairs.py`. **Техдока: [[DASHBOARD]]** |
+| `book_dashboard.py` | Real-time дашборд http://localhost:8899 (Портфель / Золото / Хвосты ETH / Факторные спреды) + `portfolio_book.py`, `tail_pairs.py`. **Техдока: [[DASHBOARD]]**, карта узлов: [[Дашборд]] |
 | `analyze_book.py` | Полный срез: эквити/IM/MM, греки по активам, Δ$, перпы, опционы, ratio, спот |
 | `recent_ops.py` | Исполнения за 24ч + открытые ордера |
 | `pnl_breakdown.py` | Денежные потоки за 48ч по типам (LIQUIDATION/TRADE/DELIVERY/FUNDING) |

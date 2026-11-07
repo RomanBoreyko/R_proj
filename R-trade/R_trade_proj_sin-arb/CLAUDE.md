@@ -63,6 +63,9 @@ R_trade_proj_sin-arb/
     ├── 04-FORMULAS/, 05-EXCEL/, 06-RISK/risk-rules.md, 07-LINKS/
     ├── 08-operator/              ← роли (OP/DEV/OPS/PM/CON/NEO/SPR), отчёты, планы
     ├── 09-INFRASTRUCTURE.md      ← MetaScalp SDK, коллектор, TV
+    ├── 10-DASHBOARD/             ← узлы Obsidian: хаб [[Дашборд]], вкладки, модули, Дашборд.canvas
+    ├── 11-ASSETS/                ← узлы активов ETH/MNT/SOL/BTC/QQQ/ЗОЛОТО (= группы дашборда)
+    ├── 12-CONCEPTS/              ← понятия: истинная Δ, β к ETH, стресс, IV/RV, payoff, PM
     ├── journal/                  ← торговый журнал по дням
     └── scripts/
         ├── portfolio/            ← ★ дашборд книги + аналитика (README.md, DASHBOARD.md)
@@ -72,6 +75,9 @@ R_trade_proj_sin-arb/
 ```
 
 При добавлении заметки в `TRADING-SYSTEM/` — обновить `00-INDEX.md`. Заметки на `[[wikilinks]]`.
+Свойства (frontmatter): `type` (hub / dashboard-tab / module / concept / asset / strategy / journal),
+`status`, `asset`. При изменении дашборда (новая вкладка/блок/модуль/понятие) — обновить узлы в
+`10-DASHBOARD/` и `12-CONCEPTS/` и `Дашборд.canvas`. Упоминая актив — ставить ссылку `[[ETH]]` и т. п.
 Роли: пользователь работает «ролями» (`08-operator/roles.md`) — полезно уточнять, какая активна.
 
 ## Дашборд книги (главный рабочий инструмент)
