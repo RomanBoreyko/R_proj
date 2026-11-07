@@ -1,7 +1,7 @@
 const fs=require("fs");
 const {Document,Packer,Paragraph,TextRun,AlignmentType,BorderStyle}=require("docx");
 
-const OUT="D:\\Vault\\Project\\R_projekt\\R-trade\\R_trade_proj_sin-arb\\TRADING-SYSTEM\\05-EXCEL\\statarb-zadachnik.docx";
+const OUT="D:\\Vault\\Project\\R_vault\\R-trade\\R_trade_proj_sin-arb\\TRADING-SYSTEM\\05-EXCEL\\statarb-zadachnik.docx";
 const F="Arial";
 const P10=20, P10b=21, P85=17, P9=18, TIT=24;
 

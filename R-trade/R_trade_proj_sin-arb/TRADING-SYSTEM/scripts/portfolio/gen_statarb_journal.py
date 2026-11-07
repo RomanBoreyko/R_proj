@@ -3,7 +3,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 
-OUT = r"D:\Vault\Project\R_projekt\R-trade\R_trade_proj_sin-arb\TRADING-SYSTEM\05-EXCEL\stat-arb-journal.xlsx"
+OUT = r"D:\Vault\Project\R_vault\R-trade\R_trade_proj_sin-arb\TRADING-SYSTEM\05-EXCEL\stat-arb-journal.xlsx"
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 
 AR = "Arial"

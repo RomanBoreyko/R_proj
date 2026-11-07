@@ -12,7 +12,7 @@ CORS у Bybit работает только по **http**, не по `file://` �
 
 **1. Сервер** (одна строка, `cd` не нужен — папка задана флагом `-d`):
 ```powershell
-python -m http.server 8777 -d "D:\Vault\Project\R_projekt\R-trade\R_trade_proj_sin-arb\TRADING-SYSTEM\scripts\webapp"
+python -m http.server 8777 -d "D:\Vault\Project\R_vault\R-trade\R_trade_proj_sin-arb\TRADING-SYSTEM\scripts\webapp"
 ```
 **2. Открыть в браузере:** `http://localhost:8777/trading-desk.html`
 
@@ -20,7 +20,7 @@ python -m http.server 8777 -d "D:\Vault\Project\R_projekt\R-trade\R_trade_proj_s
 
 **В одну вставку** (сервер + сам откроет браузер), PowerShell:
 ```powershell
-Start-Process "http://localhost:8777/trading-desk.html"; python -m http.server 8777 -d "D:\Vault\Project\R_projekt\R-trade\R_trade_proj_sin-arb\TRADING-SYSTEM\scripts\webapp"
+Start-Process "http://localhost:8777/trading-desk.html"; python -m http.server 8777 -d "D:\Vault\Project\R_vault\R-trade\R_trade_proj_sin-arb\TRADING-SYSTEM\scripts\webapp"
 ```
 Браузер откроется сразу; если успел до старта сервера — обнови `F5`.
 

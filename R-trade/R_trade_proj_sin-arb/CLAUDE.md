@@ -1,183 +1,106 @@
-# CLAUDE.md
+# CLAUDE.md — «Оператор Капитала» (R_trade_proj_sin-arb)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
----
-
-## О проекте
-
-**R_trade_proj_sin-arb** — система торговли криптовалютами, построенная на трёх принципах:
-- **Торговля временем** (тета-распад опционов, базисный спред фьюч/спот)
-- **Арбитраж волатильности** (IV-спред между биржами, межактивная vol)
-- **Радикальная диверсификация** (5 активов × 3 таймфрейма = 15 источников прибыли)
-
-Шортов нет. Плечо ≤ 2×. Ликвидация недопустима.
+> Инструкция для нейронки, работающей с торговым проектом. Сначала прочитать общие
+> правила волта: `D:\Vault\Project\R_vault\CLAUDE.md` (безопасность, git, синхронизация).
+> Обновлено: 2026-11-07.
 
 ---
 
-## Репозиторий: структура
+## Что это
 
-```
-/
-├── CLAUDE.md                          ← этот файл
-├── CALC-FORMULAS.md                   ← все формулы системы (канонический источник)
-├── formulas.ts                        ← TypeScript формулы (корневая копия)
-├── TradingCalculator.html             ← standalone калькулятор (открыть в браузере)
-├── TradingSystemCalculator.xlsx       ← Excel-версия (7 листов)
-│
-├── trading-calc/                      ← TypeScript/Vite проект калькулятора
-│   ├── src/
-│   │   ├── formulas.ts                ← расчётная библиотека (6 модулей)
-│   │   └── types.ts                   ← типы + конфиги активов и комиссий
-│   ├── package.json
-│   └── tsconfig.json
-│
-└── TRADING-SYSTEM/                    ← Obsidian-документация
-    ├── 00-INDEX.md
-    ├── 01-CONCEPT.md
-    ├── 02-INSTRUMENTS/                ← боты, опционы, биржи
-    ├── 03-STRATEGIES/                 ← стратегии
-    ├── 04-FORMULAS/                   ← формулы прибыли и риска
-    ├── 05-EXCEL/                      ← структура мастер-лога
-    ├── 06-RISK/                       ← правила риска и чек-листы
-    └── 07-LINKS/                      ← документация бирж и API
-```
+Торговая система Романа на **живом счёте Bybit UTA, режим Portfolio Margin**:
+ETH-опционы, перпы (крипта + TradFi: XAU, XAG, QQQ, GDX…), спот + Earn.
+Периферия: Deribit, Coinbase, MetaScalp (исполнение), TradingView (Pine, графики).
 
----
+Философия — **мета мульти-спред**: спредовые конструкции по многим активам,
+убыток ограничен статикой (крылья, противоноги, лимитники на краях), прибыль —
+динамикой (ребаланс дельты, гамма-скальп, откуп премии). Система не угадывает направление.
+Два направления (см. `TRADING-SYSTEM/00-INDEX.md`):
+- **D1** — арбитраж под прикрытием опционов (паритет, календарь, базис, кросс-биржа);
+- **D2** — ETH perp + put, дельта-нейтральный ребаланс (realized > implied).
 
-## Команды: trading-calc (TypeScript/Vite)
+## Правила (порядок важности)
 
-```bash
-cd trading-calc
-npm install       # первая установка
-npm run dev       # dev-сервер → http://localhost:5173
-npm run build     # tsc + vite build → dist/
-npm run preview   # превью собранного
-```
+1. **Только чтение API.** Ключ Bybit read-only, файл `C:\Users\DoOs\.bybit\credentials.json`.
+   Никаких ордеров/переводов/настроек. Сделки ставит пользователь сам.
+   Разрешено: `/v5/market/*`, GET `/v5/account/*`, `/v5/position/*`,
+   `/v5/order/realtime`, `/v5/execution/*`, `/v5/earn/*`.
+2. Ключи не печатать/не логировать/не коммитить, не класть в JSON-ответы и HTML.
+3. **«Не фиксировать убытки»** — правило пользователя. Любой план снижения риска/плеча
+   строить без закрытия ног в минус: роллы, докупка крыльев, хедж другой ногой,
+   закрытие только прибыльных ног, ожидание экспирации.
+4. Цифры — только из API/файлов. Нет данных → «—». Не придумывать цены, IV, греки.
+5. Персональных инвестсоветов не давать — анализ, сценарии, варианты; решает пользователь.
+6. Пакеты не ставить без спроса; Python — stdlib (requests/pybit НЕ установлены).
 
-TypeScript-конфиг: `strict: true`, `noUnusedLocals: true`, `noUnusedParameters: true`, `noImplicitReturns: true`.  
-Нет тестового фреймворка — логику верифицировать через `TradingCalculator.html` или `npm run dev`.
+### Правила риска
+
+Действующие — `TRADING-SYSTEM/06-RISK/risk-rules.md`. Ключевое:
+- голые непокрытые шорты запрещены — шорт только как нога конструкции с закрытым хвостом;
+- ликвидация недопустима; следить за EQ/MM (запас < 1.5× = красный) и **истинной Δ**
+  (опционы + перпы + спот + Earn);
+- цели: |Θ| < 1% эквити/день, |Δ$| ≤ 20% эквити.
+
+> ⚠️ Ранняя концепция (сетки, «шортов нет», «плечо ≤ 2×», 5 активов × 3 ТФ, доли платформ
+> 60/20/10/10) — **историческая**: `01-CONCEPT.md`, `CALC-FORMULAS.md`, `trading-calc/`.
+> Реальная книга давно другая — текущее состояние смотреть в дашборде / через API,
+> а не в старых доках.
 
 ---
 
-## Архитектура: расчётная библиотека
-
-`trading-calc/src/formulas.ts` — шесть независимых пар `(Params → Result)`:
-
-| Функция | Назначение |
-|---------|-----------|
-| `calcGrid(GridParams)` | Сеточный бот: шаг, APR, ликвидация, срабатывания |
-| `calcBasis(BasisParams)` | Базисный арбитраж спот/фьюч: нетто P&L, ROI ann. |
-| `calcOptionsWrapper(OptionsWrapperParams)` | Опционная обёртка бота: тета, сценарии |
-| `calcIVArb(IVArbParams)` | IV-арбитраж Bybit vs Deribit: vega P&L, break-even |
-| `calcCalSpread(CalSpreadParams)` | Календарный спред Deribit: тета+вега+гамма P&L |
-| `calcPortfolio(BotSummary[])` | Портфельная сводка: weighted APR, Sharpe, drawdown |
-
-Вспомогательные утилиты: `formatUSD`, `formatPct`, `atrFromCandles`, `recommendedRange`.
-
-`trading-calc/src/types.ts` содержит:
-- `ASSETS` — конфиги 5 активов с ценами и ATR по трём таймфреймам (нужно обновлять вручную)
-- `FEES` — константы комиссий (Bybit taker/maker, Deribit, Coinbase)
-
-> **Два файла formulas.ts**: `./formulas.ts` (корень) и `./trading-calc/src/formulas.ts`. Канонический — в `trading-calc/src/`. Корневой — резервная копия; синхронизировать при изменениях.
-
----
-
-## Ключевые формулы (не менять без понимания)
-
-### Ликвидация лонга (Bybit USDT Perp)
-```
-LiqPrice = EntryPrice × (1 − 1/Leverage + 0.005)
-SafetyRule: Lower_сетки > LiqPrice × 1.3
-```
-
-### APR сетки
-```
-FillsPerDay = ATR × 0.6 / Step          // 0.6 = коэффициент заполнения
-DailyPnL = ProfitPerFill × FillsPerDay × GridCount × 0.3  // 0.3 = доля активных ячеек
-APR = DailyPnL × 365 / Investment × 100
-```
-
-### Минимальный шаг (безубыточность)
-```
-MinStep = 2 × TakerFee × Price         // шаг ниже этого — убыток
-```
-
-### Диапазоны по таймфрейму
-```
-Lower = Price − 1.5 × ATR(20, TF)
-Upper = Price + 1.5 × ATR(20, TF)
-```
-
----
-
-## Активы и платформы
-
-| Актив | Плечо | Тип сетки |
-|-------|-------|-----------|
-| XAUTUSDT | **1×** | Arithmetic |
-| ETHUSDT | 1.5× | Arithmetic |
-| MNTUSDT | 1.5× | Geometric |
-| XRPUSDT | 1.5× | Arithmetic |
-| SOLUSDT | 1.5× | Geometric |
-
-| Платформа | Роль | Макс. доля |
-|-----------|------|-----------|
-| **Bybit** | Ядро: сетки, споты, опционы | 60% |
-| **Deribit** | IV-арбитраж, календари | 20% |
-| **Coinbase** | Спот для базисного арбитража | 10% |
-| **Стейблы/кэш** | Резервный буфер маржи | 10% |
-
----
-
-## Правила риска (абсолютные)
+## Структура
 
 ```
-❌ Шорты — ЗАПРЕЩЕНО (фьюч и спот)
-❌ Плечо > 2× — ЗАПРЕЩЕНО
-❌ Ликвидационный уровень в диапазоне сетки — ЗАПРЕЩЕНО
-❌ Более 15% портфеля в одном боте — ЗАПРЕЩЕНО
-✅ Lower_сетки > LiqPrice × 1.3
-✅ Стресс-тест: макс убыток портфеля при -30% рынка ≈ 8–12%
+R_trade_proj_sin-arb/
+├── CLAUDE.md, AGENTS.md          ← эта инструкция (AGENTS.md — указатель)
+├── CALC-FORMULAS.md, formulas.ts ← формулы ранней концепции (канон для калькулятора)
+├── TradingCalculator.html        ← standalone калькулятор (ранний)
+├── TradingSystemCalculator.xlsx  ← Excel-версия; TRADING_BOOK.xlsx — локально, не в git
+├── trading-calc/                 ← Vite+TS: src/{formulas,types,bybit,spread,cli}.ts
+└── TRADING-SYSTEM/               ← Obsidian-доки + скрипты
+    ├── 00-INDEX.md               ← вход в доки (D1/D2, быстрые ссылки)
+    ├── 01-CONCEPT.md, 02-INSTRUMENTS/, 03-STRATEGIES/ (C6+, D1, D2, кондоры, квадрат SOL/MNT…)
+    ├── 04-FORMULAS/, 05-EXCEL/, 06-RISK/risk-rules.md, 07-LINKS/
+    ├── 08-operator/              ← роли (OP/DEV/OPS/PM/CON/NEO/SPR), отчёты, планы
+    ├── 09-INFRASTRUCTURE.md      ← MetaScalp SDK, коллектор, TV
+    ├── journal/                  ← торговый журнал по дням
+    └── scripts/
+        ├── portfolio/            ← ★ дашборд книги + аналитика (README.md, DASHBOARD.md)
+        ├── webapp/               ← trading-desk.html (браузерный, ключ в localStorage)
+        ├── pine/                 ← Pine v5 индикаторы для TradingView
+        └── fill_book.py, gen_excel.py
 ```
 
----
+При добавлении заметки в `TRADING-SYSTEM/` — обновить `00-INDEX.md`. Заметки на `[[wikilinks]]`.
+Роли: пользователь работает «ролями» (`08-operator/roles.md`) — полезно уточнять, какая активна.
 
-## Excel мастер-лог (`TradingSystemCalculator.xlsx`)
+## Дашборд книги (главный рабочий инструмент)
 
-Листы: `TRADES | BOTS | OPTIONS | PORTFOLIO | CHART | FORMULAS_REF`
+- Запуск: `cd TRADING-SYSTEM/scripts/portfolio && python book_dashboard.py` → http://localhost:8899
+- Вкладки: **Портфель** (группы ВСЁ/ETH/MNT/SOL/BTC/QQQ/ЗОЛОТО: истинная Δ, вола IV/RV,
+  payoff, греки, β к ETH + стресс «ETH против корзины»), **Золото**, **Хвосты ETH**,
+  **Факторные спреды** (пары, бэктест без стопов, нетто после комиссий).
+- **Перед любой правкой прочитать `TRADING-SYSTEM/scripts/portfolio/DASHBOARD.md` целиком**:
+  инварианты §0; ловушки фронтенда §5 (общий глобальный scope JS — проверять занятые имена
+  grep'ом); перезапуск §6 (HTML живёт в памяти процесса — после правки убить процесс на
+  порту 8899 и запустить заново, в браузере Ctrl+F5); историю §9 — дописывать.
+- Остальные скрипты (`analyze_book.py`, `iv_rv.py`, `payoff.py`, `parity_scan.py`, …) —
+  таблица в `scripts/portfolio/README.md`.
 
-Ключевая формула расчёта фактического APR:
-```excel
-=((SUMIF(TRADES!K:K,A2,TRADES!J:J))/F2)/((TODAY()-H2))*365*100
-```
-Проверка ликвидации:
-```excel
-=IF(lower_price < entry_price*(1-1/leverage)*1.3,"⚠️ РИСК","✅ OK")
-```
+## Прочие инструменты
 
----
+- `scripts/webapp/trading-desk.html` — `python -m http.server 8777 -d <webapp>`
+  (CORS Bybit работает только по http, не file://). Конфиг превью: `.claude/launch.json`.
+- `trading-calc/`: `npm run calc` (vite-node CLI), `npm run typecheck`, `npm run dev`.
+- Pine: `scripts/pine/*.pine` — вставлять в редактор TradingView.
 
-## API бирж (ключевые эндпоинты)
+## Как отвечать на «статус / анализ»
 
-**Bybit API V5** (`https://api.bybit.com`):
-- `GET /v5/market/kline` — свечи для ATR
-- `GET /v5/market/tickers` — текущая цена
-- `GET /v5/position/list` — позиции
-- `GET /v5/account/wallet-balance` — баланс
+Свежие данные через API (read-only) → коротко: EQ, IM/MM, запас маржи, истинная Δ$
+и β-взвешенная Δ в ETH-экв., Θ/день, ближайшие экспирации, главные риски-сценарии.
+Без «купи/продай» — варианты с цифрами и с учётом правила «не фиксировать убытки».
 
-**Deribit API v2** (`https://www.deribit.com/api/v2`):
-- `public/ticker` — IV и Greeks опциона
-- `public/get_book_summary_by_currency` — все опционы
-- WebSocket: `wss://www.deribit.com/ws/api/v2`
+## Окружение
 
-**Coinbase Advanced Trade** (`https://api.coinbase.com/api/v3`):
-- Spot ордера и балансы
-
----
-
-## Obsidian-документация (TRADING-SYSTEM/)
-
-Файлы в `TRADING-SYSTEM/` — Obsidian Markdown с wiki-ссылками `[[имя]]`. Редактировать через Obsidian или любой Markdown-редактор. При добавлении нового файла — обновить `00-INDEX.md`.
-
-Канонический источник формул для документации: `CALC-FORMULAS.md` (корень репозитория).
+Windows, `python` 3.13, консоль cp1251 (`sys.stdout.reconfigure(encoding="utf-8")`).
+Git — из корня волта `D:\Vault\Project\R_vault` (своего `.git` здесь нет и не создавать).
