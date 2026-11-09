@@ -615,8 +615,14 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 <div style="margin:2px 0 6px"><span class="gbtn" id="asb_mine" onclick="setASub('mine')">Мой арб-портфель</span><span class="gbtn" id="asb_scan" onclick="setASub('scan')">Сканер</span><span class="gbtn" id="asb_gold" onclick="setASub('gold')">Золото XAUT/XAU</span><span class="gbtn" id="asb_pairs" onclick="setASub('pairs')">Стат-арб (пары)</span></div>
 <div id="asMine">
 <div class="row" id="atiles"></div>
-<h3>Остаточный риск во времени, $ (разброс стресс-таблицы; цель → 0)</h3>
-<canvas id="acv" width="980" height="140"></canvas>
+<h3>1 · Эквити, $ (левая ось); ETH и корзина — % от начала окна (правая ось)</h3><canvas id="ach1" width="980" height="170"></canvas>
+<h3>2 · IM, % эквити</h3><canvas id="ach2" width="980" height="130"></canvas>
+<h3>3 · MM, % эквити</h3><canvas id="ach2b" width="980" height="130"></canvas>
+<h3>4 · IV ETH ATM, %</h3><canvas id="ach2c" width="980" height="130"></canvas>
+<h3>5 · Δ$ портфеля</h3><canvas id="ach3" width="980" height="130"></canvas>
+<h3>6 · Θ $/день</h3><canvas id="ach4" width="980" height="130"></canvas>
+<h3>7 · Вега $ на 1 п.п. IV</h3><canvas id="ach5" width="980" height="130"></canvas>
+<div id="achnote" style="color:#8b949e;font-size:11px;margin:2px 0 6px"></div>
 <h3>Связки (арбитражные конструкции в книге)</h3><table id="alinks"></table>
 <h3>Открытые ноги (не вошли в связки)</h3><table id="aopen"></table>
 <h3>Фандинг книги</h3><table id="afund"></table>
@@ -1039,7 +1045,23 @@ function renderArb(d){
   +tile('Δ$ портфеля',sg(T.dusd),Math.abs(T.dusd)<150?'pos':'warn')+tile('Δ ETH-экв. (β)',sg(T.eq),Math.abs(T.eq)<150?'pos':'warn')
   +tile('Γ$ на 1%',sg(T.g1),'')+tile('Vega',sg(T.v),'')+tile('Θ / день',sg(T.t),cl(T.t))
   +tile('Фандинг $/день',sg(T.fund_day),cl(T.fund_day))+tile('связок / открытых',T.links+' / '+T.open,'');
- drawRisk(d.hist);
+ const B=d.bhist||[], w=d.basket_w||{};
+ const p0={}; B.forEach(p=>{for(const k in (p[8]||{})) if(p0[k]==null&&p[8][k]>0)p0[k]=p[8][k];});
+ const x0=p0.ETH;
+ const S=(i,f)=>B.filter(p=>p[i]!=null).map(p=>[p[0],f?f(p):p[i]]);
+ const bk=p=>{let s=0,ws=0;for(const k in w){const a=(p[8]||{})[k];if(a>0&&p0[k]>0){s+=w[k]*(a/p0[k]-1);ws+=w[k];}}return ws?s/ws*100:null;};
+ drawLines('ach1',[{n:'эквити $',c:'#e6edf3',pts:S(1),u:'$'},
+  {n:'ETH',c:'#58a6ff',r:1,u:'%',pts:x0?B.filter(p=>(p[8]||{}).ETH>0).map(p=>[p[0],(p[8].ETH/x0-1)*100]):[]},
+  {n:'корзина',c:'#d29922',r:1,u:'%',pts:B.map(p=>[p[0],bk(p)]).filter(a=>a[1]!=null)}],{u:'%'});
+ drawLines('ach2',[{n:'IM %',c:'#d29922',pts:S(2)}],{u:'%'});
+ drawLines('ach2b',[{n:'MM %',c:'#f85149',pts:S(3)}],{u:'%'});
+ drawLines('ach2c',[{n:'IV ETH %',c:'#bc8cff',pts:S(4)}],{u:'%'});
+ drawLines('ach3',[{n:'Δ$',c:'#58a6ff',pts:S(5)}],{u:'$'});
+ drawLines('ach4',[{n:'Θ $/день',c:'#3fb950',pts:S(6)}],{u:'$'});
+ drawLines('ach5',[{n:'вега $',c:'#bc8cff',pts:S(7)}],{u:'$'});
+ $('achnote').textContent='История — в памяти сервера: точка раз в 20 с (фоновый сэмплер, пишет и при закрытой вкладке), до ~12 ч, сбрасывается при перезапуске. Корзина = '
+  +Object.entries(w).map(([k,v])=>k+' '+(v*100).toFixed(0)+'%').join(', ')+(d.basket_eq?' (лонгов нет — равные веса)':' (лонговые крипто-ноги книги кроме ETH, веса по Δ$)')
+  +'; % корзины = Σ вес × изменение цены. IV — ATM ближайшей экспирации ETH из датчика волы.'+(d.sample_err?' ⚠ сэмплер: '+d.sample_err:'');
  let h='<tr><th>связка</th><th>ноги</th><th>кол-во</th><th>uPnL $</th><th>смысл</th></tr>';
  (d.links||[]).forEach(l=>{h+=`<tr><td>${l.kind}</td><td style="text-align:left">${l.legs}</td><td>${l.q}</td><td class="${cl(l.up)}">${f2(l.up)}</td><td style="text-align:left;color:#8b949e">${l.note}</td></tr>`});
  if(!(d.links||[]).length)h+='<tr><td colspan=5 style="color:#8b949e">связок не найдено</td></tr>';
@@ -1075,13 +1097,19 @@ function renderArb(d){
  h='<tr><th>актив</th><th>инверс % год.</th><th>линейный % год.</th><th>разница</th><th>направление</th></tr>';
  s.inv.forEach(r=>{h+=`<tr><td>${r.b}</td><td>${r.inv}</td><td>${r.lin}</td>${ap(r.diff)}<td style="text-align:left">${r.dir}</td></tr>`});
  $('asinv').innerHTML=h;}
-function drawRisk(H){const c=$('acv'),x=c.getContext('2d'),W=c.width,Hh=c.height;x.clearRect(0,0,W,Hh);
- if(!H||H.length<2){x.fillStyle='#8b949e';x.font='11px sans-serif';x.fillText('история копится (точка раз в 20 с)…',10,20);return}
- const pl=46,pr=10,pt=8,pb=16,ys=H.map(a=>a[1]),hi=Math.max(...ys)*1.05||1,lo=0,t0=H[0][0],t1=H[H.length-1][0]||t0+1;
- const X=t=>pl+(W-pl-pr)*(t-t0)/Math.max(t1-t0,1),Y=v=>pt+(Hh-pt-pb)*(1-(v-lo)/(hi-lo));
- x.strokeStyle='#21262d';[0,.5,1].forEach(k=>{const yy=Y(lo+(hi-lo)*k);x.beginPath();x.moveTo(pl,yy);x.lineTo(W-pr,yy);x.stroke();x.fillStyle='#8b949e';x.font='10px sans-serif';x.fillText((lo+(hi-lo)*k).toFixed(0),4,yy+3)});
- x.strokeStyle='#d29922';x.lineWidth=1.4;x.beginPath();H.forEach((a,i)=>{const xx=X(a[0]),yy=Y(a[1]);i?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke();x.lineWidth=1;
- const hm=s=>new Date(s*1000).toTimeString().slice(0,5);x.fillStyle='#8b949e';x.fillText(hm(t0),pl,Hh-3);x.fillText(hm(t1),W-pr-30,Hh-3);}
+function drawLines(id,ser,o){const c=$(id),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);x.font='10px sans-serif';
+ const all=ser.flatMap(s=>s.pts);if(all.length<2){x.fillStyle='#8b949e';x.fillText('история копится (точка раз в 20 с)…',10,20);return}
+ const hasR=ser.some(s=>s.r&&s.pts.length),pl=52,pr=hasR?52:12,pt=8,pb=18;
+ const rng=f=>{const v=ser.filter(f).flatMap(s=>s.pts.map(a=>a[1]));if(!v.length)return[0,1];let lo=Math.min(...v),hi=Math.max(...v);if(hi-lo<1e-9){lo-=1;hi+=1}const m=(hi-lo)*.08;return[lo-m,hi+m]};
+ const L=rng(s=>!s.r),R=rng(s=>s.r),t0=Math.min(...all.map(a=>a[0])),t1=Math.max(...all.map(a=>a[0]));
+ const X=t=>pl+(W-pl-pr)*(t-t0)/Math.max(t1-t0,1),Y=(v,r)=>{const[a,b]=r?R:L;return pt+(H-pt-pb)*(1-(v-a)/(b-a))};
+ const fm=v=>Math.abs(v)>=100?v.toFixed(0):Math.abs(v)>=10?v.toFixed(1):v.toFixed(2);
+ [0,.25,.5,.75,1].forEach(k=>{const yy=pt+(H-pt-pb)*k;x.strokeStyle='#21262d';x.beginPath();x.moveTo(pl,yy);x.lineTo(W-pr,yy);x.stroke();x.fillStyle='#8b949e';
+  x.fillText(fm(L[1]-(L[1]-L[0])*k),4,yy+3);if(hasR)x.fillText(fm(R[1]-(R[1]-R[0])*k),W-pr+4,yy+3)});
+ if(L[0]<0&&L[1]>0){x.strokeStyle='#30363d';x.setLineDash([3,3]);x.beginPath();x.moveTo(pl,Y(0));x.lineTo(W-pr,Y(0));x.stroke();x.setLineDash([])}
+ let lx=pl+6;ser.forEach(s=>{if(!s.pts.length)return;x.strokeStyle=s.c;x.lineWidth=1.5;x.beginPath();s.pts.forEach((a,i)=>{const xx=X(a[0]),yy=Y(a[1],s.r);i?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke();x.lineWidth=1;
+  const lv=s.pts[s.pts.length-1][1],su=s.u||o.u,lab=s.n+' '+(lv>0&&su=='%'?'+':'')+fm(lv)+(su=='%'?'%':'');x.fillStyle=s.c;x.fillRect(lx,pt+2,10,3);x.fillText(lab,lx+14,pt+8);lx+=x.measureText(lab).width+30});
+ const hm=s=>new Date(s*1000).toTimeString().slice(0,5);x.fillStyle='#8b949e';x.fillText(hm(t0),pl,H-4);x.fillText(hm(t1),W-pr-30,H-4);}
 try{const t=localStorage.getItem('gw');if(t&&['2d','30d','166d'].includes(t))setGW(t);}catch(e){}
 try{let t=localStorage.getItem('tab');if(t=='P'){ASUB='pairs';t='A';} if(['A','G','T'].includes(t))showTab(t);}catch(e){}
 setInterval(gtick,4000);setInterval(ttick,6000);setInterval(ptick,6000);setInterval(atick,6000);
@@ -1120,6 +1148,16 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._write(HTML.encode(), "text/html; charset=utf-8")
 
+def _sampler():   # фоновая запись истории для графиков «Арбитража» (раз в 20 с, только чтение API)
+    while True:
+        try:
+            arb_book.sample(_port()); arb_book._SAMPLE_ERR["e"] = None
+        except Exception as e:
+            arb_book._SAMPLE_ERR["e"] = str(e)[:200]
+        time.sleep(20)
+
 if __name__ == "__main__":
+    import threading
+    threading.Thread(target=_sampler, daemon=True).start()
     print("Book dashboard -> http://localhost:8899  (Ctrl+C остановить)")
     ThreadingHTTPServer(("127.0.0.1",8899), Handler).serve_forever()

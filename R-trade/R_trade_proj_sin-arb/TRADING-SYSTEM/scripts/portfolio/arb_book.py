@@ -10,14 +10,17 @@
 """
 import re, time, threading
 from collections import deque, defaultdict
-from tail_pairs import ff, _T, cached, inverse_positions, inv_base
+from tail_pairs import ff, _T, cached, inverse_positions, inv_base, CRYPTO
 
 OPT_BASES = ["ETH", "BTC", "SOL", "MNT", "XAUT", "QQQ"]
 BASKET = ["BTC", "ETH", "SOL", "MNT", "XAUT", "XRP", "DOGE"]
 FEE_FALLBACK = {"option": 0.0002, "linear": 0.00036, "spot": 0.001}   # мейкер, если fee-rate недоступен
 ARB_CFG = {"k_band": 0.30, "min_dte": 0.05, "top": 15, "box_top": 10, "carry_top": 12,
            "carry_min_turnover": 5e6, "scan_ttl": 30}
-RISK_H = deque(maxlen=720)          # история остаточного риска за сессию: [ts, $]
+RISK_H = deque(maxlen=2160)         # история остаточного риска за сессию: [ts, $] (точка раз в 20 с ≈ 12 ч)
+BOOK_H = deque(maxlen=2160)         # [ts, eq, im%, mm%, iv ETH, Δ$, Θ, вега, {база: цена}]
+_SAMPLE_ERR = {"e": None}
+BASKET_X = ("ETH",)                 # что не входит в «корзину» графика 1
 _SL = threading.Lock()
 
 
@@ -252,17 +255,46 @@ def _perp_info(sym):
     return None
 
 
+def _resid(port):
+    """остаточный риск = лучший − худший исход стресс-таблицы β-блока (и 0)."""
+    A = port["groups"]["ALL"]
+    cells = [0.0]
+    for r in ((A.get("beta") or {}).get("stress") or {}).get("rows", []):
+        cells += [ff(x) for x in r.get("pnl", [])]
+    return round(max(cells) - min(cells), 1), round(min(cells), 1), round(max(cells), 1)
+
+
+def _is_crypto(b):
+    return b in CRYPTO or b in ("MNT", "XTZ", "H")
+
+
+def sample(port):
+    """Точка истории из готового снимка /port (без запросов к API). Вызывается фоновым сэмплером раз в 20 с."""
+    now = time.time()
+    if BOOK_H and now - BOOK_H[-1][0] < 19: return
+    A = port["groups"]["ALL"]; tot = A.get("tot", {}); ac = port.get("acct") or {}
+    px = {}
+    for g in port["groups"].values():
+        for r in g.get("rows", []):
+            if ff(r.get("px")) > 0 and _is_crypto(r["base"]): px[r["base"]] = ff(r["px"])
+    vol = (port["groups"].get("ETH") or {}).get("vol") or {}
+    resid = _resid(port)[0]
+    RISK_H.append([now, resid])
+    BOOK_H.append([round(now), ac.get("eq"), ac.get("im_pct"), ac.get("mm_pct"), vol.get("iv"),
+                   tot.get("dusd"), tot.get("t"), tot.get("v"), px])
+
+
 def book(port, pub):
     A = port["groups"]["ALL"]
     pos, rows, tot = A.get("pos", []), A.get("rows", []), A.get("tot", {})
-    # ---------- остаточный риск ----------
-    cells = [0.0]
-    st = (A.get("beta") or {}).get("stress") or {}
-    for r in st.get("rows", []):
-        cells += [ff(x) for x in r.get("pnl", [])]
-    resid = round(max(cells) - min(cells), 1)
-    now = time.time()
-    if not RISK_H or now - RISK_H[-1][0] >= 20: RISK_H.append([now, resid])
+    # ---------- остаточный риск (история пишется сэмплером, здесь только чтение) ----------
+    resid, cmin, cmax = _resid(port)
+    if not RISK_H: sample(port)
+    # ---------- веса корзины графика 1: лонговые крипто-базы кроме ETH по Δ$ ----------
+    bw = {r["base"]: ff(r.get("dusd")) for r in rows if _is_crypto(r["base"]) and r["base"] not in BASKET_X and ff(r.get("dusd")) > 0}
+    s = sum(bw.values())
+    if s > 0: bw = {k: round(v / s, 4) for k, v in bw.items()}; beq = False
+    else: bw = {"BTC": 0.3333, "SOL": 0.3333, "MNT": 0.3334}; beq = True
     # ---------- ноги ----------
     legs = []
     for p in pos:
@@ -361,9 +393,10 @@ def book(port, pub):
     frows.sort(key=lambda r: r["usd_day"])
     tiles = {"resid": resid, "dusd": tot.get("dusd"), "eq": tot.get("eq"), "g1": tot.get("g1"), "t": tot.get("t"),
              "v": tot.get("v"), "fund_day": round(fund, 2), "links": len(links), "open": len(opn),
-             "min": round(min(cells), 1), "max": round(max(cells), 1)}
+             "min": cmin, "max": cmax}
     return {"tiles": tiles, "links": links, "open": opn, "fund": frows,
-            "hist": [[round(a), b] for a, b in RISK_H], "acct": port.get("acct")}
+            "hist": [[round(a), b] for a, b in RISK_H], "bhist": list(BOOK_H), "basket_w": bw, "basket_eq": beq,
+            "sample_err": _SAMPLE_ERR["e"], "acct": port.get("acct")}
 
 
 def arb_snapshot(sget, pub, port_fn, want_scan=True):

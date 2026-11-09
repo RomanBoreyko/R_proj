@@ -65,7 +65,8 @@ R_trade_proj_sin-arb/
     ├── 09-INFRASTRUCTURE.md      ← MetaScalp SDK, коллектор, TV
     ├── 10-DASHBOARD/             ← узлы Obsidian: хаб [[Дашборд]], вкладки, модули, Дашборд.canvas
     ├── 11-ASSETS/                ← узлы активов ETH/MNT/SOL/BTC/QQQ/ЗОЛОТО (= группы дашборда)
-    ├── 12-CONCEPTS/              ← понятия: истинная Δ, β к ETH, стресс, IV/RV, payoff, PM
+    ├── 12-CONCEPTS/              ← понятия: истинная Δ, β к ETH, стресс, IV/RV, payoff, PM, арбитражный портфель
+    ├── 13-LEARNING/              ← конспекты-курсы (Арбитражный портфель: АП-00 карта … АП-12), type: lesson
     ├── journal/                  ← торговый журнал по дням
     └── scripts/
         ├── portfolio/            ← ★ дашборд книги + аналитика (README.md, DASHBOARD.md)
