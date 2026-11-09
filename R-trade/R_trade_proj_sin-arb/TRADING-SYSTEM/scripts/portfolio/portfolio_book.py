@@ -4,7 +4,7 @@
 Только чтение API. Вызывается из book_dashboard.py: portfolio_snapshot(sget, pub, earn_fn)."""
 import math, time, datetime
 from collections import deque
-from tail_pairs import ff, _T, _bs, cached, CRYPTO, inverse_positions, inv_base
+from tail_pairs import ff, _T, _N, _bs, cached, CRYPTO, inverse_positions, inv_base
 
 # группа -> базовые активы; первый — «главный» (ось payoff и датчик волы)
 GROUPS = {"ETH": ["ETH"], "MNT": ["MNT"], "SOL": ["SOL"], "BTC": ["BTC"], "QQQ": ["QQQ"],
@@ -90,6 +90,49 @@ def _vol(pub, base):
 
 BETA_REF = "ETH"
 STRESS_MOVES = [-20, -10, -5, 5, 10, 20]
+GAM_SHOCKS = [x / 100 for x in range(-15, 16)]     # профиль Δ$/Γ$ по цене: ±15% шагом 1%
+
+
+def _bsdg(S, K, T, s, cp):
+    """Black-Scholes дельта и гамма (без ставки), на 1 опцион."""
+    if T <= 0 or s <= 0 or S <= 0 or K <= 0:
+        return ((1.0 if S > K else 0.0) if cp == "C" else (-1.0 if S < K else 0.0)), 0.0
+    sq = s * math.sqrt(T); d1 = (math.log(S / K) + 0.5 * s * s * T) / sq
+    pdf = math.exp(-0.5 * d1 * d1) / math.sqrt(2 * math.pi)
+    return (_N(d1) if cp == "C" else _N(d1) - 1.0), pdf / (S * sq)
+
+
+def _gamma_view(pub, A, inst):
+    """Блок «Гамма и скальп»: по каждому активу с опционами — греки, безубыточный ход,
+    профиль Δ$/Γ$ по цене (BS при текущей markIv, перпы+спот линейно) и гамма по экспирациям."""
+    out = []
+    for b in sorted(A, key=lambda b: -abs(A[b]["g1"])):
+        oi = [i for i in inst if i["base"] == b and i["k"] == "opt"]
+        if not oi: continue
+        r = A[b]; S = r["px"] or oi[0]["S"]
+        lin = sum(i["d"] for i in inst if i["base"] == b and i["k"] == "perp") + r["spot"] + r["earn"]
+        prof = []
+        for m in GAM_SHOCKS:
+            d = lin; g = 0.0
+            for i in oi:
+                dd, gg = _bsdg(i["S"] * (1 + m), i["K"], i["T"], i["iv"], i["cp"])
+                d += i["side"] * i["sz"] * dd; g += i["side"] * i["sz"] * gg
+            S1 = S * (1 + m)
+            prof.append([round(m * 100), round(S1, 6), round(d * S1, 1), round(g * S1 * S1 * 0.01, 2)])
+        ex = {}
+        for i in oi:
+            e = ex.setdefault(i["exp"], {"exp": i["exp"], "dte": round(i["T"] * 365, 1), "g1": 0.0, "g1l": 0.0, "g1s": 0.0, "t": 0.0, "v": 0.0, "n": 0})
+            e["g1"] += i["g1"]; e["g1l" if i["side"] > 0 else "g1s"] += i["g1"]; e["t"] += i["t"]; e["v"] += i["v"]; e["n"] += 1
+        exps = sorted(ex.values(), key=lambda e: e["dte"])
+        for e in exps:
+            for k in ("g1", "g1l", "g1s", "t", "v"): e[k] = round(e[k], 2)
+        th, g1 = r["ot"], r["g1"]
+        be = math.sqrt(2 * abs(th) / (100 * abs(g1))) * 100 if g1 and th else None     # % дневного хода, при котором ½ΓS²x² = |Θ|
+        vol = _vol(pub, b) if b in OPT_BASES else {}
+        out.append({"base": b, "px": S, "g": r["og"], "g1": g1, "t": th, "v": r["ov"], "true": r["true"], "dusd": r["dusd"],
+                    "be": round(be, 2) if be else None, "iv": vol.get("iv"), "rv": vol.get("rv"),
+                    "perp": b + "USDT", "prof": prof, "exps": exps})
+    return out
 
 def _betas(pub, bases):
     """β и корреляция 4ч лог-доходностей базы к ETH за 30д. {base: (beta, corr)}; ETH = (1, 1)."""
@@ -266,6 +309,7 @@ def portfolio_snapshot(sget, pub, earn_fn=None):
              "v": g["tot"]["v"], "up": g["tot"]["up"], "n": g["n"]} for k, g in G.items() if k != "ALL"]
     vols = [_vol(pub, b) for b in OPT_BASES]
     G["ALL"]["summ"] = summ; G["ALL"]["vols"] = vols
+    G["ALL"]["gam"] = _gamma_view(pub, A, inst)
     # β к ETH: ETH-эквивалент и стресс «ETH против корзины»
     act = [b for b in A if A[b]["active"] and A[b]["px"] > 0]
     BT = _betas(pub, act)

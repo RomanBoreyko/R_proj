@@ -594,9 +594,40 @@ canvas{background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:
 h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 #upd{font-size:12px;color:#8b949e}
 .gbtn{cursor:pointer;padding:2px 10px;border:1px solid #30363d;border-radius:6px;margin-right:4px;color:#8b949e}
-.gbtn.on{background:#1f6feb33;border-color:#1f6feb;color:#e6edf3}</style></head><body>
+.gbtn.on{background:#1f6feb33;border-color:#1f6feb;color:#e6edf3}
+.ksub{font-size:11px;color:#8b949e;margin:6px 0 0}</style></head><body>
 <div class="hd"><b>Книга Bybit — реалтайм</b><span id="upd">загрузка...</span></div>
-<div style="margin:6px 0 4px"><span class="gbtn on" id="tbE" onclick="showTab('E')">Портфель</span><span class="gbtn" id="tbA" onclick="showTab('A')">Арбитраж</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото: опционы</span><span class="gbtn" id="tbT" onclick="showTab('T')">Хвосты ETH</span></div>
+<div style="margin:6px 0 4px"><span class="gbtn on" id="tbK" onclick="showTab('K')">Книга</span><span class="gbtn" id="tbMore" onclick="bookMore()">Ещё ▾</span><span id="moreBox" style="display:none"><span class="gbtn" id="tbE" onclick="showTab('E')">Портфель: детали</span><span class="gbtn" id="tbA" onclick="showTab('A')">Арбитраж</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото: опционы</span><span class="gbtn" id="tbT" onclick="showTab('T')">Хвосты ETH</span></span></div>
+<div id="tabK">
+<div class="row" id="ktiles"></div>
+<div id="kwarn" style="font-size:12px;margin:0 0 4px"></div>
+<div class="row" style="gap:16px">
+<div><h3 id="kpayh">Payoff — весь портфель</h3><canvas id="kpALL" width="780" height="260"></canvas><div id="kpaynote" style="color:#8b949e;font-size:11px;margin:2px 0 0;max-width:780px"></div></div>
+<div><h3>Группы (клик — детали)</h3><table id="ksumm"></table></div>
+</div>
+<h3>Гамма и скальп · шаг сетки: <span id="kgsteps"></span></h3>
+<table id="kgam"></table>
+<div class="row" style="gap:16px">
+<div><div class="ksub" id="kgph"></div><canvas id="kgprof" width="620" height="230"></canvas></div>
+<div><div class="ksub" id="kgeh"></div><canvas id="kgexp" width="440" height="230"></canvas></div>
+</div>
+<div id="kgnote" style="color:#8b949e;font-size:11px;margin:2px 0 6px;max-width:1100px"></div>
+<h3>Payoff по активам (клик — детали группы)</h3><div class="row" id="kpgrid"></div>
+<h3>Стресс T+0 по сценариям, $ (относительно текущей стоимости)</h3><table id="kstress"></table>
+<div id="kstnote" style="color:#8b949e;font-size:11px;margin:2px 0 6px"></div>
+<h3>Во времени (память сервера, точка раз в 20 с, до ~12 ч)</h3>
+<div class="row">
+<div><div class="ksub">Эквити $ · ETH и корзина % от начала окна</div><canvas id="kt1" width="480" height="130"></canvas></div>
+<div><div class="ksub">Δ$ портфеля</div><canvas id="kt2" width="480" height="130"></canvas></div>
+<div><div class="ksub">IM, % эквити</div><canvas id="kt3" width="480" height="130"></canvas></div>
+<div><div class="ksub">MM, % эквити</div><canvas id="kt4" width="480" height="130"></canvas></div>
+<div><div class="ksub">Θ $/день</div><canvas id="kt5" width="480" height="130"></canvas></div>
+<div><div class="ksub">Вега $ на 1 п.п. IV</div><canvas id="kt6" width="480" height="130"></canvas></div>
+</div>
+<div id="ktnote" style="color:#8b949e;font-size:11px;margin:2px 0 6px"></div>
+<details id="kposd" ontoggle="if(this.open&&PORT)renderKPos(PORT)"><summary id="kposs" style="cursor:pointer;color:#8b949e;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:12px">Позиции с греками</summary><table id="kpos"></table></details>
+</div>
+
 <div id="tabT" style="display:none">
 <div class="row" id="tacct"></div>
 <div id="twarn" style="font-size:12px;margin:0 0 4px"></div>
@@ -673,7 +704,7 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 <h3>Греки и бета по золоту</h3><div class="row" id="ggreeks"></div>
 <h3>Позиции по золоту (XAU*/XAUT перпы, фьючи, опционы XAUT)</h3><table id="gpos"></table>
 </div>
-<div id="tabE">
+<div id="tabE" style="display:none">
 <div id="pgsel" style="margin:2px 0 6px"></div>
 <div class="row" id="tiles"></div>
 <div id="bybitfmt" style="margin:0 0 6px;color:#8b949e;font-size:12px"></div>
@@ -707,9 +738,9 @@ try{const v=localStorage.getItem('pg');if(v)PG=v;}catch(e){}
 const cl=(v,inv)=>v==null||v==0?'':((v>0)!=!!inv?'pos':'neg');
 function setPG(k){PG=k;try{localStorage.setItem('pg',k)}catch(e){} if(PORT)renderPort(PORT);}
 async function tick(){
- let d; try{d=await (await fetch('/port')).json()}catch(e){if(TAB=='E')$('upd').textContent='offline';return}
- if(d.err){if(TAB=='E')$('upd').textContent='err: '+d.err;return}
- PORT=d; renderPort(d);
+ let d; try{d=await (await fetch('/port')).json()}catch(e){if(TAB=='E'||TAB=='K')$('upd').textContent='offline';return}
+ if(d.err){if(TAB=='E'||TAB=='K')$('upd').textContent='err: '+d.err;return}
+ PORT=d; if(TAB=='E')renderPort(d); else if(TAB=='K')renderBook(d);
 }
 function renderPort(d){
  if(!d.groups[PG])PG='ALL';
@@ -844,10 +875,11 @@ function heat(cv,xs,ys,grid,title){const x=cv.getContext('2d'),W=cv.width,H=cv.h
  x.fillStyle='#8b949e';x.font='8px sans-serif';xs.forEach((xl,xi)=>{if(xs.length<=7||xi%Math.ceil(xs.length/7)==0)x.fillText(xl,padL+xi*cw,H-3)});
  ys.forEach((yl,yi)=>x.fillText(yl,0,16+yi*ch+ch/2+3));}
 // ===================== ЗОЛОТО =====================
-let TAB='E', GW='30d', GLD=null, ASUB='mine';
+let TAB='K', GW='30d', GLD=null, ASUB='mine';
 try{const v=localStorage.getItem('asub');if(['mine','scan','gold','pairs'].includes(v))ASUB=v;}catch(e){}
-function showTab(t){TAB=t;['E','A','G','T'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
- try{localStorage.setItem('tab',t)}catch(e){} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T')ttick(); if(t=='A')setASub(ASUB);}
+function showTab(t){TAB=t;['K','E','A','G','T'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
+ $('tbMore').classList.toggle('on',t!='K'); if(t!='K')$('moreBox').style.display='';
+ try{localStorage.setItem('tab',t)}catch(e){} if(t=='K'){if(PORT)renderBook(PORT);khtick();} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T')ttick(); if(t=='A')setASub(ASUB);}
 // ===================== ХВОСТЫ ETH =====================
 async function ttick(){ if(TAB!='T')return;
  let d; try{d=await (await fetch('/tail')).json()}catch(e){$('tvbar').textContent='offline';return}
@@ -1031,6 +1063,138 @@ function drawSpread(g){const cv=$('gcv'),x=cv.getContext('2d'),W=cv.width,H=cv.h
  x.strokeStyle='#58a6ff';x.lineWidth=1.4;x.beginPath();S.forEach((a,i)=>{const xx=X(a[0]),yy=Y(a[1]);i?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke();x.lineWidth=1;
  const cx=W-pr,cy=Y(g.mid);x.fillStyle='#e6edf3';x.beginPath();x.arc(cx,cy,3.5,0,7);x.fill();
  x.fillStyle='#58a6ff';x.fillRect(W-pr+2,cy-8,62,15);x.fillStyle='#0d1117';x.font='bold 10px sans-serif';x.fillText(g.mid.toFixed(2)+'‰',W-pr+6,cy+3);}
+// ===================== КНИГА (главная) =====================
+let KH=null, KGK='';
+function bookMore(){const b=$('moreBox');b.style.display=b.style.display=='none'?'':'none';}
+function renderBook(d){
+ const a=d.acct,all=d.groups.ALL,t=all.tot,eq=a.eq||0,b=all.beta;
+ if(TAB=='K')$('upd').textContent='книга · '+d.t;
+ const bc=a.buf<1.5?'neg':(a.buf<1.8?'warn':'pos'),dl=eq*0.2,th=eq*0.01;
+ const dc=v=>Math.abs(v||0)<=dl?'pos':'warn';
+ $('ktiles').innerHTML=tile('Эквити','$'+a.eq)+tile('Свободно','$'+a.av,a.av<100?'warn':'')+tile('IM',a.im_pct+'%',bc)+tile('MM',a.mm_pct+'%',bc)+tile('Запас',a.buf+'x',bc)
+  +tile('Δ$',sg(t.dusd),dc(t.dusd))+(t.eq!=null?tile('Δ ETH-экв.',sg(t.eq)+'$',dc(t.eq)):'')
+  +tile('Θ /д',sg(t.t),Math.abs(t.t)>th?'warn':cl(t.t))+tile('Vega',sg(t.v),cl(t.v))+tile('Γ$ на 1%',sg(t.g1),cl(t.g1))+tile('uPnL',sg(t.up)+'$',cl(t.up));
+ const w=[];
+ if(a.buf<1.5)w.push('<b class="neg">запас до MM '+a.buf+'× &lt; 1.5 — красная зона</b>');
+ if(Math.abs(t.dusd)>dl)w.push('<span class="warn">|Δ$| '+Math.round(Math.abs(t.dusd))+' &gt; 20% эквити ('+Math.round(dl)+')</span>');
+ if(t.eq!=null&&Math.abs(t.eq)>dl)w.push('<span class="warn">|Δ ETH-экв.| '+Math.round(Math.abs(t.eq))+' &gt; 20% эквити</span>');
+ if(Math.abs(t.t)>th)w.push('<span class="warn">|Θ| '+Math.abs(t.t).toFixed(1)+' $/д &gt; 1% эквити ('+th.toFixed(1)+')</span>');
+ $('kwarn').innerHTML=w.length?'⚠ '+w.join(' · '):'<span class="pos">в пределах правил риска (запас ≥ 1.5×, |Δ$| ≤ 20%, |Θ| ≤ 1% эквити)</span>';
+ // payoff всего портфеля
+ bookPay($('kpALL'),all,false);
+ const N=all.now||[],mi=N.length?N.reduce((m,p)=>p[1]<m[1]?p:m,N[0]):null;
+ $('kpaynote').innerHTML='Ось — ход ВСЕХ активов на один %; корреляции не учтены (грубый шок). Зелёная — на экспирации, синяя — T+0 (BS, IV без изменений).'+(mi?' Худшая точка T+0: <b class="neg">'+sg(mi[1])+'$</b> при '+(+mi[0]).toFixed(1)+'%':'')+(all.be_now&&all.be_now.length?' · безубыток T+0: '+all.be_now.map(v=>(+v).toFixed(1)+'%').join(', '):'');
+ // группы
+ let s='<tr><th>группа</th><th>Δ$</th><th>Θ/д</th><th>Vega</th><th>Γ$ 1%</th><th>uPnL</th></tr>';
+ (all.summ||[]).forEach(r=>{s+=`<tr style="cursor:pointer" onclick="setPG('${r.key}');showTab('E')"><td>${r.name}</td><td class="${dc(r.dusd)}">${sg(r.dusd)}</td><td class="${cl(r.t)}">${sg(r.t)}</td><td>${sg(r.v)}</td><td>${sg(r.g1)}</td><td class="${cl(r.up)}">${sg(r.up)}</td></tr>`;});
+ s+=`<tr style="border-top:1px solid #30363d"><td><b>Итого</b></td><td class="${dc(t.dusd)}"><b>${sg(t.dusd)}</b></td><td class="${cl(t.t)}">${sg(t.t)}</td><td>${sg(t.v)}</td><td>${sg(t.g1)}</td><td class="${cl(t.up)}">${sg(t.up)}</td></tr>`;
+ $('ksumm').innerHTML=s;
+ renderGam(d);
+ // сетка payoff по группам: DOM пересобирается только при смене состава групп
+ const ks=d.order.filter(k=>k!='ALL'&&d.groups[k]),key=ks.join(',');
+ if(key!=KGK){KGK=key;$('kpgrid').innerHTML=ks.map(k=>`<div style="cursor:pointer" onclick="setPG('${k}');showTab('E')"><div class="ksub" id="kpt_${k}"></div><canvas id="kp_${k}" width="380" height="180"></canvas></div>`).join('');}
+ ks.forEach(k=>{const g=d.groups[k],gt=g.tot,n=g.now||[],m=n.length?Math.min(...n.map(p=>p[1])):null;
+  $('kpt_'+k).innerHTML=`<b style="color:#e6edf3">${g.name}</b>${g.main?' '+g.px:''} · Δ$ <span class="${dc(gt.dusd)}">${sg(gt.dusd)}</span> · Θ ${sg(gt.t)} · V ${sg(gt.v)}`+(m!=null?` · худш. T+0 <span class="${m<0?'neg':''}">${sg(Math.round(m))}</span>`:'');
+  bookPay($('kp_'+k),g,true);});
+ // стресс
+ if(b&&b.stress){const st=b.stress,pn=v=>v<0?'neg':(v>0?'pos':'');let h='<tr><th>сценарий</th>'+st.moves.map(m=>'<th>'+(m>0?'+':'')+m+'%</th>').join('')+'</tr>';
+  st.rows.forEach(r=>{h+='<tr><td>'+r.name+'</td>'+r.pnl.map(v=>'<td class="'+pn(v)+'">'+sg(v)+'</td>').join('')+'</tr>';});
+  $('kstress').innerHTML=h;
+  const wo=st.rows.reduce((w2,r)=>r.pnl.reduce((w3,v,i)=>v<w3.v?{v,n:r.name,m:st.moves[i]}:w3,w2),{v:Infinity}),room=a.eq-a.mm;
+  $('kstnote').innerHTML='Корзина = '+(b.basket.join(', ')||'—')+'. T+0, BS при текущей IV, без пересчёта маржи. Эквити выше MM: <b>$'+room.toFixed(0)+'</b>'+(wo.v<0?' · худшая клетка <b class="'+(-wo.v>room?'neg':'warn')+'">'+sg(wo.v)+'$</b> — «'+wo.n+'» при '+(wo.m>0?'+':'')+wo.m+'%':'');}
+ else{$('kstress').innerHTML='';$('kstnote').textContent='';}
+ $('kposs').textContent='Позиции с греками ('+(all.pos||[]).length+')';
+ if($('kposd').open)renderKPos(d);
+}
+let GSTEP='be', GAMB='ETH';
+try{const v=localStorage.getItem('kgs');if(v)GSTEP=v;const w=localStorage.getItem('kgb');if(w)GAMB=w;}catch(e){}
+function setGS(v){GSTEP=v;try{localStorage.setItem('kgs',v)}catch(e){} if(PORT)renderGam(PORT);}
+function setGB(v){GAMB=v;try{localStorage.setItem('kgb',v)}catch(e){} if(PORT)renderGam(PORT);}
+const gfp=(v,S)=>v==null?'—':(S>=10000?v.toFixed(0):S>=100?v.toFixed(1):S>=1?v.toFixed(3):v.toFixed(5));
+const gfq=v=>{const a=Math.abs(v);return a>=100?a.toFixed(0):a>=1?a.toFixed(2):a.toFixed(4)};
+function renderGam(d){const G=d.groups.ALL.gam||[],eq=d.acct.eq||0,band=eq*0.2;
+ $('kgsteps').innerHTML=[['0.5','0.5%'],['1','1%'],['1.5','1.5%'],['2','2%'],['be','= безубыток']].map(([k,l])=>`<span class="gbtn ${GSTEP==k?'on':''}" onclick="setGS('${k}')">${l}</span>`).join('');
+ if(!G.length){$('kgam').innerHTML='<tr><td style="color:#8b949e">опционов нет</td></tr>';return}
+ if(!G.find(r=>r.base==GAMB))GAMB=G[0].base;
+ let s='<tr><th>актив</th><th>цена</th><th>Γ шт/$1</th><th>Γ$ 1%</th><th>Θ/д</th><th>Δ шт / Δ$</th><th>безуб. ход/д</th><th>IV/д · RV/д</th><th>вывод</th><th>ребаланс сейчас</th><th>шаг</th><th>объём шага</th><th>продать ≥</th><th>купить ≤</th><th>$ за цикл</th><th>циклов/д на Θ</th></tr>';
+ G.forEach(r=>{const S=r.px,lg=r.g1>0,h=(GSTEP=='be'?(r.be||1):+GSTEP)/100,gg=r.g1/(S*S*0.01),q=Math.abs(gg)*S*h,cyc=100*Math.abs(r.g1)*h*h,fee=2*0.00036*q*S,net=cyc-fee;
+  const ivd=r.iv?r.iv/Math.sqrt(365):null,rvd=r.rv?r.rv/Math.sqrt(365):null;
+  let vv='—',vc='';
+  if(r.be!=null&&rvd!=null){if(lg){vv=rvd>=r.be?'RV окупает Θ':'Θ дороже RV';vc=rvd>=r.be?'pos':'warn'}else{vv=rvd<=r.be?'продажа Γ окупается':'RV бьёт шорт Γ';vc=rvd<=r.be?'pos':'neg'}}
+  const gold=r.base=='XAUT'&&d.groups.GOLD&&d.groups.GOLD.tot.hedge_xau!=null,hq=gold?d.groups.GOLD.tot.hedge_xau:-r.true,hd=gold?d.groups.GOLD.tot.dusd:r.dusd,hp=gold?'XAUUSDT (вся группа «Золото»)':r.perp;
+  const out=Math.abs(hd)>band,rb=Math.abs(hd)<1?'—':`<span class="${out?'warn':''}">${hq<0?'продать':'купить'} ${gfq(hq)} ${hp}</span>${out?'':' <span style="color:#8b949e">(в коридоре)</span>'}`;
+  const up=S*(1+h),dn=S*(1-h),act=lg?['продать','купить']:['купить','продать'];
+  s+=`<tr style="cursor:pointer${r.base==GAMB?';background:#1f6feb22':''}" onclick="setGB('${r.base}')"><td><b>${r.base}</b></td><td>${gfp(S,S)}</td><td class="${cl(gg)}">${(+gg).toPrecision(3)}</td><td class="${cl(r.g1)}">${sg(r.g1)}</td><td class="${cl(r.t)}">${sg(r.t)}</td>`
+   +`<td>${sg(r.true)} / ${sg(r.dusd)}$</td><td>${r.be==null?'—':r.be.toFixed(2)+'%'}</td><td>${ivd==null?'—':ivd.toFixed(2)}% · ${rvd==null?'—':rvd.toFixed(2)}%</td><td class="${vc}">${vv}</td><td style="text-align:left">${rb}</td>`
+   +`<td>${(h*100).toFixed(2)}% (${gfp(S*h,S)})</td><td>${gfq(q)}</td><td>${act[0]} @ ${gfp(up,S)}</td><td>${act[1]} @ ${gfp(dn,S)}</td><td class="${lg?(net>0?'pos':'neg'):'neg'}">${lg?'+':'−'}${Math.abs(net).toFixed(2)}</td><td>${lg&&r.t<0&&net>0?(Math.abs(r.t)/net).toFixed(1):'—'}</td></tr>`;});
+ $('kgam').innerHTML=s;
+ const r=G.find(x=>x.base==GAMB),h=(GSTEP=='be'?(r.be||1):+GSTEP)/100;
+ $('kgph').innerHTML=`<b style="color:#e6edf3">${r.base}</b>: Δ$ (синяя, левая ось) и Γ$ на 1% (жёлтая, правая) при сдвиге цены сейчас (T+0, BS по markIv); зелёные пунктиры — уровни сетки ±${(h*100).toFixed(2)}%`;
+ $('kgeh').innerHTML=`<b style="color:#e6edf3">${r.base}</b>: Γ$ на 1% по экспирациям (зелёный — купленные, красный — проданные), под столбцами Θ/д`;
+ gamProf($('kgprof'),r,h); gamExp($('kgexp'),r.exps||[]);
+ $('kgnote').innerHTML='Γ шт/$1 — на сколько единиц актива меняется Δ при ходе цены на $1 (из позиций Bybit). Γ$ 1% = Γ·S²·0.01. <b>Безубыточный ход</b> = √(2|Θ| / (Γ$1%·100)) — дневной ход, при котором выигрыш гаммы ½·Γ·(ΔS)² равен тете за день; сравнивай с RV/д = RV30/√365 (и IV/д). Шаг сетки: объём = |Γ|·S·шаг (на столько сдвинется Δ), $ за цикл = Γ$1%·100·шаг² минус 2 мейкер-комиссии 0.036%. Длинная Γ: продаёшь на росте, откупаешь на падении; короткая — наоборот (догоняешь цену, это убыток за цикл). Ребаланс — перпом BASEUSDT до истинной Δ = 0 (опционы+перпы+спот+Earn); коридор ±20% эквити. Объёмы округляй до шага контракта. Профиль — BS без улыбки и без изменения IV.';
+}
+function gamProf(cv,r,h){const x=cv.getContext('2d'),W=cv.width,H=cv.height,pl=56,pr=56,pt=10,pb=20;x.clearRect(0,0,W,H);x.font='10px sans-serif';
+ const P=r.prof||[];if(P.length<2){x.fillStyle='#8b949e';x.fillText('нет данных',10,20);return}
+ const xs=P.map(p=>p[1]),x0=Math.min(...xs),x1=Math.max(...xs);
+ const rg=a=>{let lo=Math.min(0,...a),hi=Math.max(0,...a);if(hi-lo<1e-9){hi+=1;lo-=1}const m=(hi-lo)*.08;return[lo-m,hi+m]};
+ const L=rg(P.map(p=>p[2])),R=rg(P.map(p=>p[3]));
+ const X=v=>pl+(v-x0)/(x1-x0)*(W-pl-pr),Y=(v,A)=>pt+(H-pt-pb)*(1-(v-A[0])/(A[1]-A[0]));
+ const fm=v=>Math.abs(v)>=100?v.toFixed(0):v.toFixed(1);
+ [0,.25,.5,.75,1].forEach(k=>{const yy=pt+(H-pt-pb)*k;x.strokeStyle='#21262d';x.beginPath();x.moveTo(pl,yy);x.lineTo(W-pr,yy);x.stroke();
+  x.fillStyle='#58a6ff';x.fillText(fm(L[1]-(L[1]-L[0])*k),4,yy+3);x.fillStyle='#d29922';x.fillText(fm(R[1]-(R[1]-R[0])*k),W-pr+4,yy+3)});
+ x.strokeStyle='#30363d';x.setLineDash([3,3]);x.beginPath();x.moveTo(pl,Y(0,L));x.lineTo(W-pr,Y(0,L));x.stroke();
+ x.strokeStyle='#8b949e';x.beginPath();x.moveTo(X(r.px),pt);x.lineTo(X(r.px),H-pb);x.stroke();
+ x.strokeStyle='#3fb95099';[r.px*(1+h),r.px*(1-h)].forEach(v=>{if(v<x0||v>x1)return;x.beginPath();x.moveTo(X(v),pt);x.lineTo(X(v),H-pb);x.stroke()});x.setLineDash([]);
+ const ln=(i,A,c)=>{x.strokeStyle=c;x.lineWidth=1.6;x.beginPath();P.forEach((p,k)=>{const xx=X(p[1]),yy=Y(p[i],A);k?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke();x.lineWidth=1};
+ ln(2,L,'#58a6ff');ln(3,R,'#d29922');
+ x.fillStyle='#8b949e';x.fillText(gfp(x0,r.px)+' (−15%)',pl,H-5);x.fillText(gfp(r.px,r.px),X(r.px)-18,H-5);x.fillText(gfp(x1,r.px)+' (+15%)',W-pr-70,H-5);}
+function gamExp(cv,E){const x=cv.getContext('2d'),W=cv.width,H=cv.height,pl=46,pt=12,pb=34;x.clearRect(0,0,W,H);x.font='10px sans-serif';
+ if(!E.length){x.fillStyle='#8b949e';x.fillText('нет опционов',10,20);return}
+ let lo=Math.min(0,...E.map(e=>e.g1s)),hi=Math.max(0,...E.map(e=>e.g1l));if(hi-lo<1e-9)hi=1;
+ const Y=v=>pt+(H-pt-pb)*(1-(v-lo)/(hi-lo)),step=(W-pl-8)/E.length,bw=Math.min(36,step*0.6);
+ x.strokeStyle='#30363d';x.beginPath();x.moveTo(pl,Y(0));x.lineTo(W-4,Y(0));x.stroke();
+ x.fillStyle='#8b949e';x.fillText(hi.toFixed(0),4,Y(hi)+8);x.fillText(lo.toFixed(0),4,Y(lo));
+ E.forEach((e,i)=>{const cx=pl+step*i+step/2;
+  x.fillStyle='#3fb950';x.fillRect(cx-bw/2,Y(e.g1l),bw,Y(0)-Y(e.g1l));
+  x.fillStyle='#f85149';x.fillRect(cx-bw/2,Y(0),bw,Y(e.g1s)-Y(0));
+  x.fillStyle='#e6edf3';x.beginPath();x.arc(cx,Y(e.g1),3,0,7);x.fill();
+  x.fillStyle='#8b949e';x.fillText(e.exp.replace(/26$|27$/,''),cx-16,H-20);x.fillStyle=e.t<0?'#f85149':'#3fb950';x.fillText('Θ '+(e.t>0?'+':'')+e.t.toFixed(1),cx-18,H-6);});
+ x.fillStyle='#8b949e';x.fillText('● нетто',W-50,pt+2);}
+function renderKPos(d){const P=d.groups.ALL.pos||[];
+ let s='<tr><th>группа</th><th>контракт</th><th>ст</th><th>разм</th><th>Δ</th><th>Δ$</th><th>Γ</th><th>Θ/д</th><th>Vega</th><th>IV</th><th>uPnL</th></tr>';
+ P.forEach(p=>{s+=`<tr><td style="color:#8b949e">${p.grp}</td><td>${p.sym}</td><td class="${p.side=='B'?'pos':'neg'}">${p.side}</td><td>${p.sz}</td><td>${p.d}</td><td>${p.dusd}</td><td>${p.g}</td><td class="${cl(p.t)}">${p.t}</td><td>${p.v}</td><td>${p.iv==null?'':p.iv+'%'}</td><td class="${cl(p.up)}">${p.up}</td></tr>`;});
+ $('kpos').innerHTML=s;}
+function bookPay(cv,g,sm){const x=cv.getContext('2d'),W=cv.width,H=cv.height,p=sm?30:46;x.clearRect(0,0,W,H);x.font=(sm?9:11)+'px sans-serif';
+ const P=g.pay,N=g.now||[];if(!P||P.length<2){x.fillStyle='#8b949e';x.fillText('нет данных',10,20);return}
+ const xs=P.map(a=>a[0]),ys=P.map(a=>a[1]).concat(N.map(a=>a[1]));
+ const x0=Math.min(...xs),x1=Math.max(...xs);let y0=Math.min(0,...ys),y1=Math.max(0,...ys);if(y1==y0){y1+=1;y0-=1}
+ const X=v=>p+(v-x0)/(x1-x0)*(W-2*p),Y=v=>H-p+10-(v-y0)/(y1-y0)*(H-2*p);
+ x.strokeStyle='#30363d';x.beginPath();x.moveTo(p,Y(0));x.lineTo(W-p,Y(0));x.stroke();
+ const cur=g.pct?0:g.px;
+ x.strokeStyle='#8b949e';x.setLineDash([4,4]);x.beginPath();x.moveTo(X(cur),p-20);x.lineTo(X(cur),H-p+10);x.stroke();x.setLineDash([]);
+ const line=(A,c,w)=>{if(!A.length)return;x.strokeStyle=c;x.lineWidth=w;x.beginPath();A.forEach((a,i)=>i?x.lineTo(X(a[0]),Y(a[1])):x.moveTo(X(a[0]),Y(a[1])));x.stroke();x.lineWidth=1;};
+ line(N,'#58a6ff',sm?1.3:1.6);line(P,'#3fb950',sm?1.5:2);
+ (g.be||[]).forEach(b=>{x.fillStyle='#8b949e';x.beginPath();x.arc(X(b),Y(0),sm?2:3,0,7);x.fill();if(!sm)x.fillText((g.pct?(+b).toFixed(1):+(+b).toPrecision(5))+(g.pct?'%':''),X(b)-16,Y(0)+16)});
+ const fx=v=>Math.abs(v)>=100?Math.round(v):+(+v).toPrecision(4);
+ x.fillStyle='#8b949e';x.fillText('$'+Math.round(y1),3,Y(y1)+8);x.fillText('$'+Math.round(y0),3,Y(y0));
+ x.fillText(fx(x0)+(g.pct?'%':''),p-10,H-4);x.fillText(fx(x1)+(g.pct?'%':''),W-p-20,H-4);
+ if(!sm){x.fillText(g.pct?'сейчас 0%':(g.main+' '+g.px),X(cur)-28,p-24);x.fillStyle='#3fb950';x.fillText('━ на экспирации',p+60,H-4);x.fillStyle='#58a6ff';x.fillText('━ сейчас (T+0)',p+170,H-4);}}
+function bhSeries(B,w){const p0={};B.forEach(p=>{for(const k in (p[8]||{})) if(p0[k]==null&&p[8][k]>0)p0[k]=p[8][k];});
+ const x0=p0.ETH,S=i=>B.filter(p=>p[i]!=null).map(p=>[p[0],p[i]]);
+ const bk=p=>{let s=0,ws=0;for(const k in w){const a=(p[8]||{})[k];if(a>0&&p0[k]>0){s+=w[k]*(a/p0[k]-1);ws+=w[k];}}return ws?s/ws*100:null;};
+ return {S,eth:x0?B.filter(p=>(p[8]||{}).ETH>0).map(p=>[p[0],(p[8].ETH/x0-1)*100]):[],bk:B.map(p=>[p[0],bk(p)]).filter(a=>a[1]!=null)};}
+async function khtick(){ if(TAB!='K')return;
+ let d; try{d=await (await fetch('/hist')).json()}catch(e){return}
+ if(d.err){$('ktnote').textContent='история: ошибка '+d.err;return}
+ KH=d; const B=d.bhist||[],w=d.basket_w||{},q=bhSeries(B,w);
+ drawLines('kt1',[{n:'эквити $',c:'#e6edf3',pts:q.S(1),u:'$'},{n:'ETH',c:'#58a6ff',r:1,u:'%',pts:q.eth},{n:'корзина',c:'#d29922',r:1,u:'%',pts:q.bk}],{u:'%'});
+ drawLines('kt2',[{n:'Δ$',c:'#58a6ff',pts:q.S(5)}],{u:'$'});
+ drawLines('kt3',[{n:'IM %',c:'#d29922',pts:q.S(2)}],{u:'%'});
+ drawLines('kt4',[{n:'MM %',c:'#f85149',pts:q.S(3)}],{u:'%'});
+ drawLines('kt5',[{n:'Θ $/день',c:'#3fb950',pts:q.S(6)}],{u:'$'});
+ drawLines('kt6',[{n:'вега $',c:'#bc8cff',pts:q.S(7)}],{u:'$'});
+ $('ktnote').textContent='Корзина = '+Object.entries(w).map(([k,v])=>k+' '+(v*100).toFixed(0)+'%').join(', ')+(d.basket_eq?' (лонгов нет — равные веса)':' (лонговые крипто-ноги кроме ETH, веса по Δ$)')+'. Сбрасывается при перезапуске сервера.'+(d.sample_err?' ⚠ сэмплер: '+d.sample_err:'');}
 // ===================== АРБИТРАЖ =====================
 function setASub(k){ASUB=k;['mine','scan','gold','pairs'].forEach(x=>{$('as'+x[0].toUpperCase()+x.slice(1)).style.display=x==k?'':'none';$('asb_'+x).classList.toggle('on',x==k);});
  try{localStorage.setItem('asub',k)}catch(e){} if(k=='gold')gtick(); else if(k=='pairs')ptick(); else atick();}
@@ -1045,14 +1209,10 @@ function renderArb(d){
   +tile('Δ$ портфеля',sg(T.dusd),Math.abs(T.dusd)<150?'pos':'warn')+tile('Δ ETH-экв. (β)',sg(T.eq),Math.abs(T.eq)<150?'pos':'warn')
   +tile('Γ$ на 1%',sg(T.g1),'')+tile('Vega',sg(T.v),'')+tile('Θ / день',sg(T.t),cl(T.t))
   +tile('Фандинг $/день',sg(T.fund_day),cl(T.fund_day))+tile('связок / открытых',T.links+' / '+T.open,'');
- const B=d.bhist||[], w=d.basket_w||{};
- const p0={}; B.forEach(p=>{for(const k in (p[8]||{})) if(p0[k]==null&&p[8][k]>0)p0[k]=p[8][k];});
- const x0=p0.ETH;
- const S=(i,f)=>B.filter(p=>p[i]!=null).map(p=>[p[0],f?f(p):p[i]]);
- const bk=p=>{let s=0,ws=0;for(const k in w){const a=(p[8]||{})[k];if(a>0&&p0[k]>0){s+=w[k]*(a/p0[k]-1);ws+=w[k];}}return ws?s/ws*100:null;};
+ const B=d.bhist||[], w=d.basket_w||{}, q=bhSeries(B,w), S=q.S;
  drawLines('ach1',[{n:'эквити $',c:'#e6edf3',pts:S(1),u:'$'},
-  {n:'ETH',c:'#58a6ff',r:1,u:'%',pts:x0?B.filter(p=>(p[8]||{}).ETH>0).map(p=>[p[0],(p[8].ETH/x0-1)*100]):[]},
-  {n:'корзина',c:'#d29922',r:1,u:'%',pts:B.map(p=>[p[0],bk(p)]).filter(a=>a[1]!=null)}],{u:'%'});
+  {n:'ETH',c:'#58a6ff',r:1,u:'%',pts:q.eth},
+  {n:'корзина',c:'#d29922',r:1,u:'%',pts:q.bk}],{u:'%'});
  drawLines('ach2',[{n:'IM %',c:'#d29922',pts:S(2)}],{u:'%'});
  drawLines('ach2b',[{n:'MM %',c:'#f85149',pts:S(3)}],{u:'%'});
  drawLines('ach2c',[{n:'IV ETH %',c:'#bc8cff',pts:S(4)}],{u:'%'});
@@ -1111,8 +1271,8 @@ function drawLines(id,ser,o){const c=$(id),x=c.getContext('2d'),W=c.width,H=c.he
   const lv=s.pts[s.pts.length-1][1],su=s.u||o.u,lab=s.n+' '+(lv>0&&su=='%'?'+':'')+fm(lv)+(su=='%'?'%':'');x.fillStyle=s.c;x.fillRect(lx,pt+2,10,3);x.fillText(lab,lx+14,pt+8);lx+=x.measureText(lab).width+30});
  const hm=s=>new Date(s*1000).toTimeString().slice(0,5);x.fillStyle='#8b949e';x.fillText(hm(t0),pl,H-4);x.fillText(hm(t1),W-pr-30,H-4);}
 try{const t=localStorage.getItem('gw');if(t&&['2d','30d','166d'].includes(t))setGW(t);}catch(e){}
-try{let t=localStorage.getItem('tab');if(t=='P'){ASUB='pairs';t='A';} if(['A','G','T'].includes(t))showTab(t);}catch(e){}
-setInterval(gtick,4000);setInterval(ttick,6000);setInterval(ptick,6000);setInterval(atick,6000);
+try{let t=localStorage.getItem('tab');if(t=='P'){ASUB='pairs';t='A';} if(['E','A','G','T'].includes(t))showTab(t);}catch(e){}
+setInterval(gtick,4000);setInterval(ttick,6000);setInterval(ptick,6000);setInterval(atick,6000);setInterval(khtick,20000);khtick();
 tick();setInterval(tick,4000);
 </script></body></html>'''
 
@@ -1135,6 +1295,10 @@ class Handler(BaseHTTPRequestHandler):
             self._write(body, "application/json")
         elif self.path.startswith("/arb"):
             try: body = json.dumps(arb_book.arb_snapshot(sget, pub, _port)).encode()
+            except Exception as e: body = json.dumps({"err":str(e)}).encode()
+            self._write(body, "application/json")
+        elif self.path.startswith("/hist"):
+            try: body = json.dumps(arb_book.hist(_port())).encode()
             except Exception as e: body = json.dumps({"err":str(e)}).encode()
             self._write(body, "application/json")
         elif self.path.startswith("/port"):

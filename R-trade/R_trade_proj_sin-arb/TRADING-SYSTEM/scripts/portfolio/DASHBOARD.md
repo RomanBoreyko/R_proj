@@ -47,14 +47,16 @@
 
 | Кнопка | id вкладки | Маршрут | Бэкенд | JS-рендер | Интервал |
 |---|---|---|---|---|---|
-| Портфель | `tabE` | `/port` | `portfolio_book.portfolio_snapshot` | `tick` → `renderPort` → `renderPVol`, `renderPSpot`, `renderPBS`, `drawPPay`, `renderPPos` | 4с |
+| **Книга** (главная, по умолчанию) | `tabK` | `/port` + `/hist` | `portfolio_snapshot`; `arb_book.hist` (история сэмплера + веса корзины) | `tick` → `renderBook` (`bookPay` — payoff в любой canvas, `renderKPos`); `khtick` → `drawLines` | 4с / 20с |
+| Ещё ▾ → Портфель: детали | `tabE` | `/port` | `portfolio_book.portfolio_snapshot` | `tick` → `renderPort` → `renderPVol`, `renderPSpot`, `renderPBS`, `drawPPay`, `renderPPos` | 4с |
 | Арбитраж → Мой арб-портфель / Сканер | `tabA` → `asMine` / `asScan` | `/arb` | `arb_book.arb_snapshot` (`book` + `scan`) | `atick` → `renderArb`, `drawLines` | 6с |
 | Арбитраж → Золото XAUT/XAU | `tabA` → `asGold` | `/gold` | `gold_snapshot` | `gtick`, `renderGold`, `drawSpread` | 4с |
 | Арбитраж → Стат-арб (пары) | `tabA` → `asPairs` | `/pairs` | `tail_pairs.pairs_snapshot` (тяжёлая часть в фоне) | `ptick`, `drawZ` | 6с |
 | Золото: опционы | `tabG` | `/gold` | `gold_snapshot`, `gold_wings` | `gtick`, `renderWings` (+ `#ggreeks`, `#gpos` из `renderGold`) | 4с |
 | Хвосты ETH | `tabT` | `/tail` | `tail_pairs.tail_snapshot` | `ttick`, `drawDV` | 6с |
 
-- Переключение вкладок — `showTab(t)`, где `t` ∈ `'E','A','G','T'`. Подвкладки «Арбитража» — `setASub(k)`, `k` ∈ `mine`, `scan`, `gold`, `pairs` (глобальная `ASUB`, localStorage `asub`).
+- Переключение вкладок — `showTab(t)`, где `t` ∈ `'K','E','A','G','T'`. Видны кнопки «Книга» и «Ещё ▾» (`bookMore()` раскрывает `#moreBox` с E/A/G/T; при открытой второстепенной вкладке меню остаётся раскрытым).
+- **2026-11-09 «Книга»:** `tick()` опрашивает `/port` всегда, но рендерит **только активную** вкладку (`renderBook` при K, `renderPort` при E) — раньше `renderPort` перерисовывал скрытую вкладку каждые 4 с. Сетка payoff по группам (`#kpgrid`, canvas `kp_<KEY>`) пересобирается только при смене состава групп (`KGK`). Таблица позиций `#kpos` строится только при раскрытом `<details id="kposd">`. Графики времени `kt1..kt6` — из `/hist` раз в 20 с, без тяжёлого `/arb`. Подвкладки «Арбитража» — `setASub(k)`, `k` ∈ `mine`, `scan`, `gold`, `pairs` (глобальная `ASUB`, localStorage `asub`).
 - **2026-11-07 перенос:** вкладка «Факторные спреды» (`tabP`) удалена — её блоки с теми же id живут в `#asPairs`. Блоки спреда XAUT/XAU (`#gacct`, `#gbar`, `#gwarn`, `#gtiles`, `#gconv`, `#gdiv`, кнопки окон, `#gcv`, `#gstat`, `#gspread`, сноска) перенесены в `#asGold` с теми же id. Поэтому `renderGold` пишет в обе вкладки, а `gtick` работает при `TAB=='G'` **или** `TAB=='A' && ASUB=='gold'`; `ptick` — только при `TAB=='A' && ASUB=='pairs'`. Сохранённая вкладка `'P'` открывается как «Арбитраж → пары».
 - Таймеры работают всегда, но каждый `*tick` сразу выходит, если активна не его вкладка. Исключение — `tick()` для `/port`: он опрашивает всегда, поэтому вкладка «Портфель» открывается мгновенно.
 
@@ -125,6 +127,13 @@
 - Сценарии (`STRESS_MOVES` = ±5/10/20%): только ETH; только корзина (крипто-базы кроме ETH); ETH +m / корзина −m; согласованно по β (актив β·m). Некрипто-активы двигаются только в последнем.
 - JSON: `groups.ALL.beta = {rows:[{base,dusd,beta,corr,crypto,eq}], eq_total, eq_crypto, basket:[..], stress:{moves:[..], rows:[{name,pnl:[..]}]}}`; `groups.ALL.tot.eq = eq_total`.
 - Фронт: блок `#betawrap` (`betatiles`, `betatab`, `betastress`, `betanote`), рендер `renderPBeta(d,g)`, виден только при `PG=='ALL'`. Корреляция < 0.7 при |Δ$| ≥ `flat` подсвечивается «слабый хедж».
+
+### Гамма и скальп (`_gamma_view`, только `ALL`)
+- `groups.ALL.gam = [{base, px, g, g1, t, v, true, dusd, be, iv, rv, perp, prof:[[m%, S1, Δ$, Γ$1%]], exps:[{exp, dte, g1, g1l, g1s, t, v, n}]}]` — по каждому активу с опционами, сортировка по |Γ$1%|.
+- `be` — безубыточный дневной ход, % = √(2|Θ| / (Γ$1%·100)): при нём ½·Γ·(ΔS)² = |Θ|.
+- `prof` — профиль ±15% шагом 1%: опционы через `_bsdg` (BS-дельта и гамма при текущей markIv, без улыбки), перпы, спот и Earn линейно. Точка 0% совпадает с Δ от Bybit.
+- `exps` — Γ$1% по экспирациям: `g1l` купленные, `g1s` проданные, плюс Θ и вега.
+- Фронт (`renderGam`, `gamProf`, `gamExp`): Γ шт/$1 считается из Γ$1% (`g` у BTC округляется до 0). Шаг сетки — кнопки 0.5/1/1.5/2% или «= безубыток» (localStorage `kgs`). Объём шага = |Γ|·S·шаг, $ за цикл = Γ$1%·100·шаг² − 2 мейкер-комиссии (0.036%). Ребаланс до истинной Δ = 0 перпом BASEUSDT, у XAUT — через `hedge_xau` всей группы «Золото». Клик по строке выбирает актив для графиков (localStorage `kgb`).
 
 ### Формат ответа `/port`
 ```jsonc
@@ -252,7 +261,7 @@
 
 - **Весь HTML, CSS и JS** — одна Python raw-строка `HTML = r'''...'''`. Внутри нельзя писать `'''`. JS-шаблоны `${...}` использовать можно: строка не форматируется Python.
 - **Все `<script>` делят одну глобальную область видимости.** Повторное объявление `let` или `const` роняет **весь** скрипт: кнопки перестают работать, в консоли `Identifier 'X' has already been declared`. Это уже случалось с `PD` и `sg`.
-  - Занятые глобальные имена: `$`, `tile`, `sg`, `pm`, `TAB`, `renderPBeta`, `LAST`, `GREEK`, `GL`, `PORT`, `PG`, `PSEL`, `PD`, `GW`, `GLD`, `cl`, `vcls`, `ASUB`, `setASub`, `atick`, `renderArb`, `drawLines` (универсальный линейный график: `drawLines(id, [{n,c,pts,r}], {u})`, `r` — правая ось).
+  - Занятые глобальные имена: `$`, `tile`, `sg`, `pm`, `TAB`, `renderPBeta`, `LAST`, `GREEK`, `GL`, `PORT`, `PG`, `PSEL`, `PD`, `GW`, `GLD`, `cl`, `vcls`, `ASUB`, `setASub`, `atick`, `renderArb`, `drawLines` (универсальный линейный график: `drawLines(id, [{n,c,pts,r}], {u})`, `r` — правая ось), `KH`, `KGK`, `bookMore`, `renderBook`, `renderKPos`, `bookPay`, `bhSeries` (ряды эквити/ETH/корзины из `bhist`, общий для «Книги» и «Арбитража»), `khtick`, `GSTEP`, `GAMB`, `setGS`, `setGB`, `gfp`, `gfq`, `renderGam`, `gamProf`, `gamExp`.
   - `sg` и `pm` объявлены `const` в середине скрипта (раздел «ЗОЛОТО»): вызывать их на верхнем уровне **до** этой строки нельзя (TDZ), внутри функций — можно.
   - Перед добавлением имени проверить его так: `grep -nE "(const|let|function) ИМЯ\b" book_dashboard.py`.
   - Новый код вкладки лучше давать с префиксом (`port*`, `tail*`, `pair*`).
@@ -264,7 +273,7 @@
 - **Тема только тёмная** (фон `#0d1117`).
 - **Canvas рисуется вручную** (`drawPPay`, `drawSpread`, `drawDV`, `drawZ`): оси, подписи и легенда — функциями 2D-контекста.
 - **localStorage:**
-  - `tab` — восстанавливаются A, G и T (старое `P` → «Арбитраж → пары»); по умолчанию открывается E;
+  - `tab` — восстанавливаются E, A, G и T (старое `P` → «Арбитраж → пары»); по умолчанию открывается K («Книга»);
   - `asub` — подвкладка «Арбитража»;
   - `pg` — группа портфеля;
   - `gw` — окно золота.
@@ -349,3 +358,8 @@ import portfolio_book as pb; pb.portfolio_snapshot(sget, pub)
 - **2026-11-08**
   - «Арбитраж → Мой арб-портфель»: 3 графика во времени — эквити $ / ETH и корзина % от начала окна, отдельными графиками IM, MM, IV ETH, Δ$, Θ, вега (`drawLines`, canvas `ach1`, `ach2`, `ach2b`, `ach2c`, `ach3..5`). История — фоновый сэмплер `_sampler` → `arb_book.sample` раз в 20 с в памяти (`BOOK_H`); `RISK_H` теперь тоже пишет сэмплер.
   - График «Остаточный риск во времени» убран (по просьбе); плитка осталась, `RISK_H`/`hist` в ответе `/arb` сохранены. `drawRisk` удалена.
+- **2026-11-09**
+  - Главная вкладка **«Книга»** (`tabK`): плитки эквити/IM/MM/запас/Δ$/Δ ETH-экв./Θ/вега/Γ$/uPnL, строка нарушений правил риска, payoff всего портфеля + сетка payoff по группам, таблица групп, стресс T+0 с запасом над MM, 6 графиков во времени, свёрнутая таблица позиций. Остальные вкладки — в меню «Ещё ▾»; «Портфель» переименован в «Портфель: детали».
+  - Маршрут `/hist` → `arb_book.hist(port)` (`bhist`, `basket_w`, `basket_eq`, `sample_err`); веса корзины вынесены в `arb_book.basket_weights(rows)`, `book()` использует его же.
+  - Оптимизация: `tick()` рендерит только активную вкладку; общий JS-хелпер `bhSeries` вместо копии в `renderArb`.
+  - «Книга» → блок **«Гамма и скальп»**: таблица по активам (Γ, Γ$1%, Θ, Δ, безубыточный ход против IV/д и RV/д, ребаланс, шаг сетки, объём, уровни, $ за цикл, циклов в день на Θ), профиль Δ$/Γ$ по цене и Γ$ по экспирациям. Бэкенд — `portfolio_book._gamma_view` и `_bsdg` (`groups.ALL.gam`).

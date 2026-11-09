@@ -284,6 +284,21 @@ def sample(port):
                    tot.get("dusd"), tot.get("t"), tot.get("v"), px])
 
 
+def basket_weights(rows):
+    """Веса корзины графика «эквити/ETH/корзина»: лонговые (Δ$ > 0) крипто-базы кроме ETH, по Δ$."""
+    bw = {r["base"]: ff(r.get("dusd")) for r in rows if _is_crypto(r["base"]) and r["base"] not in BASKET_X and ff(r.get("dusd")) > 0}
+    s = sum(bw.values())
+    if s > 0: return {k: round(v / s, 4) for k, v in bw.items()}, False
+    return {"BTC": 0.3333, "SOL": 0.3333, "MNT": 0.3334}, True
+
+
+def hist(port):
+    """Лёгкий ответ /hist для вкладки «Книга»: история сэмплера + веса корзины (без скана и связок)."""
+    if not BOOK_H: sample(port)
+    bw, beq = basket_weights(port["groups"]["ALL"].get("rows", []))
+    return {"bhist": list(BOOK_H), "basket_w": bw, "basket_eq": beq, "sample_err": _SAMPLE_ERR["e"]}
+
+
 def book(port, pub):
     A = port["groups"]["ALL"]
     pos, rows, tot = A.get("pos", []), A.get("rows", []), A.get("tot", {})
@@ -291,10 +306,7 @@ def book(port, pub):
     resid, cmin, cmax = _resid(port)
     if not RISK_H: sample(port)
     # ---------- веса корзины графика 1: лонговые крипто-базы кроме ETH по Δ$ ----------
-    bw = {r["base"]: ff(r.get("dusd")) for r in rows if _is_crypto(r["base"]) and r["base"] not in BASKET_X and ff(r.get("dusd")) > 0}
-    s = sum(bw.values())
-    if s > 0: bw = {k: round(v / s, 4) for k, v in bw.items()}; beq = False
-    else: bw = {"BTC": 0.3333, "SOL": 0.3333, "MNT": 0.3334}; beq = True
+    bw, beq = basket_weights(rows)
     # ---------- ноги ----------
     legs = []
     for p in pos:

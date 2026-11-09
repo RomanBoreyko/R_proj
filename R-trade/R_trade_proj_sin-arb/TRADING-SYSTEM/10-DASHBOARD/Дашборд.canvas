@@ -72,7 +72,7 @@
       "x": 760,
       "y": -40,
       "width": 340,
-      "height": 620,
+      "height": 740,
       "color": "3"
     },
     {
@@ -275,6 +275,16 @@
       "width": 260,
       "height": 80,
       "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/12-CONCEPTS/Арбитражный портфель.md"
+    },
+    {
+      "id": "tK",
+      "type": "file",
+      "file": "Project/R_vault/R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/10-DASHBOARD/Вкладка Книга.md",
+      "x": 800,
+      "y": 600,
+      "width": 260,
+      "height": 80,
+      "color": "4"
     }
   ],
   "edges": [
@@ -502,6 +512,52 @@
       "fromSide": "right",
       "toSide": "right",
       "label": "остаточный риск"
+    },
+    {
+      "id": "e30",
+      "fromNode": "mpb",
+      "toNode": "tK",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "/port"
+    },
+    {
+      "id": "e31",
+      "fromNode": "mab",
+      "toNode": "tK",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "/hist"
+    },
+    {
+      "id": "e32",
+      "fromNode": "tK",
+      "toNode": "c4",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "e33",
+      "fromNode": "tK",
+      "toNode": "c5",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "e34",
+      "fromNode": "tK",
+      "toNode": "c1",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "e35",
+      "fromNode": "rules",
+      "toNode": "tK",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "лимиты",
+      "color": "1"
     }
   ]
 }
