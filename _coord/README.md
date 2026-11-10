@@ -41,6 +41,6 @@ re:                 # имя файла, на который отвечаешь
 
 ## Старт сессии (чек-лист)
 
-1. `git pull --rebase origin main`
+1. `git pull --rebase --autostash origin main`
 2. Открыть `_coord/inbox/` — сообщения с `to:` своим позывным или `все` и `status: open`.
 3. Ответить / отметить `ack`, затем работать.

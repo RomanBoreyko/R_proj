@@ -70,7 +70,7 @@ D:\Vault\Project\R_vault ──git──► GitHub RomanBoreyko/R_proj
 - **Зоны.** Правишь только свою папку. В чужой — ничего; нужно — сообщение владельцу в `_coord/inbox/`.
   Общие файлы (`CLAUDE.md`, `AGENTS.md`, `MAP.md`, `ПАМЯТТКА.md`, `.gitignore`, `tools/`,
   `_coord/README.md`) — сначала сообщение в `inbox/`, правка минимальная, отдельным коммитом.
-- **Git.** `git pull --rebase origin main` в начале сессии и перед каждым push.
+- **Git.** `git pull --rebase --autostash origin main` в начале сессии и перед каждым push.
   `git add` — **только явными путями** (не `-A`, не `.`): у соседа могут лежать незаконченные файлы.
   Автосейв (`add -A`) — только `--dry-run`, если пользователь прямо не велел иначе.
 - **Префикс коммита:** `[R-trade]`, `[R_tail]`, `[общее]` — по зоне изменений.
