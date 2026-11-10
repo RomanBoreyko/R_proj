@@ -58,7 +58,7 @@ D:\Vault\Project\R_vault ──git──► GitHub RomanBoreyko/R_proj
   `**/_telegram_archive/` (личная переписка), чужие книги `R_tail.0.4/**/*.pdf|fb2|epub|djvu`,
   `ChatExport_*`, `__pycache__`, `*.log`, `TRADING_BOOK.xlsx`, `desktop.ini`, `.stversions/`.
 - Перед ручным коммитом: `git status`, посмотреть diff, прогнать
-  `python -I tools/git_autosave.py --dry-run` (он же сканер секретов).
+  `python -I tools/git_autosave.py --dry-run` (он же сканер секретов) — **до** `git add`: dry-run сбрасывает индекс (делает `add -A`, потом снимает).
 - Коммиты по-русски, понятные. Push в `main` напрямую. Без force-push.
   Коммитить/пушить — по просьбе пользователя или через автосейв.
 
