@@ -75,7 +75,10 @@ R_trade_proj_sin-arb/
         └── fill_book.py, gen_excel.py
 ```
 
-При добавлении заметки в `TRADING-SYSTEM/` — обновить `00-INDEX.md`. Заметки на `[[wikilinks]]`.
+При добавлении заметки в `TRADING-SYSTEM/` — обновить `00-INDEX.md`. Заметки на `[[wikilinks]]`,
+**кроме** `13-LEARNING/`, `12-CONCEPTS/`, `03-STRATEGIES/` — там обычные относительные md-ссылки
+`[текст](../12-CONCEPTS/Бета%20к%20ETH.md)` (читаются на GitHub; конвертер — см. историю 2026-11-10).
+В репо работает и нейронка R_tail — правила совместной работы и связь: корневой `CLAUDE.md` («Несколько нейронок») и `_coord/`.
 Свойства (frontmatter): `type` (hub / dashboard-tab / module / concept / asset / strategy / journal),
 `status`, `asset`. При изменении дашборда (новая вкладка/блок/модуль/понятие) — обновить узлы в
 `10-DASHBOARD/` и `12-CONCEPTS/` и `Дашборд.canvas`. Упоминая актив — ставить ссылку `[[ETH]]` и т. п.
