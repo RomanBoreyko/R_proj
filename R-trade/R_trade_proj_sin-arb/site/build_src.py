@@ -57,6 +57,11 @@ def fix_links(text, here_dir, idx):
     for i in range(0, len(parts), 2):
         # «\$» внутри формул arithmatex принимает за границу формулы -> MathJax \unicode{36}
         parts[i] = WL.sub(rep, parts[i]).replace(r"\$", r"\unicode{36}")
+        # внутри \text{} макросы MathJax не работают -> «USD»
+        parts[i] = re.sub(r"\\text\{([^{}]*)\}",
+                          lambda t: r"\text{" + t.group(1).replace(r"\unicode{36}", "USD") + "}", parts[i])
+        # однострочный $$…$$ сразу после текста (Obsidian так можно, MkDocs — нет) -> inline \displaystyle
+        parts[i] = re.sub(r"(?m)(?<=\S\n)^(\s*)\$\$(.+?)\$\$[ \t]*$", r"\1$\\displaystyle \2$", parts[i])
     return "".join(parts)
 
 
