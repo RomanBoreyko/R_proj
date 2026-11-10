@@ -6,7 +6,7 @@ payoff, профиль греков и структурный срез пут/к
 import json, hmac, hashlib, time, re, datetime, math, urllib.request, urllib.parse
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import tail_pairs, portfolio_book, arb_book, tradfi_scan
+import tail_pairs, portfolio_book, arb_book, tradfi_scan, ruff_scan
 
 CREDS = r"C:\Users\DoOs\.bybit\credentials.json"; BASE = "https://api.bybit.com"
 d = json.load(open(CREDS, encoding="utf-8")); KEY, SECRET = d["api_key"], d["api_secret"]
@@ -597,7 +597,7 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 .gbtn.on{background:#1f6feb33;border-color:#1f6feb;color:#e6edf3}
 .ksub{font-size:11px;color:#8b949e;margin:6px 0 0}</style></head><body>
 <div class="hd"><b>Книга Bybit — реалтайм</b><span id="upd">загрузка...</span></div>
-<div style="margin:6px 0 4px"><span class="gbtn on" id="tbK" onclick="showTab('K')">Книга</span><span class="gbtn" id="tbT" onclick="showTab('T')">ETH: продажа края</span><span class="gbtn" id="tbF" onclick="showTab('F')">TradFi-сканер</span><span class="gbtn" id="tbMore" onclick="bookMore()">Ещё ▾</span><span id="moreBox" style="display:none"><span class="gbtn" id="tbE" onclick="showTab('E')">Портфель: детали</span><span class="gbtn" id="tbA" onclick="showTab('A')">Арбитраж</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото: опционы</span></span></div>
+<div style="margin:6px 0 4px"><span class="gbtn on" id="tbK" onclick="showTab('K')">Книга</span><span class="gbtn" id="tbT" onclick="showTab('T')">ETH: продажа края</span><span class="gbtn" id="tbF" onclick="showTab('F')">TradFi-сканер</span><span class="gbtn" id="tbR" onclick="showTab('R')">Ерши MEXC↔Bybit</span><span class="gbtn" id="tbMore" onclick="bookMore()">Ещё ▾</span><span id="moreBox" style="display:none"><span class="gbtn" id="tbE" onclick="showTab('E')">Портфель: детали</span><span class="gbtn" id="tbA" onclick="showTab('A')">Арбитраж</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото: опционы</span></span></div>
 <div id="tabK">
 <div class="row" id="ktiles"></div>
 <div id="kwarn" style="font-size:12px;margin:0 0 4px"></div>
@@ -628,6 +628,14 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 <details id="kposd" ontoggle="if(this.open&&PORT)renderKPos(PORT)"><summary id="kposs" style="cursor:pointer;color:#8b949e;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:12px">Позиции с греками</summary><table id="kpos"></table></details>
 </div>
 
+<div id="tabR" style="display:none">
+<h3>Ерши MEXC ↔ Bybit: мелкие монеты-перпы на обеих биржах — расхождение цены и фандинга, болтанка, стакан, комиссии. ТОЛЬКО МОНИТОРИНГ</h3>
+<div class="row" id="rtop"></div>
+<div style="font-size:12px;margin:4px 0" id="rctl"></div>
+<div id="rbar" style="color:#8b949e;font-size:11px;margin:2px 0"></div>
+<table id="rtab"></table>
+<div style="color:#8b949e;font-size:11px;margin-top:6px">Пары: перп USDT на Bybit (XUSDT) и на MEXC (X_USDT); монеты с разным множителем (1000X) отброшены. «Ёрш» — оборот Bybit $0.3–80 млн за 24 ч. Разница — mid MEXC к mid Bybit. Эдж — исполнимый сейчас: купить по ask дешёвой биржи, продать по bid дорогой; «чистый» — минус тейкер обеих (Bybit — ставка аккаунта, MEXC — публичная по контракту); «фанд. 8ч в направлении» — сколько за 8 ч заплатит лонг и получит шорт; «чистый + фанд.» — итог за первые 8 ч (огромный фандинг съедает ценовой эдж быстрее, чем сходятся цены). Глубина стакана не учтена — объём на лучших ценах у ершей часто маленький. Фандинг приведён к % за 8 ч (период Bybit из инструментов, MEXC — из API, у непроверенных принят 8 ч). Болтанка (по 1-часовым свечам Bybit за 48 ч): путь/смещение — сколько раз суммарный ход больше итогового (больше = сильнее мечется), пересечения средней. Перевод между биржами (сети, комиссии вывода, статус) — только через приватные API, здесь не показан. Это не арбитраж «без риска»: цены могут разойтись сильнее, вывод может быть закрыт, ликвидность исчезнуть.</div>
+</div>
 <div id="tabF" style="display:none">
 <h3>TradFi на Bybit: акции, ETF, сырьё, форекс — ликвидность, волатильность, комиссии (только чтение)</h3>
 <div class="row" id="ftop"></div>
@@ -911,9 +919,9 @@ function heat(cv,xs,ys,grid,title){const x=cv.getContext('2d'),W=cv.width,H=cv.h
 // ===================== ЗОЛОТО =====================
 let TAB='K', GW='30d', GLD=null, ASUB='mine';
 try{const v=localStorage.getItem('asub');if(['mine','scan','gold','pairs'].includes(v))ASUB=v;}catch(e){}
-function showTab(t){TAB=t;['K','E','A','G','T','F'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
+function showTab(t){TAB=t;['K','E','A','G','T','F','R'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
  const inMore=['E','A','G'].includes(t); $('tbMore').classList.toggle('on',inMore); if(inMore)$('moreBox').style.display='';
- try{localStorage.setItem('tab',t)}catch(e){} if(t=='K'){if(PORT)renderBook(PORT);khtick();} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T'){ttick();if(PORT)renderEthPort(PORT);etick();} if(t=='F')ftick(); if(t=='A')setASub(ASUB);}
+ try{localStorage.setItem('tab',t)}catch(e){} if(t=='K'){if(PORT)renderBook(PORT);khtick();} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T'){ttick();if(PORT)renderEthPort(PORT);etick();} if(t=='F')ftick(); if(t=='R')rtick(); if(t=='A')setASub(ASUB);}
 // ===================== ХВОСТЫ ETH =====================
 async function ttick(){ if(TAB!='T')return;
  let d; try{d=await (await fetch('/tail')).json()}catch(e){$('tvbar').textContent='offline';return}
@@ -1158,6 +1166,30 @@ function renderF(d){const T=d.top||{},fm=v=>v==null?'—':(v>=1e9?(v/1e9).toFixe
  R.slice(0,150).forEach((r,i)=>{h+=`<tr><td>${i+1}</td><td><b>${r.sym.replace('USDT','')}</b></td><td style="text-align:left;max-width:240px;overflow:hidden;white-space:nowrap">${r.name}</td><td>${r.type}</td><td>${r.region||'—'}</td><td>${r.px}</td><td class="${cl(r.chg)}">${sg(r.chg)}%</td><td>${fm(r.turn)}</td><td>${fm(r.oi)}</td><td>${r.spread??'—'}</td><td>${r.rng??'—'}</td><td>${r.atr??'—'}</td><td>${r.atr_sp??'—'}</td><td class="${r.maker===0?'pos':''}">${r.maker==null?'—':(r.maker*100).toFixed(3)+'%'} / ${r.taker==null?'—':(r.taker*100).toFixed(3)+'%'}</td><td class="${cl(-r.fund)}">${r.fund}</td></tr>`;});
  if(!R.length)h+='<tr><td colspan="15" style="color:#8b949e">ничего под фильтр</td></tr>';
  $('ftab').innerHTML=h; if(TAB=='F')$('upd').textContent='TradFi · '+d.t;}
+// ===================== Ерши MEXC↔Bybit (вкладка R) =====================
+let RSORT='net8', RONLY=true, RDATA=null;
+try{RSORT=localStorage.getItem('rsort')||'net8';RONLY=localStorage.getItem('ronly')!=='0';}catch(e){}
+function setR(k,v){if(k=='s')RSORT=v;if(k=='j')RONLY=v;try{localStorage.setItem('rsort',RSORT);localStorage.setItem('ronly',RONLY?'1':'0')}catch(e){} if(RDATA)renderR(RDATA);}
+async function rtick(){ if(TAB!='R')return;
+ let d; try{d=await (await fetch('/ruff')).json()}catch(e){$('rbar').textContent='offline';return}
+ if(d.err&&!d.rows){$('rbar').textContent='ошибка: '+d.err;return} RDATA=d; renderR(d);}
+function renderR(d){const T=d.top||{},fm=v=>v==null?'—':(v>=1e6?(v/1e6).toFixed(1)+' млн':v>=1e3?(v/1e3).toFixed(0)+' тыс':Math.round(v));
+ const tt=(l,r,v)=>tile(l,r?'<b>'+r.coin+'</b> · '+v(r)+'<div style="font-size:11px;color:#8b949e;font-weight:400">оборот B '+fm(r.bturn)+' / M '+fm(r.mturn)+'</div>':'—');
+ $('rtop').innerHTML=tt('лучший чистый эдж (цена + фандинг 8ч)',T.net,r=>sg(r.net8)+'% · '+r.dir)+tt('макс. разница фандинга (за 8ч)',T.fdiff,r=>'B '+r.fb+'% / M '+r.fm+'%')
+  +tt('сильнее всех мечется',T.chop,r=>'путь/смещ. '+r.chop+'× · '+r.cross+' пересеч.')+tile('пар на обеих биржах',T.n+' · ершей '+T.junk);
+ const b=(k,v,l,cur)=>`<span class="gbtn ${cur===v?'on':''}" onclick="setR('${k}',${typeof v=='string'?"'"+v+"'":v})">${l}</span>`;
+ $('rctl').innerHTML='сортировка: '+b('s','net8','чистый + фандинг 8ч',RSORT)+b('s','net','чистый эдж цены',RSORT)+b('s','adiff','|разница цены|',RSORT)+b('s','afd','|разница фандинга|',RSORT)+b('s','chop','болтанка',RSORT)+b('s','rng','диапазон 24ч',RSORT)+b('s','bturn','оборот Bybit',RSORT)
+  +' &nbsp; '+b('j',true,'только ерши',RONLY)+b('j',false,'все пары',RONLY);
+ $('rbar').textContent='обновлено '+d.t+' · болтанка/периоды фандинга: '+(d.busy?'считаются…':(d.heavy_age!=null?d.heavy_age+' с назад ('+d.osc_n+' монет)':'нет'))+(d.err?' · ошибка: '+d.err:'');
+ let R=(d.rows||[]).filter(r=>!RONLY||r.junk).map(r=>Object.assign({adiff:Math.abs(r.diff),afd:Math.abs(r.fdiff)},r));
+ R.sort((a,b2)=>((b2[RSORT]??-1e18)-(a[RSORT]??-1e18)));
+ const pc=v=>(v*100).toFixed(3)+'%';
+ let h='<tr><th>#</th><th>монета</th><th>Bybit</th><th>MEXC</th><th>разница</th><th>спред B / M</th><th>эдж сейчас</th><th>чистый</th><th>фанд. 8ч в направлении</th><th>чистый + фанд.</th><th>направление</th><th>фандинг B / M, %/8ч</th><th>разница фанд.</th><th>оборот B / M</th><th>диапазон 24ч</th><th>болтанка 48ч</th><th>пересеч.</th><th>комиссии B (м/т) · M (м/т)</th></tr>';
+ R.slice(0,120).forEach((r,i)=>{h+=`<tr><td>${i+1}</td><td><b>${r.coin}</b></td><td>${r.bb_px}</td><td>${r.mx_px}</td><td class="${Math.abs(r.diff)>0.5?'warn':''}">${sg(r.diff)}%</td><td>${r.bb_sp} / ${r.mx_sp}</td><td>${sg(r.edge)}%</td><td class="${r.net>0?'pos':''}">${sg(r.net)}%</td><td class="${cl(r.f8)}">${sg(r.f8)}%</td><td class="${r.net8>0?'pos':'neg'}"><b>${sg(r.net8)}%</b></td><td style="text-align:left;color:#8b949e">${r.net8>0?r.dir:''}</td>`
+  +`<td>${r.fb} / ${r.fm}${r.fi_m==null?'*':''}</td><td class="${Math.abs(r.fdiff)>0.1?'warn':''}">${sg(r.fdiff)}</td><td>${fm(r.bturn)} / ${fm(r.mturn)}</td><td>${r.rng??'—'}%</td><td>${r.chop??'—'}</td><td>${r.cross??'—'}</td>`
+  +`<td>${pc(r.bfee[0])}/${pc(r.bfee[1])} · ${pc(r.mfee[0])}/${pc(r.mfee[1])}${r.mzero?' <span class="pos">0-fee</span>':''}</td></tr>`;});
+ if(!R.length)h+='<tr><td colspan="18" style="color:#8b949e">нет пар</td></tr>';
+ $('rtab').innerHTML=h; if(TAB=='R')$('upd').textContent='ерши · '+d.t;}
 function drawDV(v){const cv=$('tdv'),x=cv.getContext('2d'),W=cv.width,H=cv.height;x.clearRect(0,0,W,H);const s=v.series||[];if(s.length<2)return;
  const lo=Math.min(...s,v.p10)-2,hi=Math.max(...s,v.p90)+2,X=i=>36+i/(s.length-1)*(W-110),Y=y=>8+(hi-y)/(hi-lo)*(H-16);x.font='9px sans-serif';
  [[v.p80,'#3fb950','p80 продавать'],[v.p50,'#8b949e','медиана'],[v.p10,'#d29922','p10']].forEach(([y,c,l])=>{x.strokeStyle=c;x.setLineDash([4,3]);x.beginPath();x.moveTo(36,Y(y));x.lineTo(W-74,Y(y));x.stroke();x.setLineDash([]);x.fillStyle=c;x.fillText(l+' '+y,W-72,Y(y)+3);});
@@ -1507,8 +1539,8 @@ function drawLines(id,ser,o){const c=$(id),x=c.getContext('2d'),W=c.width,H=c.he
   const lv=s.pts[s.pts.length-1][1],su=s.u||o.u,lab=s.n+' '+(lv>0&&su=='%'?'+':'')+fm(lv)+(su=='%'?'%':'');x.fillStyle=s.c;x.fillRect(lx,pt+2,10,3);x.fillText(lab,lx+14,pt+8);lx+=x.measureText(lab).width+30});
  const hm=s=>new Date(s*1000).toTimeString().slice(0,5);x.fillStyle='#8b949e';x.fillText(hm(t0),pl,H-4);x.fillText(hm(t1),W-pr-30,H-4);}
 try{const t=localStorage.getItem('gw');if(t&&['2d','30d','166d'].includes(t))setGW(t);}catch(e){}
-try{let t=localStorage.getItem('tab');if(t=='P'){ASUB='pairs';t='A';} if(['E','A','G','T','F'].includes(t))showTab(t);}catch(e){}
-setInterval(gtick,4000);setInterval(ttick,6000);setInterval(etick,20000);setInterval(ftick,15000);setInterval(ptick,6000);setInterval(atick,6000);setInterval(khtick,20000);khtick();
+try{let t=localStorage.getItem('tab');if(t=='P'){ASUB='pairs';t='A';} if(['E','A','G','T','F','R'].includes(t))showTab(t);}catch(e){}
+setInterval(gtick,4000);setInterval(ttick,6000);setInterval(etick,20000);setInterval(ftick,15000);setInterval(rtick,15000);setInterval(ptick,6000);setInterval(atick,6000);setInterval(khtick,20000);khtick();
 tick();setInterval(tick,4000);
 </script></body></html>'''
 
@@ -1523,6 +1555,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/tail") or self.path.startswith("/pairs"):
             fn = tail_pairs.tail_snapshot if self.path.startswith("/tail") else tail_pairs.pairs_snapshot
             try: body = json.dumps(fn(sget, pub)).encode()
+            except Exception as e: body = json.dumps({"err":str(e)}).encode()
+            self._write(body, "application/json")
+        elif self.path.startswith("/ruff"):
+            try: body = json.dumps(ruff_scan.ruff_snapshot(sget, pub)).encode()
             except Exception as e: body = json.dumps({"err":str(e)}).encode()
             self._write(body, "application/json")
         elif self.path.startswith("/tradfi"):
