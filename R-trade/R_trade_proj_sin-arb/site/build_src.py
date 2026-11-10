@@ -59,10 +59,51 @@ def fix_links(text, here_dir, idx):
         # (сначала внутри \text{} — там макросы MathJax не работают -> «USD»)
         parts[i] = re.sub(r"\\text\{([^{}]*)\}",
                           lambda t: r"\text{" + t.group(1).replace(r"\$", "USD") + "}", WL.sub(rep, parts[i]))
+        parts[i] = "\n".join(fix_dollars(l) for l in parts[i].split("\n"))
         parts[i] = parts[i].replace(r"\$", r"\unicode{36}")
         # однострочный $$…$$ сразу после текста (Obsidian так можно, MkDocs — нет) -> inline \displaystyle
         parts[i] = re.sub(r"(?m)(?<=\S\n)^(\s*)\$\$(.+?)\$\$[ \t]*$", r"\1$\\displaystyle \2$", parts[i])
     return "".join(parts)
+
+
+CYR = re.compile(r"[А-Яа-яЁё]")
+
+
+def _is_math(seg):
+    """Кусок между $…$ похож на формулу: без кириллицы вне \\text{}/индексов и без **жирного**."""
+    t = re.sub(r"\\(?:text|mathrm|operatorname)\{[^{}]*\}", "", seg)
+    t = re.sub(r"_\{[^{}]*\}|_\S", "", t)
+    return not CYR.search(t) and "**" not in t
+
+
+def fix_dollars(line):
+    """Валютный «$» в прозе (≈ $377, Γ$ на 1%) -> &#36;, чтобы arithmatex не принял его за формулу.
+    Правила как у Pandoc: после открывающего $ нет пробела, перед закрывающим нет пробела,
+    за закрывающим не цифра; плюс содержимое должно быть похоже на формулу."""
+    s, out, i, n = line, [], 0, len(line)
+    while i < n:
+        c = s[i]
+        if c == "\\" and i + 1 < n:
+            out.append(s[i:i + 2]); i += 2; continue
+        if c != "$":
+            out.append(c); i += 1; continue
+        if s.startswith("$$", i):
+            j = s.find("$$", i + 2)
+            if j < 0:
+                out.append(s[i:]); break
+            out.append(s[i:j + 2]); i = j + 2; continue
+        if i + 1 < n and not s[i + 1].isspace():
+            j = i + 1
+            while j < n:
+                if s[j] == "\\":
+                    j += 2; continue
+                if s[j] == "$" and not s[j - 1].isspace() and not (j + 1 < n and s[j + 1].isdigit()):
+                    break
+                j += 1
+            if j < n and _is_math(s[i + 1:j]):
+                out.append(s[i:j + 1]); i = j + 1; continue
+        out.append("&#36;"); i += 1
+    return "".join(out)
 
 
 def fix_callouts(text):
