@@ -85,19 +85,30 @@ def _rv30(pub):
         return round(st.pstdev(lr)*math.sqrt(365)*100, 1)
     return cached("rv30", 600, f)
 
+def _rv7(pub):
+    def f():
+        r = pub("/v5/market/kline", {"category":"linear","symbol":"ETHUSDT","interval":"D","limit":"9"})["result"]["list"]
+        c = [ff(x[4]) for x in reversed(r)]
+        lr = [math.log(c[i]/c[i-1]) for i in range(1, len(c))][-7:]
+        return round(st.pstdev(lr)*math.sqrt(365)*100, 1)
+    try: return cached("rv7", 600, f)
+    except Exception: return None
+
 def tail_snapshot(sget, pub):
     C = TAIL_CFG
     tk = cached("eth_opt_tk", 8, lambda: {x["symbol"]: x for x in pub("/v5/market/tickers", {"category":"option","baseCoin":"ETH"})["result"]["list"]})
     S = ff(cached("eth_perp", 4, lambda: pub("/v5/market/tickers", {"category":"linear","symbol":"ETHUSDT"})["result"]["list"][0])["markPrice"])
     wb = sget("/v5/account/wallet-balance", {"accountType":"UNIFIED"})["result"]["list"][0]
     eq = ff(wb["totalEquity"]); mm = ff(wb["totalMaintenanceMargin"]); mmp = round(mm/eq*100, 1) if eq else 0
+    im = ff(wb["totalInitialMargin"]); imp = round(im/eq*100, 1) if eq else 0; buf = round(eq/mm, 2) if mm else None; av = ff(wb.get("totalAvailableBalance"))
     eth_spot = sum(ff(c["walletBalance"]) for c in wb["coin"] if c["coin"] == "ETH")
     opts = [o for o in sget("/v5/position/list", {"category":"option","baseCoin":"ETH","limit":"200"})["result"]["list"] if ff(o["size"]) > 0]
     _pl = []
     for _sc in ("USDT", "USDC"):   # ETHUSDT + ETHPERP (USDC) + инверс ETHUSD
         _pl += [p for p in sget("/v5/position/list", {"category":"linear","settleCoin":_sc,"limit":"200"})["result"]["list"]
-                if p["symbol"] in ("ETHUSDT", "ETHPERP") or p["symbol"].startswith("ETH-")]
+                if p["symbol"] in ("ETHUSDT", "ETHPERP") or p["symbol"].startswith(("ETH-", "ETHUSDT-"))]   # + датированные ETHUSDT-25DEC26
     _pl += [p for p in inverse_positions(sget) if inv_base(p["symbol"]) == "ETH"]
+    _lin = sum((ff(p["size"]) if p["side"] == "Buy" else -ff(p["size"])) for p in _pl if p["symbol"].startswith(("ETHUSDT", "ETHPERP", "ETH-")))   # линейные фьючи/перпы
     perp = sum((ff(p["size"]) if p["side"] == "Buy" else -ff(p["size"])) for p in _pl)
     legs = []
     for o in opts:
@@ -109,13 +120,15 @@ def tail_snapshot(sget, pub):
         legs.append({"sym": "-".join(pr[:4]), "exp": pr[1], "K": ff(pr[2]), "cp": pr[3], "q": q, "avg": ff(o["avgPrice"]),
                      "mark": ff(o["markPrice"]), "iv": ff(t.get("markIv")) or 0.6, "bid": ff(t.get("bid1Price")), "ask": ff(t.get("ask1Price")),
                      "d": ff(o.get("delta")), "t": ff(o.get("theta")), "v": ff(o.get("vega")), "up": ff(o.get("unrealisedPnl")),
+                     "g": ff(o.get("gamma")), "age": round((time.time()*1000 - ff(o.get("openTime") or o.get("createdTime")))/86400000, 1) if (o.get("openTime") or o.get("createdTime")) else None,
                      "T": _T(pr[1]), "dte": round(_T(pr[1])*365, 1)})
     # --- дальние шорт-путы и их крылья, по экспирам
     far = [l for l in legs if l["cp"] == "P" and l["q"] < 0 and l["K"] <= S*C["far_pct"]]
     groups = []; tot_def = 0.0; tot_naked_notional = 0.0; theta_far = 0.0; vega_far = 0.0; prem_far = 0.0
     for e in sorted(set(l["exp"] for l in far), key=lambda x: _exp_dt(x)):
         sh = sorted([l for l in far if l["exp"] == e], key=lambda l: -l["K"])
-        lo = sorted([l for l in legs if l["exp"] == e and l["cp"] == "P" and l["q"] > 0 and l["K"] < max(x["K"] for x in sh)], key=lambda l: -l["K"])
+        # покрытие — ЛЮБЫЕ купленные путы той же экспиры: и ниже (спред), и выше страйка (лонг 1700P закрывает шорт 1600P целиком)
+        lo = sorted([l for l in legs if l["exp"] == e and l["cp"] == "P" and l["q"] > 0], key=lambda l: -l["K"])
         sq = sum(-l["q"] for l in sh); lq = sum(l["q"] for l in lo)
         credit = sum(-l["q"]*l["avg"] for l in sh) - sum(l["q"]*l["avg"] for l in lo)
         now_val = sum(-l["q"]*l["mark"] for l in sh) - sum(l["q"]*l["mark"] for l in lo)
@@ -156,16 +169,109 @@ def tail_snapshot(sget, pub):
     # --- стресс всей ETH-книги (мгновенный шок)
     moves = [-0.5, -0.4, -0.3, -0.2, -0.1, -0.05, 0, 0.05, 0.1, 0.2]
     shocks = [0, 0.2, 0.4]
-    stress = []
-    for mv in moves:
-        S2 = S*(1+mv); row = []
-        for sh_ in shocks:
-            tot = (perp+eth_spot)*(S2-S)
-            for l in legs:
-                s2 = l["iv"] + (sh_ if (mv < 0 and l["cp"] == "P") else (sh_/2 if mv < 0 else sh_/3))
-                tot += l["q"]*(_bs(S2, l["K"], l["T"], s2, l["cp"]) - l["mark"])
-            row.append(round(tot))
-        stress.append({"mv": round(mv*100), "S": round(S2), "pnl": row})
+    def spnl(mv, sh_, h=0.0):   # P&L книги при ходе mv и IV-шоке sh_; h — доп. шорт фьючерса ETH
+        S2 = S*(1+mv); tot = (perp+eth_spot-h)*(S2-S)
+        for l in legs:
+            s2 = l["iv"] + (sh_ if (mv < 0 and l["cp"] == "P") else (sh_/2 if mv < 0 else sh_/3))
+            tot += l["q"]*(_bs(S2, l["K"], l["T"], s2, l["cp"]) - l["mark"])
+        return round(tot)
+    stress = [{"mv": round(mv*100), "S": round(S*(1+mv)), "pnl": [spnl(mv, s) for s in shocks]} for mv in moves]
+    # --- уровни ликвидации по цене ETH: где убыток ETH-книги (T+0) съест эквити над MM.
+    #     Прочие активы стоят. На падении IV +20 п.п., на росте +10 (spnl: коллам треть шока).
+    #     «при текущей MM» — MM не меняется; «консервативно» — MM вырастет на 10% (PM пересчитает сценарии).
+    room = eq - mm
+    def _liq(room_):
+        out = {}
+        for side, rng in (("down", [-k/100 for k in range(1, 91)]), ("up", [k/100 for k in range(1, 201)])):
+            for mv in rng:
+                if spnl(mv, 0.2 if mv < 0 else 0.1) <= -room_:
+                    out[side] = {"S": round(S*(1+mv)), "pct": round(mv*100)}; break
+        return out
+    liq = {"room": round(room, 2), "now": _liq(room), "cons": _liq(eq - 1.1*mm)}
+    # --- прикрытие голых путов шортом фьючерса против купленных коллов (одна монета → PM зачитывает)
+    def _bsd(S_, K, T, s, cp):
+        if T <= 0 or s <= 0: return (1.0 if S_ > K else 0.0) if cp == "C" else (-1.0 if S_ < K else 0.0)
+        d1 = (math.log(S_/K) + 0.5*s*s*T)/(s*math.sqrt(T))
+        return _N(d1) if cp == "C" else _N(d1) - 1
+    naked_legs = []   # голая часть каждой группы, пропорционально шортам
+    for g in groups:
+        if g["naked"] > 0:
+            sh = [l for l in far if l["exp"] == g["exp"]]; sq = sum(-l["q"] for l in sh)
+            naked_legs += [dict(l, q=l["q"]*g["naked"]/sq) for l in sh]
+    naked_q = sum(-l["q"] for l in naked_legs)
+    d_naked = lambda S_, sh_=0.0: sum(-l["q"]*-_bsd(S_, l["K"], l["T"], l["iv"]+sh_, "P") for l in naked_legs)   # >0: лонг-дельта шортов
+    d_book = lambda S_, sh_=0.0: perp + eth_spot + sum(l["q"]*_bsd(S_, l["K"], l["T"], l["iv"]+(sh_ if l["cp"] == "P" else sh_/2), l["cp"]) for l in legs)
+    calls = [l for l in legs if l["cp"] == "C"]
+    FUT = "ETHUSDT-25DEC26"; Tf = _T(FUT.split("-")[1])
+    # сверху шорт фьючерса закрывают только коллы, живущие не меньше фьючерса (11NOV/13NOV не в счёт)
+    call_q = sum(l["q"] for l in calls if l["T"] >= Tf - 1e-6)
+    fut = {}
+    for fs in (FUT,):
+        try:
+            x = cached("tk_"+fs, 30, lambda fs=fs: pub("/v5/market/tickers", {"category":"linear","symbol":fs})["result"]["list"][0])
+            F = ff(x["markPrice"]); T_ = _T(fs.split("-")[1])
+            fut = {"sym": fs, "F": round(F, 2), "basis": round((F/S-1)*100, 2), "basis_y": round((F/S-1)/T_*100, 1) if T_ > 0 else None, "dte": round(T_*365)}
+        except Exception as e: fut = {"sym": fs, "err": str(e)}
+    def variant(name, h, note):
+        h = round(max(h, 0.0), 2)
+        return {"name": name, "h": h, "usd": round(h*S), "up_naked": round(max(0.0, h-call_q), 2), "note": note,
+                "pnl": [spnl(mv, 0.2 if mv < 0 else 0.0, h) for mv in (-0.5, -0.3, -0.2, -0.1, 0.1, 0.2)]}
+    db0 = d_book(S)
+    fh = {"naked_q": round(naked_q, 2), "d_naked": round(d_naked(S), 3), "d_book": round(db0, 3), "call_q": round(call_q, 2),
+          "calls": [[l["exp"], l["K"], l["q"], l["T"] >= Tf - 1e-6] for l in calls], "perp": round(perp, 3), "fut": fut,
+          "moves": [-50, -30, -20, -10, 10, 20],
+          "base": [spnl(mv, 0.2 if mv < 0 else 0.0) for mv in (-0.5, -0.3, -0.2, -0.1, 0.1, 0.2)],
+          "variants": [variant("Δ голых путов", d_naked(S), "гасит только дельту проданного края сейчас"),
+                       variant("вся ETH-книга в ноль", db0, "дельта ETH ≈ 0: коллы, путы, инверс, спот"),
+                       variant("1:1 к голым путам", naked_q, "статично закрывает обвал до 0 на экспирации; сверху голо всё, что больше коллов")],
+          # лестница: сколько шорта держать на каждом уровне падения (дельта растёт из-за гаммы, IV растёт на падении)
+          "ladder": [{"mv": m, "S": round(S*(1+m/100)), "iv_sh": sh_, "h_naked": round(d_naked(S*(1+m/100), sh_/100), 2),
+                      "d_book": round(d_book(S*(1+m/100), sh_/100), 2)}   # дельта всей книги на уровне (без нового шорта), ETH
+                     for m, sh_ in ((-10, 10), (-20, 20), (-30, 20), (-40, 30), (-50, 30))]}
+    # --- вся ETH-книга: все ноги одной таблицей
+    def _orow(l):
+        q = l["q"]; aq = abs(q); short = q < 0
+        be = (l["K"] - l["avg"]) if l["cp"] == "P" else (l["K"] + l["avg"])          # безубыток на экспирации
+        sig = l["iv"]*math.sqrt(max(l["T"], 1e-9))                                     # 1σ до экспирации, доля цены
+        dist = l["K"]/S - 1
+        prem = l["avg"]*aq; now = l["mark"]*aq
+        return {"sym": l["sym"], "kind": ("шорт " if short else "лонг ") + l["cp"], "q": round(q, 4), "K": l["K"], "dte": l["dte"], "age": l.get("age"),
+                "dist": round(dist*100, 1), "dsig": round(dist/sig, 2) if sig > 0 else None,
+                "avg": round(l["avg"], 2), "mark": round(l["mark"], 2), "bid": l["bid"], "ask": l["ask"], "iv": round(l["iv"]*100),
+                "d1": round(l["d"]/q, 3) if q else 0, "dusd": round(l["d"]*S), "g1": round(l["g"]*S*S*0.01, 1),
+                "t": round(l["t"], 2), "v": round(l["v"], 2), "pitm": round(abs(l["d"]/q)*100) if q else None,
+                "be": round(be, 1), "be_dist": round((be/S-1)*100, 1), "prem": round(prem, 2), "now": round(now, 2),
+                "capt": round((1 - l["mark"]/l["avg"])*100) if short and l["avg"] > 0 else None,
+                "up": round(l["up"], 2), "up_pct": round(l["up"]/prem*100) if prem > 0 else None}
+    book = [_orow(l) for l in sorted(legs, key=lambda l: (_exp_dt(l["exp"]), l["cp"], l["K"]))]
+    for p in _pl:
+        if ff(p["size"]) <= 0: continue
+        q = ff(p["size"])*(1 if p["side"] == "Buy" else -1)
+        nm = p["symbol"] + (" (инв.)" if not p["symbol"].startswith(("ETHUSDT", "ETHPERP", "ETH-")) else "")
+        book.append({"sym": nm, "kind": "лонг F" if q > 0 else "шорт F", "q": round(q, 4), "avg": round(ff(p.get("avgPrice")), 2), "mark": round(ff(p.get("markPrice")), 2),
+                     "d1": 1, "dusd": round(q*S), "g1": 0, "t": 0, "v": 0, "up": round(ff(p.get("unrealisedPnl")), 2),
+                     "be": round(ff(p.get("avgPrice")), 1), "be_dist": round((ff(p.get("avgPrice"))/S-1)*100, 1) if ff(p.get("avgPrice")) else None})
+    if eth_spot:
+        # спот ETH в кошельке (куплен через ETHUSDC / ETHUSDT): средняя цена — по нетто-покупкам за 7 дней
+        def _sp():
+            fills = []
+            for sym in ("ETHUSDC", "ETHUSDT"):
+                try: fills += [(sym, x) for x in sget("/v5/execution/list", {"category":"spot","symbol":sym,"limit":"100"})["result"]["list"]]
+                except Exception: pass
+            return fills
+        fills = cached("eth_spot_fills", 60, _sp)
+        # средняя последних покупок, покрывающих текущий остаток (LIFO по времени)
+        need, cq, cv = eth_spot, 0.0, 0.0
+        for _, x in sorted([f for f in fills if f[1]["side"] == "Buy"], key=lambda f: -ff(f[1]["execTime"])):
+            take = min(ff(x["execQty"]), need - cq)
+            if take <= 0: break
+            cq += take; cv += take*ff(x["execPrice"])
+        avg = cv/cq if cq > 1e-9 else None; bq, sq_ = cq, 0.0
+        via = "/".join(sorted(set(s_ for s_, _ in fills))) or "кошелёк"
+        book.append({"sym": "ETH спот (" + via + ")", "kind": "спот", "q": round(eth_spot, 4), "avg": round(avg, 2) if avg else None, "mark": round(S, 2), "d1": 1,
+                     "dusd": round(eth_spot*S), "g1": 0, "t": 0, "v": 0,
+                     "up": round((S - avg)*min(eth_spot, bq - sq_), 2) if avg else None,
+                     "be": round(avg, 1) if avg else None, "be_dist": round((avg/S-1)*100, 1) if avg else None})
     # --- кандидаты в пут-спреды
     cands = []
     byexp = {}
@@ -204,16 +310,115 @@ def tail_snapshot(sget, pub):
     elif pct >= C["dvol_sell"]: vsig, vk = f"ПРОДАВАТЬ ВЕГУ — DVOL {dv['now']} в {pct}-м перцентиле года", "sell"
     elif pct <= C["dvol_cover"]: vsig, vk = f"ОТКУПАТЬ ШОРТЫ — вола дешёвая (DVOL {dv['now']}, {pct}-й перцентиль)", "cover"
     else: vsig, vk = f"ЖДАТЬ — DVOL {dv['now']} в {pct}-м перцентиле (продажа ≥{C['dvol_sell']}, откуп ≤{C['dvol_cover']})", "wait"
+
+    # ===================== ТРЁХНОГИЙ КАРКАС ETH (промпт 2026-11-10) =====================
+    # Нога 1 — проданные дальние путы; нога 2 — шорт инверса ETHUSD до 1:1 (вместе = синтетический проданный колл);
+    # нога 3 — купленные OTM-коллы ≤7д против роста; однодневки — проданные коллы ≤1.5д (окупают тету ноги 3).
+    inv_pl = [p for p in _pl if p.get("inv")]
+    inv_q = sum((ff(p["size"]) if p["side"] == "Buy" else -ff(p["size"])) for p in inv_pl)
+    inv_short = max(0.0, -inv_q)
+    leg1 = [l for l in far]
+    leg3 = [l for l in legs if l["cp"] == "C" and l["q"] > 0 and l["dte"] <= 7]
+    one = [l for l in legs if l["cp"] == "C" and l["q"] < 0 and l["dte"] <= 1.6]
+    used = set(id(l) for l in leg1 + leg3 + one)
+    other = [l for l in legs if id(l) not in used]
+    def lrow(l):
+        return {"sym": l["sym"], "q": round(l["q"], 4), "K": l["K"], "dte": l["dte"], "avg": round(l["avg"], 2), "mark": round(l["mark"], 2),
+                "d": round(l["d"], 4), "dusd": round(l["d"]*S), "t": round(l["t"], 2), "v": round(l["v"], 2), "up": round(l["up"], 2)}
+    def lsum(L):
+        return {"d": round(sum(l["d"] for l in L), 4), "dusd": round(sum(l["d"] for l in L)*S), "t": round(sum(l["t"] for l in L), 2),
+                "v": round(sum(l["v"] for l in L), 2), "up": round(sum(l["up"] for l in L), 2), "q": round(sum(l["q"] for l in L), 4)}
+    inv_rows = [{"sym": p["symbol"], "q": round(ff(p["size"])*(1 if p["side"] == "Buy" else -1), 4), "avg": round(ff(p["avgPrice"]), 2),
+                 "mark": round(ff(p["markPrice"]), 2), "d": round(ff(p["size"])*(1 if p["side"] == "Buy" else -1), 4),
+                 "dusd": round(ff(p["size"])*(1 if p["side"] == "Buy" else -1)*S), "t": 0, "v": 0, "up": round(ff(p["unrealisedPnl"]), 2)} for p in inv_pl]
+    lin_rows = [{"sym": p["symbol"], "q": round(ff(p["size"])*(1 if p["side"] == "Buy" else -1), 4), "avg": round(ff(p.get("avgPrice")), 2),
+                 "mark": round(ff(p.get("markPrice")), 2), "d": round(ff(p["size"])*(1 if p["side"] == "Buy" else -1), 4),
+                 "dusd": round(ff(p["size"])*(1 if p["side"] == "Buy" else -1)*S), "t": 0, "v": 0, "up": round(ff(p.get("unrealisedPnl")), 2)} for p in _pl if not p.get("inv") and ff(p["size"]) > 0]
+    def fsum(R): return {"d": round(sum(r["d"] for r in R), 4), "dusd": round(sum(r["dusd"] for r in R)), "t": 0, "v": 0, "up": round(sum(r["up"] for r in R), 2), "q": round(sum(r["q"] for r in R), 4)}
+    nq = fh["naked_q"]; dn = fh["d_naked"]
+    synth_q = round(min(inv_short, nq), 4)
+    # 2. резерв: сколько USDT держать, чтобы IM/Equity ≤ 50% (IM без пересчёта при стрессе)
+    reserve = {"im_load": round(im/eq*100, 1) if eq else None, "need_now": round(max(0.0, 2*im - eq), 2),
+               "stress": [{"mv": m, "S": round(S*(1+m/100)), "pnl": spnl(m/100, 0.2 if m < 0 else 0.1),
+                           "need": round(max(0.0, 2*im - (eq + spnl(m/100, 0.2 if m < 0 else 0.1))), 2),
+                           "room": round(eq + spnl(m/100, 0.2 if m < 0 else 0.1) - mm, 2)} for m in (-30, -20, -10, 10, 20, 30)]}
+    # 5. хедж-калькулятор: шорт фьючей (линейные + инверс) против голых путов
+    fut_d = _lin + inv_q            # дельта всех фьючей/перпов, ETH (шорт < 0)
+    h_now = round(-fut_d, 4)        # текущий шорт (если < 0 — это нетто-лонг)
+    IMR = 0.10                      # ориентир IM на 1 ETH инверса, доля цены (консервативно; в PM против путов фактически меньше)
+    hedge = {"h_now": h_now, "inv_q": round(inv_q, 4), "lin_q": round(_lin, 4), "h_delta": dn, "h_full": nq,
+             "pos_pct": round(h_now/nq*100) if nq else None,
+             "inv_by_av": round(av/(S*IMR), 2) if S else None, "inv_to_im50": round(max(0.0, 0.5*eq - im)/(S*IMR), 2) if S else None, "imr": IMR}
+    # кандидаты: трёхдневка (2–5 дн) и однодневка (≤1.6 дн), OTM-коллы +2…+10%
+    exps = sorted(set(sym.split("-")[1] for sym in tk), key=lambda e: _exp_dt(e))
+    def pick(lo, hi):
+        c = [e for e in exps if lo <= _T(e)*365 <= hi]
+        return c[0] if c else None
+    e3 = pick(1.8, 5.5); e1 = pick(0.15, 1.6)
+    def calls(e, lo=1.01, hi=1.12):
+        out = []
+        for sym, x in tk.items():
+            p = sym.split("-")
+            if p[1] != e or p[3] != "C": continue
+            K = ff(p[2])
+            if not (S*lo <= K <= S*hi): continue
+            out.append({"sym": "-".join(p[:4]), "K": K, "dist": round((K/S-1)*100, 1), "bid": ff(x["bid1Price"]), "ask": ff(x["ask1Price"]),
+                        "mark": round(ff(x["markPrice"]), 2), "iv": round(ff(x["markIv"])*100), "d": round(ff(x["delta"]), 3), "th": round(ff(x["theta"]), 3)})
+        return sorted(out, key=lambda r: r["K"])
+    c3 = calls(e3) if e3 else []; c1 = calls(e1) if e1 else []
+    l3 = lsum(leg3); l3c = sum(l["q"] for l in leg3 if l["dte"] >= 1.5)   # прикрытие синтетики считают только трёхдневки (однодневки сгорят завтра)
+    need_calls_now = round(max(0.0, synth_q - l3c), 2); need_calls_full = round(max(0.0, nq - l3c), 2)
+    calc3 = [dict(r, cost_now=round(r["ask"]*need_calls_now, 2), cost_full=round(r["ask"]*need_calls_full, 2),
+                  th_now=round(r["th"]*need_calls_now, 2), th_full=round(r["th"]*need_calls_full, 2)) for r in c3 if r["ask"] > 0][:8]
+    # 7. однодневки: объём продажи, чтобы покрыть 10/25/50% теты трёхдневок
+    th3 = abs(l3["t"]) if l3["t"] < 0 else 0.0
+    cover_q = l3["q"]   # больше этого — проданные однодневки голые
+    calc1 = []
+    for r in c1:
+        if r["bid"] <= 0 or r["th"] >= 0: continue
+        row = dict(r, qs=[round(p*th3/abs(r["th"]), 2) if th3 else 0 for p in (0.10, 0.25, 0.50)])
+        row["naked"] = [q > cover_q + 1e-9 for q in row["qs"]]
+        calc1.append(row)
+    calc1 = calc1[:8]
+    # 8. скальп синтетического пута (шорт инверса + купленные коллы)
+    syn_d = round(inv_q + l3["d"], 4)
+    def _scalp():
+        try:
+            r = sget("/v5/position/closed-pnl", {"category":"linear","symbol":"ETHUSDT","limit":"100"})["result"]["list"]
+            return {"pnl7": round(sum(ff(x["closedPnl"]) for x in r), 2), "n": len(r)}
+        except Exception as e:
+            return {"err": str(e)}
+    sc = cached("eth_scalp_pnl", 60, _scalp)
+    theta_spent = round(sum((l["avg"] - l["mark"])*l["q"] for l in leg3), 2)
+    # 9. вол-сенсор для покупки коллов: IV трёхдневки ATM против RV
+    iv3 = None
+    if e3:
+        arr = [(abs(ff(sym.split("-")[2]) - S), x) for sym, x in tk.items() if sym.split("-")[1] == e3]
+        if arr:
+            k0 = min(a[0] for a in arr); iv3 = round(st.mean([ff(x["markIv"]) for a0, x in arr if a0 == k0])*100, 1)
+    rv7 = _rv7(pub)
+    frame = {"leg1": [lrow(l) for l in leg1], "leg1s": lsum(leg1), "inv": inv_rows, "invs": fsum(inv_rows) if inv_rows else None,
+             "lin": lin_rows, "lins": fsum(lin_rows) if lin_rows else None,
+             "leg3": [lrow(l) for l in leg3], "leg3s": l3, "one": [lrow(l) for l in one], "ones": lsum(one),
+             "other": [lrow(l) for l in other], "others": lsum(other),
+             "inv_short": round(inv_short, 4), "inv_target": nq, "inv_fill": round(inv_short/nq*100) if nq else None, "synth_q": synth_q,
+             "reserve": reserve, "hedge": hedge, "e3": e3, "e1": e1, "calc3": calc3, "need_calls_now": need_calls_now, "need_calls_full": need_calls_full,
+             "calc1": calc1, "th3": round(th3, 2), "cover_q": round(cover_q, 4), "l3c": round(l3c, 4),
+             "scalp": {"syn_d": syn_d, "perp_to_neutral": round(-syn_d, 4), "pnl7": sc.get("pnl7"), "n": sc.get("n"), "err": sc.get("err"), "theta_spent": theta_spent},
+             "vol": {"iv3": iv3, "rv7": rv7, "ok": (iv3 is not None and rv7 is not None and iv3 < rv7)}}
     warns = []
     if mmp > C["mm_max"]: warns.append(f"MM {mmp}% > {C['mm_max']}% — новые продажи не открывать")
     if tot_naked_notional > 0: warns.append(f"Голые дальние путы: номинал ${tot_naked_notional:,.0f} — макс. убыток не ограничен (см. «крыло» в таблице)")
     if eq and tot_def > C["maxloss_budget"]*eq: warns.append(f"Макс. убыток спредов ${tot_def:.0f} > {int(C['maxloss_budget']*100)}% эквити")
     if hedge_theta < 0 and theta_far > 0 and -hedge_theta > 0.5*theta_far: warns.append(f"Тактические хеджи съедают {(-hedge_theta/theta_far*100):.0f}% теты дальних шортов")
-    return {"t": time.strftime("%H:%M:%S"), "S": round(S, 2), "eq": round(eq, 2), "mm": mmp, "perp": perp, "spot": round(eth_spot, 4),
+    return {"t": time.strftime("%H:%M:%S"), "S": round(S, 2), "eq": round(eq, 2), "mm": mmp, "im": imp, "buf": buf, "av": round(av, 2), "perp": perp, "spot": round(eth_spot, 4),
             "groups": groups, "tot_def": round(tot_def, 1), "naked_notional": round(tot_naked_notional), "theta_far": round(theta_far, 2),
             "vega_far": round(vega_far, 2), "prem_far": round(prem_far, 2), "budget": round(C["maxloss_budget"]*eq, 0),
             "hedges": [[l["sym"], l["q"], l["avg"], round(l["mark"],2), l["dte"], round(-l["mark"]*l["q"]/max(l["dte"], 0.25),2)] for l in hedges], "hedge_theta": round(hedge_theta, 2),
-            "stress": stress, "shocks": [int(s*100) for s in shocks], "cands": cands[:10],
+            "stress": stress, "shocks": [int(s*100) for s in shocks], "cands": cands[:10], "fh": fh, "book": book, "liq": liq, "frame": frame,
+            # греки как в конструкторе Bybit: в монетах ETH (Δ — штук ETH, Γ — Δ на $1, Θ — $/день, Vega — $ на 1 п.п. IV)
+            "bg": {"d_opt": round(sum(l["d"] for l in legs), 4), "d_lin": round(_lin, 4), "d_inv": round(perp - _lin, 4), "d_spot": round(eth_spot, 4),
+                   "g": round(sum(l["g"] for l in legs), 5), "t": round(sum(l["t"] for l in legs), 4), "v": round(sum(l["v"] for l in legs), 4)},
             "dvol": dv, "rv30": rv, "atm": atm, "vsig": vsig, "vk": vk, "warns": warns, "cfg": C}
 
 # =====================================================================

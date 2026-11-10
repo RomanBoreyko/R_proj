@@ -597,7 +597,7 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 .gbtn.on{background:#1f6feb33;border-color:#1f6feb;color:#e6edf3}
 .ksub{font-size:11px;color:#8b949e;margin:6px 0 0}</style></head><body>
 <div class="hd"><b>Книга Bybit — реалтайм</b><span id="upd">загрузка...</span></div>
-<div style="margin:6px 0 4px"><span class="gbtn on" id="tbK" onclick="showTab('K')">Книга</span><span class="gbtn" id="tbMore" onclick="bookMore()">Ещё ▾</span><span id="moreBox" style="display:none"><span class="gbtn" id="tbE" onclick="showTab('E')">Портфель: детали</span><span class="gbtn" id="tbA" onclick="showTab('A')">Арбитраж</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото: опционы</span><span class="gbtn" id="tbT" onclick="showTab('T')">Хвосты ETH</span></span></div>
+<div style="margin:6px 0 4px"><span class="gbtn on" id="tbK" onclick="showTab('K')">Книга</span><span class="gbtn" id="tbT" onclick="showTab('T')">ETH: продажа края</span><span class="gbtn" id="tbMore" onclick="bookMore()">Ещё ▾</span><span id="moreBox" style="display:none"><span class="gbtn" id="tbE" onclick="showTab('E')">Портфель: детали</span><span class="gbtn" id="tbA" onclick="showTab('A')">Арбитраж</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото: опционы</span></span></div>
 <div id="tabK">
 <div class="row" id="ktiles"></div>
 <div id="kwarn" style="font-size:12px;margin:0 0 4px"></div>
@@ -630,16 +630,41 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 
 <div id="tabT" style="display:none">
 <div class="row" id="tacct"></div>
+<div id="tliq" style="color:#8b949e;font-size:11px;margin:0 0 4px"></div>
 <div id="twarn" style="font-size:12px;margin:0 0 4px"></div>
+<div style="color:#8b949e;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Греки как в конструкторе Bybit (ETH, в монетах) · сколько фьючей нужно</div><div class="row" id="tbg"></div>
+<h3>Трёхногий каркас ETH: проданные путы · шорт инверса до 1:1 · купленные 3-дневные коллы (+ однодневки, скальп)</h3>
+<div id="tfr"></div>
+<h3>ETH: группа, вола, payoff (из снимка портфеля)</h3>
+<div class="row" id="teov"></div>
+<div id="tevol" style="font-size:12px;margin:2px 0 6px"></div>
+<canvas id="tepay" width="780" height="240"></canvas>
+<div id="tepaynote" style="color:#8b949e;font-size:11px;margin-bottom:6px"></div>
+<details id="tbookd" open><summary style="cursor:pointer;color:#8b949e;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:8px">Вся ETH-книга: опционы, фьючи, перпы, спот</summary><table id="tbookt"></table></details>
+<h3>Гамма и скальп ETH</h3>
+<div style="font-size:12px;margin:2px 0" id="tegsteps"></div><table id="tegam"></table>
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><canvas id="tegprof" width="620" height="230"></canvas><canvas id="tegexp" width="440" height="230"></canvas></div>
+<div id="tegnote" style="color:#8b949e;font-size:11px;margin:2px 0 6px"></div>
+<h3>Куплено vs продано + покрытие · спот / Earn / истинная Δ ETH</h3><table id="tebs"></table><table id="tespot" style="margin-top:6px"></table>
 <h3>Вола: продавать вегу на высокой, откупать на низкой (DVOL ETH, перцентиль за год)</h3>
 <div id="tvbar" style="margin:2px 0 4px;padding:7px 10px;border-radius:8px;border:1px solid #30363d;background:#161b22;font-size:14px;font-weight:600"></div>
 <div class="row" id="tvol"></div>
 <canvas id="tdv" width="780" height="120"></canvas>
 <h3>Дальние шорт-путы по экспирам: кредит, собрано, крыло, макс. убыток</h3>
+<div class="row" id="tacct2"></div>
 <div id="tgroups"></div>
+<h3>Прикрытие голых путов шортом фьючерса ETH (сверху его закрывают купленные коллы)</h3>
+<div class="row" id="tfh"></div><table id="tfhv"></table>
+<div style="font-size:12px;margin:6px 0 2px;color:#8b949e">Лестница: сколько шорта держать на каждом уровне падения (дельта голых путов растёт из-за гаммы и роста IV)</div>
+<table id="tfhl"></table>
+<div style="color:#8b949e;font-size:11px;margin-top:4px">Фьючерс и опционы одной монеты PM зачитывает → маржа снижается, а не растёт (в отличие от хеджа другой монетой). Шорт фьючерса до размера купленных коллов той же или более поздней экспиры = синтетический купленный пут, хвоста вверх нет; сверх коллов — голый шорт. Защита фьючерсом живёт до его экспирации (25.12), проданные путы — 2027: перед декабрём её нужно перекатить. P&L вариантов: мгновенный ход, IV +20 на падении, по всей ETH-книге.</div>
 <h3>Тактические хеджи (лонг-путы ≤14д)</h3><table id="thedge"></table>
 <h3>Стресс всей ETH-книги — мгновенный шок цены × IV (путы +шок, коллы меньше), $</h3><table id="tstress"></table>
+<h3>ETH против корзины — β-стресс всего портфеля (T+0), $</h3><table id="tebeta"></table><div id="tebetanote" style="color:#8b949e;font-size:11px"></div>
 <h3>Кандидаты в хеджированную продажу: пут-спреды (продать верхний / купить нижний), по доходу к риску в месяц</h3><table id="tcand"></table>
+<h3>Арбитраж по ETH: связки, открытые ноги, фандинг, сканер (из «Арбитража», обновление 20 с)</h3>
+<div id="teabar" style="color:#8b949e;font-size:12px"></div>
+<table id="tealinks"></table><table id="teaopen" style="margin-top:6px"></table><table id="teafund" style="margin-top:6px"></table><table id="teascan" style="margin-top:6px"></table>
 <div style="color:#8b949e;font-size:11px;margin-top:6px">«Дальний» = страйк ≤ 85% цены ETH. «Собрано» = доля проданной премии, которую уже можно забрать (≥60% — тейк). «Покрытие» = сколько шортов закрыто купленными путами ниже в той же экспире; голая часть = неограниченный риск, «крыло» — самый дешёвый пут ниже для её закрытия (стоимость / макс. убыток после). P(убыток) ≈ |Δ| проданного пута, P(макс) ≈ |Δ| купленного (риск-нейтрально, по рынку). Стресс: Black-Scholes по markIv, без учёта изменения маржи. Параметры — TAIL_CFG в tail_pairs.py.</div>
 </div>
 <div id="tabA" style="display:none">
@@ -740,7 +765,7 @@ function setPG(k){PG=k;try{localStorage.setItem('pg',k)}catch(e){} if(PORT)rende
 async function tick(){
  let d; try{d=await (await fetch('/port')).json()}catch(e){if(TAB=='E'||TAB=='K')$('upd').textContent='offline';return}
  if(d.err){if(TAB=='E'||TAB=='K')$('upd').textContent='err: '+d.err;return}
- PORT=d; if(TAB=='E')renderPort(d); else if(TAB=='K')renderBook(d);
+ PORT=d; if(TAB=='E')renderPort(d); else if(TAB=='K')renderBook(d); else if(TAB=='T')renderEthPort(d);
 }
 function renderPort(d){
  if(!d.groups[PG])PG='ALL';
@@ -878,20 +903,42 @@ function heat(cv,xs,ys,grid,title){const x=cv.getContext('2d'),W=cv.width,H=cv.h
 let TAB='K', GW='30d', GLD=null, ASUB='mine';
 try{const v=localStorage.getItem('asub');if(['mine','scan','gold','pairs'].includes(v))ASUB=v;}catch(e){}
 function showTab(t){TAB=t;['K','E','A','G','T'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
- $('tbMore').classList.toggle('on',t!='K'); if(t!='K')$('moreBox').style.display='';
- try{localStorage.setItem('tab',t)}catch(e){} if(t=='K'){if(PORT)renderBook(PORT);khtick();} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T')ttick(); if(t=='A')setASub(ASUB);}
+ const inMore=['E','A','G'].includes(t); $('tbMore').classList.toggle('on',inMore); if(inMore)$('moreBox').style.display='';
+ try{localStorage.setItem('tab',t)}catch(e){} if(t=='K'){if(PORT)renderBook(PORT);khtick();} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T'){ttick();if(PORT)renderEthPort(PORT);etick();} if(t=='A')setASub(ASUB);}
 // ===================== ХВОСТЫ ETH =====================
 async function ttick(){ if(TAB!='T')return;
  let d; try{d=await (await fetch('/tail')).json()}catch(e){$('tvbar').textContent='offline';return}
  if(d.err){$('tvbar').textContent='ошибка: '+d.err;return}
  const mc=d.mm>d.cfg.mm_max?'neg':(d.mm>40?'warn':'pos');
- $('tacct').innerHTML=tile('ETH',d.S)+tile('Эквити','$'+d.eq)+tile('MM',d.mm+'%',mc)
-  +tile('кредит дальних','$'+d.prem_far)+tile('Θ/д дальних',sg(d.theta_far)+'$',d.theta_far>0?'pos':'neg')+tile('Vega дальних',sg(d.vega_far))
+ const bcT=d.buf==null?'':(d.buf<1.5?'neg':(d.buf<2?'warn':'pos'));
+ const g_=d.bg||{},dE=(g_.d_opt||0)+(g_.d_lin||0)+(g_.d_inv||0)+(g_.d_spot||0),dU=dE*d.S,eqv=d.eq||0;
+ const PA=PORT&&PORT.groups&&PORT.groups.ALL?PORT.groups.ALL.tot:null,lq=d.liq||{},ln=lq.now||{},lc=lq.cons||{};
+ const lv=(x,y)=>x?(x.S+' ('+(x.pct>0?'+':'')+x.pct+'%)'+(y&&y.S!=x.S?' · конс. '+y.S:'')):'нет до '+(y===undefined?'':'±')+'края сетки';
+ const near=[ln.down,ln.up].filter(Boolean).some(x=>Math.abs(x.pct)<=15);
+ $('tacct').innerHTML=tile('ETH',d.S)+tile('Эквити','$'+d.eq)+tile('Свободно','$'+d.av,d.av<100?'warn':'')
+  +tile('IM',d.im+'%',d.im>50?(d.im>80?'neg':'warn'):'pos')+tile('MM',d.mm+'%',mc)+tile('Запас до MM',(d.buf??'—')+'×',bcT)
+  +tile('Δ ETH всего, шт',(dE>0?'+':'')+dE.toFixed(3),Math.abs(dU)>0.2*eqv?'warn':'pos')
+  +tile('Δ ETH в $ · до нейтрали',(dU>0?'+':'')+Math.round(dU)+'$ · '+(Math.abs(dE)<0.005?'нейтраль':(dE>0?'продать ':'купить ')+Math.abs(dE).toFixed(3)+' ETH'),Math.abs(dU)>0.2*eqv?'warn':'pos')
+  +tile('Δ$ портфеля',PA?sg(Math.round(PA.dusd)):'—',PA&&Math.abs(PA.dusd)>0.2*eqv?'warn':'pos')
+  +tile('Θ $/день портфель · ETH',(PA?sg(PA.t):'—')+' · '+sg(Math.round((g_.t||0)*100)/100),PA&&Math.abs(PA.t)>0.01*eqv?'warn':(PA&&PA.t>0?'pos':''))
+  +tile('Ликвидация: ETH ↓ / ↑',(ln.down?ln.down.S+' ('+ln.down.pct+'%)':'—')+' / '+(ln.up?ln.up.S+' (+'+ln.up.pct+'%)':'—'),near?'neg':'warn');
+ $('tacct2').innerHTML=tile('кредит дальних','$'+d.prem_far)+tile('Θ/д дальних',sg(d.theta_far)+'$',d.theta_far>0?'pos':'neg')+tile('Vega дальних',sg(d.vega_far))
   +tile('макс.убыток спредов','$'+d.tot_def+' / '+d.budget,d.tot_def>d.budget?'neg':'pos')
   +tile('голый номинал','$'+d.naked_notional,d.naked_notional>0?'neg':'pos')
   +tile('Θ/д тактич. хеджей',sg(d.hedge_theta)+'$',d.hedge_theta<0?'warn':'')
   +tile('нетто Θ (дальние+хеджи)',sg(Math.round((d.theta_far+d.hedge_theta)*100)/100)+'$',(d.theta_far+d.hedge_theta)>0?'pos':'neg');
+ $('tliq').innerHTML='Ликвидация — оценка: ETH-книга T+0 (BS), на падении IV +20 п.п., на росте +10, прочие активы стоят. Запас над MM $'+(lq.room??'—')
+  +'. При текущей MM: ↓ '+(ln.down?ln.down.S+' ('+ln.down.pct+'%)':'нет до −90%')+' · ↑ '+(ln.up?ln.up.S+' (+'+ln.up.pct+'%)':'нет до +200%')
+  +'. Консервативно (MM +10%): ↓ '+(lc.down?lc.down.S+' ('+lc.down.pct+'%)':'нет')+' · ↑ '+(lc.up?lc.up.S+' (+'+lc.up.pct+'%)':'нет')
+  +'. Реальный порог зависит от пересчёта PM-маржи и движения других активов.';
  $('twarn').innerHTML=(d.warns||[]).map(w=>'<div class="warn">⚠ '+w+'</div>').join('');
+ try{renderFrame(d.frame,d)}catch(e){$('tfr').textContent='каркас: '+e}
+ if(d.bg){const g=d.bg,F=d.fh||{},f4=v=>(v>0?'+':'')+(+v).toFixed(4),dl=g.d_opt+g.d_lin,da=dl+g.d_inv+g.d_spot;
+  $('tbg').innerHTML=tile('Delta (опционы)',f4(g.d_opt),g.d_opt<0?'neg':'pos')+tile('Delta + фьючи USDT/USDC (как Bybit)',f4(dl))+tile('Delta всего (+инверс, спот)',f4(da)+' ≈ $'+Math.round(da*d.S))
+   +tile('Gamma',(g.g>0?'+':'')+g.g.toFixed(5),g.g<0?'neg':'pos')+tile('Theta',f4(g.t),g.t>0?'pos':'neg')+tile('Vega',f4(g.v),g.v<0?'warn':'')
+   +tile('голых путов',(F.naked_q??'—')+' ETH',F.naked_q>0?'neg':'pos')
+   +tile('фьючей: Δ голых путов',(F.d_naked??'—')+' ETH')+tile('фьючей: книга в ноль',(F.d_book??'—')+' ETH')
+   +tile('фьючей: обвал до 0 (1:1)',(F.naked_q??'—')+' ETH · коллы сверху '+(F.call_q??'—'),F.naked_q>F.call_q?'warn':'');}
  const col={sell:['#3fb950','#3fb95022'],cover:['#d29922','#d2992222'],wait:['#8b949e','#161b22']}[d.vk];
  const b=$('tvbar');b.textContent=d.vsig;b.style.color=col[0];b.style.borderColor=col[0]=='#8b949e'?'#30363d':col[0];b.style.background=col[1];
  const v=d.dvol||{};
@@ -914,6 +961,35 @@ async function ttick(){ if(TAB!='T')return;
   else if(g.wing&&g.wing.length)h+='<div style="font-size:12px;margin:2px 0">Крыло для голых '+g.naked+': '+g.wing.map(w=>'купить '+w.K+'P @'+w.ask+' → $'+w.cost+', макс.убыток $'+w.ml).join(' · ')+'</div>';
  });
  $('tgroups').innerHTML=h||'<span style="color:#8b949e">дальних шорт-путов нет</span>';
+ // вся ETH-книга
+ const nz=v=>(v==null?'—':v);
+ let bt='<tr><th>нога</th><th>тип</th><th>кол-во</th><th>дней</th><th>открыта, д</th><th>до страйка</th><th>в σ</th><th>ср. / марк</th><th>bid / ask</th><th>IV</th><th>Δ на 1</th><th>P(ITM)≈</th><th>Δ$</th><th>Γ$ 1%</th><th>Θ/д</th><th>Vega</th><th>безубыток</th><th>премия → сейчас</th><th>собрано</th><th>P&L</th></tr>',sdu=0,sg1=0,st_=0,sv=0,su=0;
+ (d.book||[]).forEach(r=>{sdu+=r.dusd||0;sg1+=r.g1||0;st_+=r.t||0;sv+=r.v||0;su+=(r.up||0);
+  const opt=r.K!=null, sh=r.q<0;
+  bt+='<tr><td>'+r.sym+'</td><td class="'+(sh?'neg':'pos')+'">'+r.kind+'</td><td>'+r.q+'</td><td>'+nz(r.dte)+'</td><td>'+nz(r.age)+'</td>'
+   +'<td>'+(opt?(r.dist>0?'+':'')+r.dist+'%':'—')+'</td><td class="'+(opt&&sh&&r.dsig!=null&&Math.abs(r.dsig)<1?'neg':'')+'">'+(opt?nz(r.dsig):'—')+'</td>'
+   +'<td>'+nz(r.avg)+' / '+r.mark+'</td><td>'+(opt?r.bid+' / '+r.ask:'—')+'</td><td>'+(opt?r.iv+'%':'—')+'</td>'
+   +'<td>'+r.d1+'</td><td>'+(opt?r.pitm+'%':'—')+'</td><td>'+r.dusd+'</td><td>'+(r.g1?sg(r.g1):'—')+'</td><td>'+(r.t?sg(r.t):'—')+'</td><td>'+(r.v?sg(r.v):'—')+'</td>'
+   +'<td>'+(r.be!=null?r.be+' <span style="color:#8b949e">('+(r.be_dist>0?'+':'')+r.be_dist+'%)</span>':'—')+'</td>'
+   +'<td>'+(opt?'$'+r.prem+' → $'+r.now:'—')+'</td><td class="'+(r.capt!=null&&r.capt>=d.cfg.tp_capture?'pos':'')+'">'+(r.capt!=null?r.capt+'%':'—')+'</td>'
+   +'<td class="'+((r.up||0)>=0?'pos':'neg')+'">'+nz(r.up)+(r.up_pct!=null?' <span style="color:#8b949e">('+(r.up_pct>0?'+':'')+r.up_pct+'%)</span>':'')+'</td></tr>';});
+ bt+='<tr style="font-weight:700"><td>итого</td><td colspan="11"></td><td>'+Math.round(sdu)+'</td><td>'+sg(Math.round(sg1*10)/10)+'</td><td>'+sg(Math.round(st_*100)/100)+'</td><td>'+sg(Math.round(sv*100)/100)+'</td><td colspan="3"></td><td class="'+(su>=0?'pos':'neg')+'">'+su.toFixed(2)+'</td></tr>';
+ $('tbookt').innerHTML=bt+'<tr><td colspan="20" style="text-align:left;color:#8b949e;font-size:11px">«до страйка» — расстояние страйка от цены; «в σ» — то же в сигмах до экспирации (IV·√T), у проданных &lt;1σ подсвечено; P(ITM)≈|Δ на 1|; безубыток — на экспирации (страйк ∓ средняя премия); «собрано» — доля проданной премии, уже заработанная (тейк ≥'+d.cfg.tp_capture+'%); P&L в скобках — % от премии.</td></tr>';
+ // прикрытие фьючерсом
+ const f=d.fh||{},fu=f.fut||{};
+ if(f.variants){
+  $('tfh').innerHTML=tile('голых путов, ETH',f.naked_q,f.naked_q>0?'neg':'pos')+tile('Δ голых путов',f.d_naked+' ETH')+tile('Δ всей книги',f.d_book+' ETH')
+   +tile('коллы до '+(fu.sym||'фьюча').replace('ETHUSDT-',''),f.call_q+' ETH')+tile('перп/фьюч сейчас',f.perp+' ETH')
+   +tile(fu.sym||'фьючерс',fu.F?fu.F+' · базис '+fu.basis+'% ('+fu.basis_y+'% год.)':(fu.err||'—'));
+  let vt='<tr><th>вариант</th><th>шорт '+(fu.sym||'')+'</th><th>$</th><th>сверх коллов</th>'+f.moves.map(m=>'<th>'+(m>0?'+':'')+m+'%</th>').join('')+'<th></th></tr>';
+  const cell=p=>'<td class="'+(p<-0.25*d.eq?'neg':(p<0?'warn':'pos'))+'">'+(p>0?'+':'')+p+'</td>';
+  vt+='<tr><td style="color:#8b949e">без шорта (сейчас)</td><td>0</td><td>0</td><td>—</td>'+f.base.map(cell).join('')+'<td></td></tr>';
+  f.variants.forEach(v=>{vt+='<tr><td>'+v.name+'</td><td><b>'+v.h+'</b></td><td>'+v.usd+'</td><td class="'+(v.up_naked>0?'neg':'pos')+'">'+(v.up_naked>0?'голо '+v.up_naked:'закрыт')+'</td>'+v.pnl.map(cell).join('')+'<td style="color:#8b949e;text-align:left">'+v.note+'</td></tr>';});
+  $('tfhv').innerHTML=vt;
+  let lt='<tr><th>уровень</th><th>ETH</th><th>IV +</th><th>шорт под голые путы, ETH</th><th>дельта всей книги, ETH</th></tr>';
+  f.ladder.forEach(r=>{lt+='<tr><td>'+r.mv+'%</td><td>'+r.S+'</td><td>'+r.iv_sh+'</td><td><b>'+r.h_naked+'</b></td><td class="'+(r.d_book<0?'neg':'pos')+'">'+sg(r.d_book)+'</td></tr>';});
+  $('tfhl').innerHTML=lt;
+ }
  let hh='<tr><th>хедж</th><th>кол-во</th><th>ср.</th><th>марк</th><th>дней</th><th>стоимость/д</th></tr>';
  (d.hedges||[]).forEach(x=>{hh+='<tr><td>'+x[0]+'</td><td>'+x[1]+'</td><td>'+x[2]+'</td><td>'+x[3]+'</td><td>'+x[4]+'</td><td class="neg">'+x[5]+'</td></tr>';});
  if(!(d.hedges||[]).length)hh+='<tr><td colspan="6" style="text-align:left;color:#8b949e">нет</td></tr>';
@@ -925,6 +1001,125 @@ async function ttick(){ if(TAB!='T')return;
  (d.cands||[]).forEach(c=>{ch+='<tr><td>'+c.exp+'</td><td>'+c.dte+'</td><td>'+c.Ks+'P</td><td>'+c.Kl+'P</td><td>'+c.dist+'%</td><td>'+c.delta+'</td><td>'+c.ivs+' / '+c.ivl+'</td><td>'+c.credit+'</td><td>'+c.ml+'</td><td>'+c.rr+'%</td><td>'+c.rr_m+'%</td><td>'+Math.round(c.delta*100)+'%</td><td>'+Math.round(c.pl*100)+'%</td></tr>';});
  $('tcand').innerHTML=ch;
  $('upd').textContent='ETH '+d.S+' · хвосты  .  '+d.t;}
+// ===================== ETH: всё по эфиру из /port и /arb (вкладка T) =====================
+function renderEthPort(d){const g=d.groups.ETH;if(!g)return;const t=g.tot,a=d.acct,eq=a.eq||0,dl=eq*0.2,th=eq*0.01,v=g.vol||{};
+ $('teov').innerHTML=tile('Δ ETH опц+перпы+инверс',sg(t.od_perp))+tile('Δ ETH +спот+Earn',sg(t.true))+tile('Δ$ ETH',sg(t.dusd),Math.abs(t.dusd)>dl?'warn':'pos')
+  +tile('Γ ETH',t.g,cl(t.g))+tile('Γ$ на 1%',sg(t.g1),cl(t.g1))+tile('Θ /д',sg(t.t),Math.abs(t.t)>th?'warn':cl(t.t))+tile('Vega',sg(t.v),cl(t.v))+tile('uPnL ETH',sg(t.up)+'$',cl(t.up))
+  +(v.iv?tile('ATM IV / RV30',v.iv+'% / '+v.rv+'%',vcls(v.ratio))+tile('IV/RV',v.ratio||'—',vcls(v.ratio)):'');
+ $('tevol').innerHTML=v.iv?('Датчик волы: <b class="'+vcls(v.ratio)+'">'+v.band+'</b> · ATM '+v.exp+' K'+v.K+' ('+v.dte+'д) · ранг сессии '+(v.rank==null?'—':v.rank+'%')+' · диапазон '+v.lo+'–'+v.hi+'% · премия IV−RV '+sg(v.prem)+'пт'):'';
+ bookPay($('tepay'),g,false);
+ const N=g.now||[],mi=N.length?N.reduce((m,p)=>p[1]<m[1]?p:m,N[0]):null;
+ $('tepaynote').innerHTML='Payoff ETH-группы: зелёная — на экспирации, синяя — T+0 (BS, IV без изменений), ось — цена ETH.'+(mi?' Худшая точка T+0: <b class="neg">'+sg(mi[1])+'$</b> при '+Math.round(mi[0]):'')+(g.be&&g.be.length?' · безубыток на экспирации: '+g.be.join(', '):'')+(g.be_now&&g.be_now.length?' · T+0: '+g.be_now.join(', '):'');
+ // гамма и скальп — только ETH (та же логика, что в «Книге»)
+ $('tegsteps').innerHTML='шаг сетки: '+[['0.5','0.5%'],['1','1%'],['1.5','1.5%'],['2','2%'],['be','= безубыток']].map(([k,l])=>`<span class="gbtn ${GSTEP==k?'on':''}" onclick="setGS('${k}')">${l}</span>`).join('');
+ const r=(d.groups.ALL.gam||[]).find(x=>x.base=='ETH');
+ if(!r){$('tegam').innerHTML='<tr><td style="color:#8b949e">опционов ETH нет</td></tr>';}
+ else{const S=r.px,lg=r.g1>0,h=(GSTEP=='be'?(r.be||1):+GSTEP)/100,gg=r.g1/(S*S*0.01),q=Math.abs(gg)*S*h,cyc=100*Math.abs(r.g1)*h*h,fee=2*0.00036*q*S,net=cyc-fee;
+  const ivd=r.iv?r.iv/Math.sqrt(365):null,rvd=r.rv?r.rv/Math.sqrt(365):null;let vv='—',vc='';
+  if(r.be!=null&&rvd!=null){if(lg){vv=rvd>=r.be?'RV окупает Θ':'Θ дороже RV';vc=rvd>=r.be?'pos':'warn'}else{vv=rvd<=r.be?'продажа Γ окупается':'RV бьёт шорт Γ';vc=rvd<=r.be?'pos':'neg'}}
+  const hq=-r.true,out=Math.abs(r.dusd)>dl,rb=Math.abs(r.dusd)<1?'—':`<span class="${out?'warn':''}">${hq<0?'продать':'купить'} ${gfq(hq)} ${r.perp}</span>${out?'':' <span style="color:#8b949e">(в коридоре ±20% экв.)</span>'}`;
+  const up=S*(1+h),dn=S*(1-h),act=lg?['продать','купить']:['купить','продать'];
+  $('tegam').innerHTML='<tr><th>цена</th><th>Γ шт/$1</th><th>Γ$ 1%</th><th>Θ/д</th><th>Δ шт / Δ$</th><th>безуб. ход/д</th><th>IV/д · RV/д</th><th>вывод</th><th>ребаланс сейчас</th><th>шаг</th><th>объём шага</th><th>сетка</th><th>$ за цикл</th><th>циклов/д на Θ</th></tr>'
+   +`<tr><td>${gfp(S,S)}</td><td class="${cl(gg)}">${(+gg).toPrecision(3)}</td><td class="${cl(r.g1)}">${sg(r.g1)}</td><td class="${cl(r.t)}">${sg(r.t)}</td><td>${sg(r.true)} / ${sg(r.dusd)}$</td><td>${r.be==null?'—':r.be.toFixed(2)+'%'}</td><td>${ivd==null?'—':ivd.toFixed(2)}% · ${rvd==null?'—':rvd.toFixed(2)}%</td><td class="${vc}">${vv}</td><td style="text-align:left">${rb}</td>`
+   +`<td>${(h*100).toFixed(2)}% (${gfp(S*h,S)})</td><td>${gfq(q)}</td><td>${act[0]} @ ${gfp(up,S)} · ${act[1]} @ ${gfp(dn,S)}</td><td class="${lg?(net>0?'pos':'neg'):'neg'}">${lg?'+':'−'}${Math.abs(net).toFixed(2)}</td><td>${lg&&r.t<0&&net>0?(Math.abs(r.t)/net).toFixed(1):'—'}</td></tr>`;
+  gamProf($('tegprof'),r,h); gamExp($('tegexp'),r.exps||[]);
+  $('tegnote').innerHTML='Слева: Δ$ (синяя) и Γ$ на 1% (жёлтая) при сдвиге цены ±15% (T+0), пунктиры — уровни сетки. Справа: Γ$ на 1% по экспирациям (зелёный — купленные, красный — проданные), под столбцами Θ/д. '+(lg?'Длинная Γ: продаёшь на росте, откупаешь на падении.':'<b class="warn">Короткая Γ: каждый ход против тебя, скальп = догонять цену (убыток за цикл).</b>');}
+ // куплено / продано + покрытие
+ const B=g.B,Sd=g.S,c=g.cov;
+ $('tebs').innerHTML=(!B.n&&!Sd.n)?'<tr><td style="color:#8b949e">опционов нет</td></tr>':
+  '<tr><th></th><th>ног</th><th>Γ</th><th>Δ шт</th><th>Γ$ 1%</th><th>Θ/д</th><th>Vega</th><th>Δ$</th></tr>'
+  +[['Куплено',B,'pos','neg','pos'],['Продано',Sd,'neg','pos','neg']].map(([n,x,cg,ct,cv])=>`<tr><td>${n}</td><td>${x.n}</td><td class="${cg}">${x.g}</td><td>${x.d}</td><td class="${cg}">${x.g1}</td><td class="${ct}">${x.t}</td><td class="${cv}">${x.v}</td><td>${x.dusd}</td></tr>`).join('')
+  +`<tr><td>Покрытие % (short÷long)</td><td></td><td></td><td></td><td class="${c.g>100?'neg':'warn'}">${c.g}</td><td class="pos">${c.t}</td><td class="warn">${c.v}</td><td></td></tr>`;
+ const R=(g.rows||[]).filter(x=>x.base=='ETH');
+ $('tespot').innerHTML='<tr><th>актив</th><th>цена</th><th>спот</th><th>Earn</th><th>опц Δ</th><th>опц Γ</th><th>опц Θ</th><th>опц V</th><th>Γ$ 1%</th><th>перп/фьюч Δ</th><th>истинная Δ</th><th>Δ$</th><th>нужный перп-хедж</th></tr>'
+  +R.map(x=>`<tr><td>${x.base}</td><td>${x.px}</td><td>${x.spot}</td><td>${x.earn}</td><td>${x.od}</td><td>${x.og}</td><td class="${cl(x.ot)}">${x.ot}</td><td>${x.ov}</td><td>${x.g1}</td><td>${x.pd}</td><td>${x.true}</td><td>${sg(x.dusd)}</td><td class="warn">${Math.abs(x.dusd)<1?'нейтраль':(x.hedge>0?'ЛОНГ +':'ШОРТ ')+Math.abs(x.hedge)+' ETH'}</td></tr>`).join('');
+ // ETH против корзины
+ const b=d.groups.ALL.beta;
+ if(b&&b.stress){const st=b.stress,pn=v2=>v2<0?'neg':(v2>0?'pos':'');let hh='<tr><th>сценарий</th>'+st.moves.map(m=>'<th>'+(m>0?'+':'')+m+'%</th>').join('')+'</tr>';
+  st.rows.forEach(rr=>{hh+='<tr><td>'+rr.name+'</td>'+rr.pnl.map(v2=>'<td class="'+pn(v2)+'">'+sg(v2)+'</td>').join('')+'</tr>';});
+  $('tebeta').innerHTML=hh;
+  const er=(b.rows||[]).find(x=>x.base=='ETH');
+  $('tebetanote').innerHTML='Корзина = '+(b.basket.join(', ')||'—')+'. Весь портфель, T+0, BS при текущей IV. Δ ETH-экв. портфеля '+sg(b.eq_total)+'$'+(er?' (сам ETH '+sg(er.eq)+'$)':'')+'. Эквити над MM: $'+Math.round(a.eq-a.mm)+'.';}
+}
+let EARB=0;
+async function etick(){ if(TAB!='T')return; if(Date.now()-EARB<15000)return; EARB=Date.now();
+ let d; try{d=await (await fetch('/arb')).json()}catch(e){$('teabar').textContent='арбитраж: offline';return}
+ const isE=x=>/(^|[^A-Z])ETH/.test(x||''), f2=v=>v==null?'—':(+v).toFixed(2), ap=v=>`<td class="${cl(v)}"><b>${v==null?'—':v}</b></td>`;
+ let h='<tr><th>связка ETH</th><th>ноги</th><th>кол-во</th><th>uPnL $</th><th>смысл</th></tr>';const L=(d.links||[]).filter(l=>isE(l.legs));
+ L.forEach(l=>{h+=`<tr><td>${l.kind}</td><td style="text-align:left">${l.legs}</td><td>${l.q}</td><td class="${cl(l.up)}">${f2(l.up)}</td><td style="text-align:left;color:#8b949e">${l.note}</td></tr>`});
+ if(!L.length)h+='<tr><td colspan=5 style="color:#8b949e">связок с ETH нет</td></tr>'; $('tealinks').innerHTML=h;
+ h='<tr><th>открытая нога ETH</th><th>сторона</th><th>остаток / всего</th><th>Δ$</th><th>Θ/день</th><th>uPnL $</th><th>статус</th></tr>';const O=(d.open||[]).filter(o=>isE(o.sym));
+ O.forEach(o=>{const st=o.close_ok?'<span class="pos">можно закрыть в плюс</span>':(o.up<0?'<span class="neg">в минусе — не закрывать, хеджировать</span>':'<span style="color:#8b949e">—</span>');
+  h+=`<tr><td>${o.sym}</td><td>${o.side}</td><td>${o.rem}${o.part?' / '+o.q:''}</td><td class="${cl(o.dusd)}">${sg(o.dusd)}</td><td class="${cl(o.t)}">${f2(o.t)}</td><td class="${cl(o.up)}">${f2(o.up)}</td><td style="text-align:left">${st}</td></tr>`});
+ $('teaopen').innerHTML=h;
+ h='<tr><th>перп ETH</th><th>ставка %</th><th>% годовых</th><th>$/день</th></tr>';const Fd=(d.fund||[]).filter(r=>isE(r.sym));
+ Fd.forEach(r=>{h+=`<tr><td>${r.sym}</td><td>${r.rate}</td><td>${r.apy}</td><td class="${cl(r.usd_day)}">${sg(r.usd_day)}</td></tr>`});
+ if(!Fd.length)h+='<tr><td colspan=4 style="color:#8b949e">перпов ETH нет</td></tr>'; $('teafund').innerHTML=h;
+ const s=d.scan; $('teabar').textContent=s?('скан '+d.scan_age+' с назад; ниже — только строки ETH'):(d.scan_busy?'скан идёт…':'скан не готов');
+ if(!s){$('teascan').innerHTML='';return}
+ h='<tr><th>сканер ETH</th><th>инструмент / эксп.</th><th>дней</th><th>направление</th><th>эдж</th><th>% год.</th></tr>';let n=0;
+ (s.parity||[]).filter(r=>r.b=='ETH').forEach(r=>{n++;h+=`<tr><td>паритет K${r.K}</td><td>${r.exp} · ${r.hedge}${r.fund_only?' <span class="warn">только фандинг</span>':''}</td><td>${r.dte}</td><td>${r.kind}</td><td class="${cl(r.edge)}">${r.edge} $/ед.</td>${ap(r.apy)}</tr>`});
+ (s.box||[]).filter(r=>r.b=='ETH').forEach(r=>{n++;h+=`<tr><td>бокс ${r.K1}–${r.K2}</td><td>${r.exp}</td><td>${r.dte}</td><td>${r.kind}</td><td>${r.edge} $</td>${ap(r.apy)}</tr>`});
+ (s.cc||[]).filter(r=>r.b=='ETH').forEach(r=>{n++;h+=`<tr><td>cash-and-carry</td><td>${r.fut}</td><td>${r.dte}</td><td>${r.kind}${r.need_spot?' <span class="warn">(нужен спот)</span>':''}</td><td class="${cl(r.pct)}">${r.pct}%</td>${ap(r.apy)}</tr>`});
+ (s.cal||[]).filter(r=>r.b=='ETH').forEach(r=>{n++;h+=`<tr><td>календарь перп/фьюч</td><td>${r.fut}</td><td>${r.dte}</td><td>${r.kind} (фандинг ${r.fund_pct}%)</td><td class="${cl(r.pct)}">${r.pct}%</td>${ap(r.apy)}</tr>`});
+ (s.carry||[]).filter(r=>r.b=='ETH').forEach(r=>{n++;h+=`<tr><td>кэрри спот+перп</td><td>${r.sym} · ${r.rate}% (${r.ih}ч)</td><td>—</td><td>${r.dir}</td><td>безуб. ${r.be_days==null?'—':r.be_days} д</td>${ap(r.apy)}</tr>`});
+ (s.inv||[]).filter(r=>r.b=='ETH').forEach(r=>{n++;h+=`<tr><td>инверс/линейный</td><td>инв ${r.inv} / лин ${r.lin}</td><td>—</td><td>${r.dir}</td><td>${r.diff}</td><td></td></tr>`});
+ if(!n)h+='<tr><td colspan=6 style="color:#8b949e">по ETH кандидатов с эджем нет</td></tr>';
+ $('teascan').innerHTML=h;}
+function renderFrame(f,d){if(!f){$('tfr').innerHTML='';return}
+ const S=d.S,n2=v=>v==null?'—':(+v).toFixed(2),n4=v=>v==null?'—':(+v).toFixed(4),c=v=>v>0?'pos':(v<0?'neg':''),R=f.reserve,H=f.hedge,V=f.vol,Sc=f.scalp;
+ let h='';
+ // 9. вол-сенсор для коллов
+ h+='<div style="margin:2px 0 6px;padding:6px 10px;border-radius:8px;border:1px solid '+(V.ok?'#3fb950':'#d29922')+';font-size:13px;font-weight:600;color:'+(V.ok?'#3fb950':'#d29922')+'">'
+  +(V.ok?'КОЛЛЫ БРАТЬ МОЖНО':'КОЛЛЫ ДОРОГИЕ — ждать')+': IV трёхдневки '+(f.e3||'—')+' ATM '+(V.iv3??'—')+'% '+(V.ok?'<':'≥')+' RV7 '+(V.rv7??'—')+'% <span style="color:#8b949e;font-weight:400">(правило: покупать коллы, только когда IV &lt; RV)</span></div>';
+ // 1–2. маржа и резерв
+ h+='<div class="row">'+tile('загрузка маржи IM/Equity',R.im_load+'%',R.im_load>50?(R.im_load>80?'neg':'warn'):'pos')
+  +tile('держать USDT для IM ≤ 50%',R.need_now>0?'+$'+R.need_now:'хватает',R.need_now>0?'warn':'pos')+'</div>';
+ h+='<table><tr><th>ETH</th>'+R.stress.map(r=>'<th>'+(r.mv>0?'+':'')+r.mv+'% ('+r.S+')</th>').join('')+'</tr>'
+  +'<tr><td>P&L книги ETH</td>'+R.stress.map(r=>'<td class="'+c(r.pnl)+'">'+sg(r.pnl)+'</td>').join('')+'</tr>'
+  +'<tr><td>запас над MM, $</td>'+R.stress.map(r=>'<td class="'+(r.room<0?'neg':(r.room<0.2*d.eq?'warn':'pos'))+'">'+Math.round(r.room)+'</td>').join('')+'</tr>'
+  +'<tr><td>докинуть USDT до IM ≤ 50%</td>'+R.stress.map(r=>'<td class="'+(r.need>0?'warn':'pos')+'">'+(r.need>0?'+'+Math.round(r.need):'0')+'</td>').join('')+'</tr></table>';
+ // 3–4. ноги
+ const row=(name,r,cls)=>'<tr><td'+(cls?' class="'+cls+'"':'')+'>'+name+'</td><td>'+r.sym+'</td><td class="'+c(r.q)+'">'+r.q+'</td><td>'+(r.avg??'—')+' / '+r.mark+'</td><td class="'+c(r.up)+'">'+n2(r.up)+'</td><td>'+n4(r.d)+'</td><td>'+sg(r.dusd)+'</td><td>'+(r.t?sg(r.t):'—')+'</td><td>'+(r.v?sg(r.v):'—')+'</td></tr>';
+ const tot=(name,t)=>t?'<tr style="font-weight:700;border-top:1px solid #30363d"><td colspan="4">'+name+'</td><td class="'+c(t.up)+'">'+n2(t.up)+'</td><td>'+n4(t.d)+'</td><td>'+sg(t.dusd)+'</td><td>'+sg(t.t)+'</td><td>'+sg(t.v)+'</td></tr>':'';
+ let lt='<table><tr><th>нога</th><th>инструмент</th><th>кол-во</th><th>ср. / марк</th><th>P&L $</th><th>Δ, ETH (как Bybit)</th><th>Δ$</th><th>Θ/д</th><th>Vega</th></tr>';
+ f.leg1.forEach(r=>lt+=row('1 · проданный пут',r,'neg')); lt+=tot('Нога 1 — проданные путы',f.leg1s);
+ f.inv.forEach(r=>lt+=row('2 · инверс',r,r.q<0?'pos':'warn')); if(!f.inv.length)lt+='<tr><td>2 · инверс</td><td colspan="8" style="color:#8b949e;text-align:left">позиции нет</td></tr>'; lt+=tot('Нога 2 — инверс',f.invs);
+ lt+='<tr><td colspan="9" style="text-align:left;font-size:12px">Состояние инверса: шорт <b>'+f.inv_short+'</b> из цели <b>'+f.inv_target+'</b> ETH (1:1 к голым путам) = <b>'+(f.inv_fill??0)+'%</b>'
+  +(f.invs&&f.invs.q>0?' · <span class="neg">сейчас инверс в ЛОНГЕ '+f.invs.q+' ETH — противоположно каркасу</span>':'')+' · синтетический проданный колл = '+f.synth_q+' ETH</td></tr>';
+ f.lin.forEach(r=>lt+=row('перп/фьюч (нейтраль)',r)); lt+=tot('Линейные перпы/фьючи',f.lins);
+ f.leg3.forEach(r=>lt+=row('3 · купленный колл',r,'pos')); lt+=tot('Нога 3 — купленные коллы ≤7д',f.leg3s);
+ f.one.forEach(r=>lt+=row('однодневка (продана)',r,'neg')); if(f.one.length)lt+=tot('Однодневки',f.ones);
+ if(f.other.length){lt+=tot('Вне каркаса ('+f.other.map(r=>r.sym.replace('ETH-','')+' '+r.q).join(', ')+')',f.others);}
+ lt+='</table>'; h+=lt;
+ // 5. хедж-калькулятор
+ const pos=H.h_now,mx=Math.max(H.h_full,pos,0.01),mn=Math.min(0,pos),X=v=>((v-mn)/(mx-mn)*100).toFixed(1);
+ h+='<div class="row">'+tile('шорт для Δ-нейтрали путов',H.h_delta+' ETH')+tile('шорт для 1:1 (полное)',H.h_full+' ETH')
+  +tile('сейчас шорт фьючей',(pos>0?'':'нетто-лонг ')+Math.abs(pos).toFixed(3)+' ETH',pos<0?'neg':(pos>=H.h_delta?'pos':'warn'))
+  +tile('путь до 1:1',(H.pos_pct??'—')+'%')+tile('инверса позволяет маржа',H.inv_by_av+' ETH','')+tile('инверса до IM 50%',H.inv_to_im50+' ETH',H.inv_to_im50>0?'':'warn')+'</div>'
+  +'<div style="position:relative;height:18px;background:#161b22;border:1px solid #30363d;border-radius:4px;margin:2px 0 2px;max-width:780px">'
+  +'<div style="position:absolute;left:'+X(0)+'%;top:0;bottom:0;border-left:1px solid #8b949e"></div>'
+  +'<div style="position:absolute;left:'+X(H.h_delta)+'%;top:0;bottom:0;border-left:2px solid #58a6ff"></div>'
+  +'<div style="position:absolute;left:'+X(H.h_full)+'%;top:0;bottom:0;border-left:2px solid #3fb950"></div>'
+  +'<div style="position:absolute;left:calc('+X(pos)+'% - 5px);top:2px;width:10px;height:12px;background:'+(pos<0?'#f85149':'#d29922')+';border-radius:2px"></div></div>'
+  +'<div style="color:#8b949e;font-size:11px">шкала шорта фьючей, ETH: серая — 0, синяя — Δ-нейтраль путов ('+H.h_delta+'), зелёная — 1:1 ('+H.h_full+'), маркер — сейчас (инверс '+H.inv_q+' + линейные '+H.lin_q+'). «Позволяет маржа» — ориентир при IM '+(H.imr*100)+'% цены на 1 ETH инверса; в PM шорт против проданных путов до их дельты маржу снижает.</div>';
+ // 6. калькулятор коллов
+ h+='<div style="font-size:12px;margin:8px 0 2px">Коллы против роста синтетического проданного колла: сейчас синтетика '+f.synth_q+' ETH, нужно докупить <b>'+f.need_calls_now+'</b>; при полном наборе 1:1 — <b>'+f.need_calls_full+'</b> (уже есть трёхдневок '+f.l3c+'). Трёхдневка: <b>'+(f.e3||'—')+'</b></div>';
+ let ct='<table><tr><th>колл</th><th>от цены</th><th>ask</th><th>IV</th><th>Δ</th><th>Θ/д за 1</th><th>стоимость сейчас / при 1:1</th><th>Θ/д сейчас / при 1:1</th></tr>';
+ f.calc3.forEach(r=>ct+='<tr><td>'+r.K+'C</td><td>+'+r.dist+'%</td><td>'+r.ask+'</td><td>'+r.iv+'%</td><td>'+r.d+'</td><td class="neg">'+r.th+'</td><td>$'+r.cost_now+' / $'+r.cost_full+'</td><td class="neg">'+r.th_now+' / '+r.th_full+'</td></tr>');
+ if(!f.calc3.length)ct+='<tr><td colspan="8" style="color:#8b949e">нет страйков +1…+12% в трёхдневке</td></tr>'; h+=ct+'</table>';
+ // 7. однодневки
+ h+='<div style="font-size:12px;margin:8px 0 2px">Однодневки <b>'+(f.e1||'—')+'</b>: сколько продать, чтобы покрыть 10 / 25 / 50% теты ноги 3 (|Θ| = $'+f.th3+'/д). Больше '+f.cover_q+' ETH — продажа голая (красным).</div>';
+ let ot='<table><tr><th>продать колл</th><th>от цены</th><th>bid</th><th>IV</th><th>Δ</th><th>Θ/д за 1</th><th>10%</th><th>25%</th><th>50%</th></tr>';
+ f.calc1.forEach(r=>ot+='<tr><td>'+r.K+'C</td><td>+'+r.dist+'%</td><td>'+r.bid+'</td><td>'+r.iv+'%</td><td>'+r.d+'</td><td>'+r.th+'</td>'+r.qs.map((q,i)=>'<td class="'+(r.naked[i]?'neg':'')+'">'+q+'</td>').join('')+'</tr>');
+ if(!f.calc1.length)ot+='<tr><td colspan="9" style="color:#8b949e">'+(f.th3?'нет страйков':'теты ноги 3 нет — покрывать нечего')+'</td></tr>'; h+=ot+'</table>';
+ // 8. скальп синтетики
+ h+='<div class="row" style="margin-top:6px">'+tile('Δ синтетического пута (инверс + коллы ноги 3)',(Sc.syn_d>0?'+':'')+Sc.syn_d+' ETH',Math.abs(Sc.syn_d)>0.05?'warn':'pos')
+  +tile('перп для нейтрали',Math.abs(Sc.perp_to_neutral)<0.005?'нейтраль':(Sc.perp_to_neutral<0?'продать ':'купить ')+Math.abs(Sc.perp_to_neutral).toFixed(3)+' ETHUSDT')
+  +tile('скальп ETHUSDT: реализ. P&L (посл. '+(Sc.n??0)+' закрытий)',Sc.err?'—':sg(Sc.pnl7)+'$',c(Sc.pnl7))
+  +tile('тета ноги 3 потрачена',sg(-Sc.theta_spent)+'$',Sc.theta_spent>0?'neg':'')
+  +tile('скальп − тета',Sc.err?'—':sg(Math.round((Sc.pnl7-Sc.theta_spent)*100)/100)+'$',c(Sc.pnl7-Sc.theta_spent))+'</div>';
+ $('tfr').innerHTML=h;}
 function drawDV(v){const cv=$('tdv'),x=cv.getContext('2d'),W=cv.width,H=cv.height;x.clearRect(0,0,W,H);const s=v.series||[];if(s.length<2)return;
  const lo=Math.min(...s,v.p10)-2,hi=Math.max(...s,v.p90)+2,X=i=>36+i/(s.length-1)*(W-110),Y=y=>8+(hi-y)/(hi-lo)*(H-16);x.font='9px sans-serif';
  [[v.p80,'#3fb950','p80 продавать'],[v.p50,'#8b949e','медиана'],[v.p10,'#d29922','p10']].forEach(([y,c,l])=>{x.strokeStyle=c;x.setLineDash([4,3]);x.beginPath();x.moveTo(36,Y(y));x.lineTo(W-74,Y(y));x.stroke();x.setLineDash([]);x.fillStyle=c;x.fillText(l+' '+y,W-72,Y(y)+3);});
@@ -1108,7 +1303,7 @@ function renderBook(d){
 }
 let GSTEP='be', GAMB='ETH';
 try{const v=localStorage.getItem('kgs');if(v)GSTEP=v;const w=localStorage.getItem('kgb');if(w)GAMB=w;}catch(e){}
-function setGS(v){GSTEP=v;try{localStorage.setItem('kgs',v)}catch(e){} if(PORT)renderGam(PORT);}
+function setGS(v){GSTEP=v;try{localStorage.setItem('kgs',v)}catch(e){} if(PORT){renderGam(PORT);if(TAB=='T')renderEthPort(PORT);}}
 function setGB(v){GAMB=v;try{localStorage.setItem('kgb',v)}catch(e){} if(PORT)renderGam(PORT);}
 const gfp=(v,S)=>v==null?'—':(S>=10000?v.toFixed(0):S>=100?v.toFixed(1):S>=1?v.toFixed(3):v.toFixed(5));
 const gfq=v=>{const a=Math.abs(v);return a>=100?a.toFixed(0):a>=1?a.toFixed(2):a.toFixed(4)};
@@ -1164,6 +1359,9 @@ function gamExp(cv,E){const x=cv.getContext('2d'),W=cv.width,H=cv.height,pl=46,p
 function renderKPos(d){const P=d.groups.ALL.pos||[];
  let s='<tr><th>группа</th><th>контракт</th><th>ст</th><th>разм</th><th>Δ</th><th>Δ$</th><th>Γ</th><th>Θ/д</th><th>Vega</th><th>IV</th><th>uPnL</th></tr>';
  P.forEach(p=>{s+=`<tr><td style="color:#8b949e">${p.grp}</td><td>${p.sym}</td><td class="${p.side=='B'?'pos':'neg'}">${p.side}</td><td>${p.sz}</td><td>${p.d}</td><td>${p.dusd}</td><td>${p.g}</td><td class="${cl(p.t)}">${p.t}</td><td>${p.v}</td><td>${p.iv==null?'':p.iv+'%'}</td><td class="${cl(p.up)}">${p.up}</td></tr>`;});
+ // спот и Earn в кошельке (ETH, купленный через ETHUSDC/ETHUSDT, MNT и т.п.) — тоже дельта
+ (d.groups.ALL.rows||[]).filter(r=>(r.spot||r.earn)&&r.px).forEach(r=>{const q=+(r.spot+r.earn).toFixed(6);
+  s+=`<tr><td style="color:#8b949e">${r.grp}</td><td>${r.base} спот${r.earn?' + Earn':''}</td><td class="pos">B</td><td>${q}</td><td>${q}</td><td>${Math.round(q*r.px)}</td><td>0</td><td>0</td><td>0</td><td></td><td>—</td></tr>`;});
  $('kpos').innerHTML=s;}
 function bookPay(cv,g,sm){const x=cv.getContext('2d'),W=cv.width,H=cv.height,p=sm?30:46;x.clearRect(0,0,W,H);x.font=(sm?9:11)+'px sans-serif';
  const P=g.pay,N=g.now||[];if(!P||P.length<2){x.fillStyle='#8b949e';x.fillText('нет данных',10,20);return}
@@ -1272,7 +1470,7 @@ function drawLines(id,ser,o){const c=$(id),x=c.getContext('2d'),W=c.width,H=c.he
  const hm=s=>new Date(s*1000).toTimeString().slice(0,5);x.fillStyle='#8b949e';x.fillText(hm(t0),pl,H-4);x.fillText(hm(t1),W-pr-30,H-4);}
 try{const t=localStorage.getItem('gw');if(t&&['2d','30d','166d'].includes(t))setGW(t);}catch(e){}
 try{let t=localStorage.getItem('tab');if(t=='P'){ASUB='pairs';t='A';} if(['E','A','G','T'].includes(t))showTab(t);}catch(e){}
-setInterval(gtick,4000);setInterval(ttick,6000);setInterval(ptick,6000);setInterval(atick,6000);setInterval(khtick,20000);khtick();
+setInterval(gtick,4000);setInterval(ttick,6000);setInterval(etick,20000);setInterval(ptick,6000);setInterval(atick,6000);setInterval(khtick,20000);khtick();
 tick();setInterval(tick,4000);
 </script></body></html>'''
 
