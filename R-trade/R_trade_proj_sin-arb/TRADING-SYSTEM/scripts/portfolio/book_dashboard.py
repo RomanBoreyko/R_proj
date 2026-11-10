@@ -639,6 +639,10 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 <div id="tabR" style="display:none">
 <h3>Ерши MEXC ↔ Bybit: мелкие монеты-перпы на обеих биржах — расхождение цены и фандинга, болтанка, стакан, комиссии. ТОЛЬКО МОНИТОРИНГ</h3>
 <div class="row" id="rtop"></div>
+<h3>График TradingView: спред между биржами (Bybit / MEXC)</h3>
+<div style="font-size:12px;margin:2px 0 4px" id="rtvctl"></div>
+<div id="rtv" style="height:480px;max-width:1200px;border:1px solid #30363d;border-radius:6px"></div>
+<div style="color:#8b949e;font-size:11px;margin:2px 0 8px">Отношение цен перпов: 1.00 = цены равны, 1.01 = Bybit на 1% дороже MEXC. Клик по строке таблицы ниже — открыть график этой монеты. Виджет TradingView грузится с s3.tradingview.com.</div>
 <div style="font-size:12px;margin:4px 0" id="rctl"></div>
 <div id="rbar" style="color:#8b949e;font-size:11px;margin:2px 0"></div>
 <table id="rtab"></table>
@@ -929,7 +933,7 @@ let TAB='K', GW='30d', GLD=null, ASUB='mine';
 try{const v=localStorage.getItem('asub');if(['mine','scan','gold','pairs'].includes(v))ASUB=v;}catch(e){}
 function showTab(t){TAB=t;['K','E','A','G','T','F','R','C'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
  const inMore=['E','A','G'].includes(t); $('tbMore').classList.toggle('on',inMore); if(inMore)$('moreBox').style.display='';
- try{localStorage.setItem('tab',t)}catch(e){} if(t=='K'){if(PORT)renderBook(PORT);khtick();} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T'){ttick();if(PORT)renderEthPort(PORT);etick();} if(t=='F')ftick(); if(t=='R')rtick(); if(t=='C')ctick(); if(t=='A')setASub(ASUB);}
+ try{localStorage.setItem('tab',t)}catch(e){} if(t=='K'){if(PORT)renderBook(PORT);khtick();} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T'){ttick();if(PORT)renderEthPort(PORT);etick();} if(t=='F')ftick(); if(t=='R'){rtick();rtvLoad();} if(t=='C')ctick(); if(t=='A')setASub(ASUB);}
 // ===================== ХВОСТЫ ETH =====================
 async function ttick(){ if(TAB!='T')return;
  let d; try{d=await (await fetch('/tail')).json()}catch(e){$('tvbar').textContent='offline';return}
@@ -1193,7 +1197,7 @@ function renderR(d){const T=d.top||{},fm=v=>v==null?'—':(v>=1e6?(v/1e6).toFixe
  R.sort((a,b2)=>((b2[RSORT]??-1e18)-(a[RSORT]??-1e18)));
  const pc=v=>(v*100).toFixed(3)+'%';
  let h='<tr><th>#</th><th>монета</th><th>Bybit</th><th>MEXC</th><th>разница</th><th>спред B / M</th><th>эдж сейчас</th><th>чистый</th><th>фанд. 8ч в направлении</th><th>чистый + фанд.</th><th>направление</th><th>фандинг B / M, %/8ч</th><th>разница фанд.</th><th>оборот B / M</th><th>диапазон 24ч</th><th>болтанка 48ч</th><th>пересеч.</th><th>комиссии B (м/т) · M (м/т)</th></tr>';
- R.slice(0,120).forEach((r,i)=>{h+=`<tr><td>${i+1}</td><td><b>${r.coin}</b></td><td>${r.bb_px}</td><td>${r.mx_px}</td><td class="${Math.abs(r.diff)>0.5?'warn':''}">${sg(r.diff)}%</td><td>${r.bb_sp} / ${r.mx_sp}</td><td>${sg(r.edge)}%</td><td class="${r.net>0?'pos':''}">${sg(r.net)}%</td><td class="${cl(r.f8)}">${sg(r.f8)}%</td><td class="${r.net8>0?'pos':'neg'}"><b>${sg(r.net8)}%</b></td><td style="text-align:left;color:#8b949e">${r.net8>0?r.dir:''}</td>`
+ R.slice(0,120).forEach((r,i)=>{h+=`<tr style="cursor:pointer" onclick="rtvSet('BYBIT:${r.coin}USDT.P/MEXC:${r.coin}USDT.P')"><td>${i+1}</td><td><b>${r.coin}</b></td><td>${r.bb_px}</td><td>${r.mx_px}</td><td class="${Math.abs(r.diff)>0.5?'warn':''}">${sg(r.diff)}%</td><td>${r.bb_sp} / ${r.mx_sp}</td><td>${sg(r.edge)}%</td><td class="${r.net>0?'pos':''}">${sg(r.net)}%</td><td class="${cl(r.f8)}">${sg(r.f8)}%</td><td class="${r.net8>0?'pos':'neg'}"><b>${sg(r.net8)}%</b></td><td style="text-align:left;color:#8b949e">${r.net8>0?r.dir:''}</td>`
   +`<td>${r.fb} / ${r.fm}${r.fi_m==null?'*':''}</td><td class="${Math.abs(r.fdiff)>0.1?'warn':''}">${sg(r.fdiff)}</td><td>${fm(r.bturn)} / ${fm(r.mturn)}</td><td>${r.rng??'—'}%</td><td>${r.chop??'—'}</td><td>${r.cross??'—'}</td>`
   +`<td>${pc(r.bfee[0])}/${pc(r.bfee[1])} · ${pc(r.mfee[0])}/${pc(r.mfee[1])}${r.mzero?' <span class="pos">0-fee</span>':''}</td></tr>`;});
  if(!R.length)h+='<tr><td colspan="18" style="color:#8b949e">нет пар</td></tr>';
@@ -1226,6 +1230,20 @@ function renderC(d){const B=d.bybit,M=d.mexc,live=M.key&&M.eq!=null,mx=live?M.eq
   h+='<table style="margin-top:6px"><tr><th>позиция</th><th>сторона</th><th>контрактов</th><th>ср.</th><th>ликвидация</th><th>маржа</th><th>плечо</th></tr>'+((M.fut_pos||[]).map(p=>'<tr><td>'+p.sym+'</td><td class="'+(p.side=='long'?'pos':'neg')+'">'+p.side+'</td><td>'+p.vol+'</td><td>'+p.avg+'</td><td class="warn">'+p.liq+'</td><td>'+p.im+'</td><td>'+p.lev+'×</td></tr>').join('')||'<tr><td colspan="7" style="color:#8b949e">позиций нет</td></tr>')+'</table>';}
  else h='<div style="color:#8b949e;font-size:12px">данных MEXC нет — используется ручной баланс</div>';
  $('cmx').innerHTML=h; if(TAB=='C')$('upd').textContent='капитал · '+d.t;}
+// ---- TradingView-виджет на вкладке «Ерши» ----
+let RTV='BYBIT:SOXLUSDT.P/MEXC:SOXLUSDT.P', RTVI='15', RTVW=null;
+try{RTV=localStorage.getItem('rtv')||RTV;RTVI=localStorage.getItem('rtvi')||RTVI;}catch(e){}
+function rtvLoad(){if(window.TradingView){rtvDraw();return}
+ if(document.getElementById('tvjs'))return; const sc=document.createElement('script');sc.id='tvjs';sc.src='https://s3.tradingview.com/tv.js';sc.onload=rtvDraw;document.head.appendChild(sc);}
+function rtvDraw(){if(!window.TradingView||TAB!='R')return;$('rtv').innerHTML='';
+ RTVW=new TradingView.widget({container_id:'rtv',symbol:RTV,interval:RTVI,autosize:true,theme:'dark',style:'1',locale:'ru',timezone:'Etc/UTC',
+  hide_side_toolbar:false,allow_symbol_change:true,withdateranges:true,studies:['BB@tv-basicstudies']});
+ const iv=[['1','1м'],['5','5м'],['15','15м'],['60','1ч'],['240','4ч'],['D','Д']];
+ $('rtvctl').innerHTML='символ: <input id="rtvin" style="width:340px" value="'+RTV+'" onkeydown="if(event.key==\'Enter\')rtvSet(this.value)"> <span class="gbtn" onclick="rtvSet($(\'rtvin\').value)">показать</span>'
+  +' &nbsp; '+iv.map(([v,l])=>`<span class="gbtn ${RTVI==v?'on':''}" onclick="rtvInt('${v}')">${l}</span>`).join('')
+  +' &nbsp; <span class="gbtn" onclick="rtvSet(\'BYBIT:SOXLUSDT.P/MEXC:SOXLUSDT.P\')">SOXL</span>';}
+function rtvSet(sym){sym=(sym||'').trim();if(!sym)return;RTV=sym;try{localStorage.setItem('rtv',RTV)}catch(e){} rtvLoad();rtvDraw();$('rtv').scrollIntoView({block:'nearest'});}
+function rtvInt(v){RTVI=v;try{localStorage.setItem('rtvi',RTVI)}catch(e){} rtvDraw();}
 function drawDV(v){const cv=$('tdv'),x=cv.getContext('2d'),W=cv.width,H=cv.height;x.clearRect(0,0,W,H);const s=v.series||[];if(s.length<2)return;
  const lo=Math.min(...s,v.p10)-2,hi=Math.max(...s,v.p90)+2,X=i=>36+i/(s.length-1)*(W-110),Y=y=>8+(hi-y)/(hi-lo)*(H-16);x.font='9px sans-serif';
  [[v.p80,'#3fb950','p80 продавать'],[v.p50,'#8b949e','медиана'],[v.p10,'#d29922','p10']].forEach(([y,c,l])=>{x.strokeStyle=c;x.setLineDash([4,3]);x.beginPath();x.moveTo(36,Y(y));x.lineTo(W-74,Y(y));x.stroke();x.setLineDash([]);x.fillStyle=c;x.fillText(l+' '+y,W-72,Y(y)+3);});
