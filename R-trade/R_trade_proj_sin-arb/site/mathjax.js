@@ -6,9 +6,13 @@ window.MathJax = {
   },
   options: { ignoreHtmlClass: ".*|", processHtmlClass: "arithmatex" }
 };
+// Material (instant navigation): перерисовать формулы на каждой странице.
+// На первой загрузке MathJax ещё не готов — тогда страницу отрисует сам startup.
 document$.subscribe(() => {
-  MathJax.startup.output.clearCache();
-  MathJax.typesetClear();
-  MathJax.texReset();
-  MathJax.typesetPromise();
+  const mj = window.MathJax;
+  if (!mj || !mj.startup || !mj.startup.output || !mj.typesetPromise) return;
+  mj.startup.output.clearCache();
+  mj.typesetClear();
+  mj.texReset();
+  mj.typesetPromise();
 });
