@@ -1,0 +1,50 @@
+# [R-trade] Сайт-конспект «Оператор Капитала» → GitHub Pages (https://romanboreyko.github.io/R_proj/)
+# Владелец: спредер (R-trade). Собирает только R-trade/R_trade_proj_sin-arb/site + выбранные папки TRADING-SYSTEM.
+# Требует: Settings → Pages → Source: «GitHub Actions».
+name: course-site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "R-trade/R_trade_proj_sin-arb/TRADING-SYSTEM/**"
+      - "R-trade/R_trade_proj_sin-arb/site/**"
+      - ".github/workflows/course-site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: R-trade/R_trade_proj_sin-arb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "mkdocs==1.6.1" "mkdocs-material==9.5.49"
+      - run: python site/build_src.py
+      - run: mkdocs build -f site/mkdocs.gen.yml
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: R-trade/R_trade_proj_sin-arb/site/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

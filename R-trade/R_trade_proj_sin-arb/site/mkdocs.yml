@@ -1,0 +1,50 @@
+# Сайт-конспект на GitHub Pages. Исходники собирает site/build_src.py из TRADING-SYSTEM.
+# Локально (если стоит mkdocs-material): python site/build_src.py && mkdocs serve -f site/mkdocs.gen.yml
+site_name: Конспекты · Оператор Капитала
+site_url: https://romanboreyko.github.io/R_proj/
+site_description: Арбитражный портфель, опционы и риск на Bybit — учебные конспекты
+repo_url: https://github.com/RomanBoreyko/R_proj
+edit_uri: ""
+docs_dir: docs
+site_dir: _site
+
+theme:
+  name: material
+  language: ru
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: {icon: material/weather-night, name: Тёмная тема}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: {icon: material/weather-sunny, name: Светлая тема}
+  features:
+    - navigation.sections
+    - navigation.footer
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search:
+      lang: [ru, en]
+
+markdown_extensions:
+  - tables
+  - toc: {permalink: true}
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.arithmatex: {generic: true}
+
+extra_javascript:
+  - js/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js
+
+validation:
+  links: {not_found: info, absolute_links: info, unrecognized_links: info}
+  nav: {omitted_files: info}
+
+# nav генерирует build_src.py -> mkdocs.gen.yml (INHERIT: mkdocs.yml)
