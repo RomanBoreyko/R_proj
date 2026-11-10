@@ -107,7 +107,7 @@ def main():
         git("reset", "-q")
         log(f"dry-run: ок, {len(files)} файлов были бы закоммичены")
         return 0
-    git("commit", "-q", "-m", f"autosave: {datetime.datetime.now():%Y-%m-%d %H:%M} ({len(files)} файлов)")
+    git("commit", "-q", "-m", f"[autosave] {datetime.datetime.now():%Y-%m-%d %H:%M} ({len(files)} файлов)")
     p = git("push", "-q", "origin", "main", check=False)
     if p.returncode:
         log(f"commit ок, push НЕ прошёл: {p.stderr.strip()[:300]}")
