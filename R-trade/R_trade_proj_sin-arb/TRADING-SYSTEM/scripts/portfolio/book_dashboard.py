@@ -6,7 +6,7 @@ payoff, профиль греков и структурный срез пут/к
 import json, hmac, hashlib, time, re, datetime, math, urllib.request, urllib.parse
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import tail_pairs, portfolio_book, arb_book, tradfi_scan, ruff_scan
+import tail_pairs, portfolio_book, arb_book, tradfi_scan, ruff_scan, capital_split
 
 CREDS = r"C:\Users\DoOs\.bybit\credentials.json"; BASE = "https://api.bybit.com"
 d = json.load(open(CREDS, encoding="utf-8")); KEY, SECRET = d["api_key"], d["api_secret"]
@@ -597,7 +597,7 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 .gbtn.on{background:#1f6feb33;border-color:#1f6feb;color:#e6edf3}
 .ksub{font-size:11px;color:#8b949e;margin:6px 0 0}</style></head><body>
 <div class="hd"><b>Книга Bybit — реалтайм</b><span id="upd">загрузка...</span></div>
-<div style="margin:6px 0 4px"><span class="gbtn on" id="tbK" onclick="showTab('K')">Книга</span><span class="gbtn" id="tbT" onclick="showTab('T')">ETH: продажа края</span><span class="gbtn" id="tbF" onclick="showTab('F')">TradFi-сканер</span><span class="gbtn" id="tbR" onclick="showTab('R')">Ерши MEXC↔Bybit</span><span class="gbtn" id="tbMore" onclick="bookMore()">Ещё ▾</span><span id="moreBox" style="display:none"><span class="gbtn" id="tbE" onclick="showTab('E')">Портфель: детали</span><span class="gbtn" id="tbA" onclick="showTab('A')">Арбитраж</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото: опционы</span></span></div>
+<div style="margin:6px 0 4px"><span class="gbtn on" id="tbK" onclick="showTab('K')">Книга</span><span class="gbtn" id="tbT" onclick="showTab('T')">ETH: продажа края</span><span class="gbtn" id="tbF" onclick="showTab('F')">TradFi-сканер</span><span class="gbtn" id="tbR" onclick="showTab('R')">Ерши MEXC↔Bybit</span><span class="gbtn" id="tbC" onclick="showTab('C')">Капитал Bybit/MEXC</span><span class="gbtn" id="tbMore" onclick="bookMore()">Ещё ▾</span><span id="moreBox" style="display:none"><span class="gbtn" id="tbE" onclick="showTab('E')">Портфель: детали</span><span class="gbtn" id="tbA" onclick="showTab('A')">Арбитраж</span><span class="gbtn" id="tbG" onclick="showTab('G')">Золото: опционы</span></span></div>
 <div id="tabK">
 <div class="row" id="ktiles"></div>
 <div id="kwarn" style="font-size:12px;margin:0 0 4px"></div>
@@ -628,6 +628,14 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 <details id="kposd" ontoggle="if(this.open&&PORT)renderKPos(PORT)"><summary id="kposs" style="cursor:pointer;color:#8b949e;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:12px">Позиции с греками</summary><table id="kpos"></table></details>
 </div>
 
+<div id="tabC" style="display:none">
+<h3>Деление капитала: ETH-каркас на Bybit · MEXC (ерши, сеточный бот). Только чтение</h3>
+<div class="row" id="ctop"></div>
+<div style="font-size:12px;margin:4px 0" id="cctl"></div>
+<div id="cmsg" style="font-size:12px;margin:4px 0"></div>
+<h3>Bybit (UTA)</h3><div class="row" id="cbb"></div>
+<h3>MEXC</h3><div id="cmx"></div>
+</div>
 <div id="tabR" style="display:none">
 <h3>Ерши MEXC ↔ Bybit: мелкие монеты-перпы на обеих биржах — расхождение цены и фандинга, болтанка, стакан, комиссии. ТОЛЬКО МОНИТОРИНГ</h3>
 <div class="row" id="rtop"></div>
@@ -919,9 +927,9 @@ function heat(cv,xs,ys,grid,title){const x=cv.getContext('2d'),W=cv.width,H=cv.h
 // ===================== ЗОЛОТО =====================
 let TAB='K', GW='30d', GLD=null, ASUB='mine';
 try{const v=localStorage.getItem('asub');if(['mine','scan','gold','pairs'].includes(v))ASUB=v;}catch(e){}
-function showTab(t){TAB=t;['K','E','A','G','T','F','R'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
+function showTab(t){TAB=t;['K','E','A','G','T','F','R','C'].forEach(k=>{$('tab'+k).style.display=t==k?'':'none';$('tb'+k).classList.toggle('on',t==k);});
  const inMore=['E','A','G'].includes(t); $('tbMore').classList.toggle('on',inMore); if(inMore)$('moreBox').style.display='';
- try{localStorage.setItem('tab',t)}catch(e){} if(t=='K'){if(PORT)renderBook(PORT);khtick();} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T'){ttick();if(PORT)renderEthPort(PORT);etick();} if(t=='F')ftick(); if(t=='R')rtick(); if(t=='A')setASub(ASUB);}
+ try{localStorage.setItem('tab',t)}catch(e){} if(t=='K'){if(PORT)renderBook(PORT);khtick();} if(t=='E'&&PORT)renderPort(PORT); if(t=='G')gtick(); if(t=='T'){ttick();if(PORT)renderEthPort(PORT);etick();} if(t=='F')ftick(); if(t=='R')rtick(); if(t=='C')ctick(); if(t=='A')setASub(ASUB);}
 // ===================== ХВОСТЫ ETH =====================
 async function ttick(){ if(TAB!='T')return;
  let d; try{d=await (await fetch('/tail')).json()}catch(e){$('tvbar').textContent='offline';return}
@@ -1190,6 +1198,34 @@ function renderR(d){const T=d.top||{},fm=v=>v==null?'—':(v>=1e6?(v/1e6).toFixe
   +`<td>${pc(r.bfee[0])}/${pc(r.bfee[1])} · ${pc(r.mfee[0])}/${pc(r.mfee[1])}${r.mzero?' <span class="pos">0-fee</span>':''}</td></tr>`;});
  if(!R.length)h+='<tr><td colspan="18" style="color:#8b949e">нет пар</td></tr>';
  $('rtab').innerHTML=h; if(TAB=='R')$('upd').textContent='ерши · '+d.t;}
+// ===================== Капитал Bybit / MEXC (вкладка C) =====================
+let CTGT=70, CMAN=0, CDATA=null;
+try{const a=localStorage.getItem('ctgt');if(a!=null)CTGT=+a;const b=localStorage.getItem('cman');if(b!=null)CMAN=+b;}catch(e){}
+function setC(k,v){v=+v;if(isNaN(v))return;if(k=='t')CTGT=Math.max(0,Math.min(100,v));if(k=='m')CMAN=Math.max(0,v);try{localStorage.setItem('ctgt',CTGT);localStorage.setItem('cman',CMAN)}catch(e){} if(CDATA)renderC(CDATA);}
+async function ctick(){ if(TAB!='C')return;
+ let d; try{d=await (await fetch('/capital')).json()}catch(e){$('cmsg').textContent='offline';return}
+ if(d.err){$('cmsg').textContent='ошибка: '+d.err;return} CDATA=d; renderC(d);}
+function renderC(d){const B=d.bybit,M=d.mexc,live=M.key&&M.eq!=null,mx=live?M.eq:CMAN,be=B.eq||0,tot=be+mx,sb=tot?be/tot*100:0;
+ const tB=tot*CTGT/100,diff=be-tB,f0=v=>v==null?'—':(+v).toFixed(2);
+ $('ctop').innerHTML=tile('Bybit эквити','$'+f0(be))+tile('MEXC '+(live?'(по ключу)':'(вручную)'),'$'+f0(mx),live?'':'warn')+tile('всего','$'+f0(tot))
+  +tile('доля Bybit / MEXC',sb.toFixed(1)+'% / '+(100-sb).toFixed(1)+'%')+tile('цель Bybit / MEXC',CTGT+'% / '+(100-CTGT)+'%')
+  +tile('до цели',Math.abs(diff)<1?'в цели':('перевести $'+Math.abs(diff).toFixed(0)+(diff>0?' Bybit → MEXC':' MEXC → Bybit')),Math.abs(diff)<0.05*tot?'pos':'warn');
+ $('cctl').innerHTML='цель доли Bybit, %: <input type="number" min="0" max="100" value="'+CTGT+'" style="width:60px" onchange="setC(\'t\',this.value)">'
+  +(live?'':' &nbsp; баланс MEXC вручную, $: <input type="number" min="0" value="'+CMAN+'" style="width:90px" onchange="setC(\'m\',this.value)">')
+  +' <span style="color:#8b949e">(хранится в этом браузере)</span>';
+ $('cmsg').innerHTML=live?'<span class="pos">MEXC подключён по read-only ключу · '+d.t+'</span>':(M.err?'<span class="neg">MEXC: '+M.err+'</span>':
+  '<span class="warn">Ключа MEXC нет.</span> Создай на MEXC API-ключ <b>только с правом чтения</b> (без торговли и вывода; лучше с привязкой к IP) и положи в файл <code>'+M.path+'</code> в виде <code>{"api_key": "...", "api_secret": "..."}</code>. В чат ключ не присылай. После этого баланс и позиции MEXC подтянутся сами (сервер перечитывает файл при каждом запросе).');
+ const bc=B.buf<1.5?'neg':(B.buf<2?'warn':'pos');
+ $('cbb').innerHTML=tile('эквити','$'+f0(B.eq))+tile('свободно','$'+f0(B.av))+tile('IM',B.im_pct+'%',B.im_pct>50?'warn':'pos')+tile('запас до MM',B.buf+'×',bc)
+  +tile('ETH-каркас: Δ$ / uPnL',sg(B.eth_dusd)+' / '+sg(B.eth_up)+'$')+tile('весь Bybit: Δ$ / uPnL',sg(B.all_dusd)+' / '+sg(B.all_up)+'$')
+  +tile('стейблы','USDT '+(B.stable?B.stable.USDT:'—')+' · USDC '+(B.stable?B.stable.USDC:'—'));
+ let h='';
+ if(live){h+='<div class="row">'+tile('спот','$'+f0(M.spot_usd))+tile('фьючерсы (USDT/USDC)','$'+f0(M.fut_usd))+'</div>';
+  h+='<table><tr><th>спот</th><th>кол-во</th><th>$</th></tr>'+(M.spot||[]).map(r=>'<tr><td>'+r.asset+'</td><td>'+r.qty+'</td><td>'+(r.usd??'—')+'</td></tr>').join('')+'</table>';
+  h+='<table style="margin-top:6px"><tr><th>фьюч. счёт</th><th>эквити</th><th>свободно</th><th>маржа</th><th>uPnL</th></tr>'+(M.fut_assets||[]).map(r=>'<tr><td>'+r.asset+'</td><td>'+r.equity+'</td><td>'+r.avail+'</td><td>'+r.im+'</td><td class="'+cl(r.upl)+'">'+r.upl+'</td></tr>').join('')+'</table>';
+  h+='<table style="margin-top:6px"><tr><th>позиция</th><th>сторона</th><th>контрактов</th><th>ср.</th><th>ликвидация</th><th>маржа</th><th>плечо</th></tr>'+((M.fut_pos||[]).map(p=>'<tr><td>'+p.sym+'</td><td class="'+(p.side=='long'?'pos':'neg')+'">'+p.side+'</td><td>'+p.vol+'</td><td>'+p.avg+'</td><td class="warn">'+p.liq+'</td><td>'+p.im+'</td><td>'+p.lev+'×</td></tr>').join('')||'<tr><td colspan="7" style="color:#8b949e">позиций нет</td></tr>')+'</table>';}
+ else h='<div style="color:#8b949e;font-size:12px">данных MEXC нет — используется ручной баланс</div>';
+ $('cmx').innerHTML=h; if(TAB=='C')$('upd').textContent='капитал · '+d.t;}
 function drawDV(v){const cv=$('tdv'),x=cv.getContext('2d'),W=cv.width,H=cv.height;x.clearRect(0,0,W,H);const s=v.series||[];if(s.length<2)return;
  const lo=Math.min(...s,v.p10)-2,hi=Math.max(...s,v.p90)+2,X=i=>36+i/(s.length-1)*(W-110),Y=y=>8+(hi-y)/(hi-lo)*(H-16);x.font='9px sans-serif';
  [[v.p80,'#3fb950','p80 продавать'],[v.p50,'#8b949e','медиана'],[v.p10,'#d29922','p10']].forEach(([y,c,l])=>{x.strokeStyle=c;x.setLineDash([4,3]);x.beginPath();x.moveTo(36,Y(y));x.lineTo(W-74,Y(y));x.stroke();x.setLineDash([]);x.fillStyle=c;x.fillText(l+' '+y,W-72,Y(y)+3);});
@@ -1539,8 +1575,8 @@ function drawLines(id,ser,o){const c=$(id),x=c.getContext('2d'),W=c.width,H=c.he
   const lv=s.pts[s.pts.length-1][1],su=s.u||o.u,lab=s.n+' '+(lv>0&&su=='%'?'+':'')+fm(lv)+(su=='%'?'%':'');x.fillStyle=s.c;x.fillRect(lx,pt+2,10,3);x.fillText(lab,lx+14,pt+8);lx+=x.measureText(lab).width+30});
  const hm=s=>new Date(s*1000).toTimeString().slice(0,5);x.fillStyle='#8b949e';x.fillText(hm(t0),pl,H-4);x.fillText(hm(t1),W-pr-30,H-4);}
 try{const t=localStorage.getItem('gw');if(t&&['2d','30d','166d'].includes(t))setGW(t);}catch(e){}
-try{let t=localStorage.getItem('tab');if(t=='P'){ASUB='pairs';t='A';} if(['E','A','G','T','F','R'].includes(t))showTab(t);}catch(e){}
-setInterval(gtick,4000);setInterval(ttick,6000);setInterval(etick,20000);setInterval(ftick,15000);setInterval(rtick,15000);setInterval(ptick,6000);setInterval(atick,6000);setInterval(khtick,20000);khtick();
+try{let t=localStorage.getItem('tab');if(t=='P'){ASUB='pairs';t='A';} if(['E','A','G','T','F','R','C'].includes(t))showTab(t);}catch(e){}
+setInterval(gtick,4000);setInterval(ttick,6000);setInterval(etick,20000);setInterval(ftick,15000);setInterval(rtick,15000);setInterval(ctick,15000);setInterval(ptick,6000);setInterval(atick,6000);setInterval(khtick,20000);khtick();
 tick();setInterval(tick,4000);
 </script></body></html>'''
 
@@ -1555,6 +1591,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/tail") or self.path.startswith("/pairs"):
             fn = tail_pairs.tail_snapshot if self.path.startswith("/tail") else tail_pairs.pairs_snapshot
             try: body = json.dumps(fn(sget, pub)).encode()
+            except Exception as e: body = json.dumps({"err":str(e)}).encode()
+            self._write(body, "application/json")
+        elif self.path.startswith("/capital"):
+            try: body = json.dumps(capital_split.capital_snapshot(_port())).encode()
             except Exception as e: body = json.dumps({"err":str(e)}).encode()
             self._write(body, "application/json")
         elif self.path.startswith("/ruff"):
