@@ -164,7 +164,7 @@ def write_nav(files):
 def main():
     files = copy()
     os.makedirs(os.path.join(DST, "js"), exist_ok=True)
-    shutil.copyfile(os.path.join(HERE, "mathjax.js"), os.path.join(DST, "js", "mathjax-config-4.js"))
+    shutil.copyfile(os.path.join(HERE, "mathjax.js"), os.path.join(DST, "js", "mathjax-config-5.js"))
     write_nav(files)
     idx = {}
     for rel in files:

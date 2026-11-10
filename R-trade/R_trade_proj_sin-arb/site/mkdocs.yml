@@ -40,7 +40,7 @@ markdown_extensions:
   - pymdownx.arithmatex: {generic: true}
 
 extra_javascript:
-  - js/mathjax-config-4.js   # имя меняется при правке mathjax.js (кэш GitHub Pages ~10 мин)
+  - js/mathjax-config-5.js   # имя меняется при правке mathjax.js (кэш GitHub Pages ~10 мин)
   - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js
 
 validation:
