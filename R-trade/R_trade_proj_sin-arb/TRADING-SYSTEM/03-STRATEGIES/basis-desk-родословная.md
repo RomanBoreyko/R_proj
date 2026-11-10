@@ -4,7 +4,7 @@
 > кто первым придумал, какие легенды и трупы лежат в основании. Для вечеров, когда
 > хочется не торговать, а понимать.
 
-Связано: [[03-STRATEGIES/spread-screening-card]] · [[03-STRATEGIES/portfolio-operating-plan]] · [[06-RISK/risk-rules]] · [[scripts/portfolio/README|basis_desk.py / спред-инструменты]]
+Связано: [spread-screening-card](spread-screening-card.md) · [portfolio-operating-plan](portfolio-operating-plan.md) · [risk-rules](../06-RISK/risk-rules.md) · [basis_desk.py / спред-инструменты](../scripts/portfolio/README.md)
 
 ---
 

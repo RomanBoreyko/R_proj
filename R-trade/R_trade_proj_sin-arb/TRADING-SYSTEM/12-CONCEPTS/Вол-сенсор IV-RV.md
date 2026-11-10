@@ -10,5 +10,5 @@ updated: 2026-11-07
 Отношение подразумеваемой (IV, markIv опционов) к реализованной (RV 30д) воле по базе.
 Полосы: < 0.9 — опционы дешёвые; 0.9–1.1 — норма; 1.1–1.3 — дорогие; > 1.3 — очень дорогие (продажа премии).
 
-Где: [[Вкладка Портфель]], [[Вкладка Хвосты ETH]]. Код: `_vol`, `_rv30` в [[mod portfolio_book]].
-Связано: [[D2-eth-perp-put-ребаланс]] (тезис realized > implied), `scripts/portfolio/iv_rv.py`.
+Где: [Вкладка Портфель](../10-DASHBOARD/Вкладка%20Портфель.md), [Вкладка Хвосты ETH](../10-DASHBOARD/Вкладка%20Хвосты%20ETH.md). Код: `_vol`, `_rv30` в [mod portfolio_book](../10-DASHBOARD/mod%20portfolio_book.md).
+Связано: [D2-eth-perp-put-ребаланс](../03-STRATEGIES/D2-eth-perp-put-ребаланс.md) (тезис realized > implied), `scripts/portfolio/iv_rv.py`.

@@ -3,7 +3,7 @@
 > Экспериментальная связка: сетки-боты на SOL/MNT (линейн+инверс) + опц-прикрытие + кросс-арб + ребалансер.
 > ⚠️ Узкое место — **ликвидность MNT**: перп тонкий, инверс мёртв, кросс-спот почти мёртв. Читай вердикт.
 
-Связано: [[03-STRATEGIES/D1-арбитраж-под-прикрытием-опционов]] · [[03-STRATEGIES/D2-eth-perp-put-ребаланс]] · [[03-STRATEGIES/spread-screening-card]] · [[06-RISK/risk-rules]] · [[scripts/webapp/README|калькулятор]]
+Связано: [D1-арбитраж-под-прикрытием-опционов](D1-арбитраж-под-прикрытием-опционов.md) · [D2-eth-perp-put-ребаланс](D2-eth-perp-put-ребаланс.md) · [spread-screening-card](spread-screening-card.md) · [risk-rules](../06-RISK/risk-rules.md) · [калькулятор](../scripts/webapp/README.md)
 
 ---
 

@@ -3,7 +3,7 @@
 > Арбитраж на контрактное схождение (паритет пут-колл), собираемый сетками по трём
 > ногам вокруг оси-индекса + ручной добор в перекос. Срочник без ролирования.
 
-Связано: [[03-STRATEGIES/basis-desk-родословная]] · [[03-STRATEGIES/spread-screening-card]] · [[06-RISK/risk-rules]] · [[scripts/portfolio/README|basis_desk / синт-фьюч]] · [[scripts/webapp/README|калькулятор: Право ⚖️]]
+Связано: [basis-desk-родословная](basis-desk-родословная.md) · [spread-screening-card](spread-screening-card.md) · [risk-rules](../06-RISK/risk-rules.md) · [basis_desk / синт-фьюч](../scripts/portfolio/README.md) · [калькулятор: Право ⚖️](../scripts/webapp/README.md)
 
 ---
 

@@ -3,7 +3,7 @@
 > Заполняется ПЕРЕД постановкой сетки/лесенки на любой спред.
 > Правило: не заполнил карточку — не ставишь сетку. Пустая графа = «не знаю» = стоп.
 
-Связано: [[03-STRATEGIES/portfolio-operating-plan]] · [[06-RISK/risk-rules]] · [[08-operator/roles/SPR|SPR]] · [[scripts/webapp/README|калькулятор: Спред 🛠]]
+Связано: [portfolio-operating-plan](portfolio-operating-plan.md) · [risk-rules](../06-RISK/risk-rules.md) · [SPR](../08-operator/roles/SPR.md) · [калькулятор: Спред 🛠](../scripts/webapp/README.md)
 
 ---
 
@@ -89,7 +89,7 @@ INVERSE-контракты (ETHUSD/BTCUSD): turnover24h в API = в БАЗОВО
 ### СПРЕД: XAUTUSDT.P / XAUUSDT.P — ЭТАЛОН ✅
 Схождение: структура (один металл). Ноги: живые, обороты 48/58M.
 μ≈+0.05%, дыхание ±0.15-0.30%. Шаг 0.10% ≥ 1.5×косты (0.08% мейкер).
-Вердикт: СЕТКА (реверсия центр + тренд края). → [[03-STRATEGIES/portfolio-operating-plan|C1 параметры]]
+Вердикт: СЕТКА (реверсия центр + тренд края). → [C1 параметры](portfolio-operating-plan.md)
 
 ### СПРЕД: HUSDT.P / HUSDC(spot) — ФАНТОМ ❌
 Нога B: 96% повторов = мертва. Вердикт: МИМО. График красивый, исполнения нет.

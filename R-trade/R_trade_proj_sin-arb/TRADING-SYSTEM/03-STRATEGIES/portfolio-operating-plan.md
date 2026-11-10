@@ -3,7 +3,7 @@
 > Как устроена книга и как ей управлять. Один аккаунт Bybit, портфельная (кросс) маржа.
 > Два направления: D1 арбитраж под опционами, D2 гамма-скальп перп+пут.
 
-Связано: [[00-INDEX]] · [[03-STRATEGIES/D1-арбитраж-под-прикрытием-опционов]] · [[03-STRATEGIES/D2-eth-perp-put-ребаланс]] · [[03-STRATEGIES/spread-screening-card]] · [[06-RISK/risk-rules]] · [[05-EXCEL/accounting-structure]] · [[scripts/webapp/README]]
+Связано: [00-INDEX](../00-INDEX.md) · [D1-арбитраж-под-прикрытием-опционов](D1-арбитраж-под-прикрытием-опционов.md) · [D2-eth-perp-put-ребаланс](D2-eth-perp-put-ребаланс.md) · [spread-screening-card](spread-screening-card.md) · [risk-rules](../06-RISK/risk-rules.md) · [accounting-structure](../05-EXCEL/accounting-structure.md) · [README](../scripts/webapp/README.md)
 
 ---
 
