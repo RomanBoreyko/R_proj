@@ -94,6 +94,25 @@ def _rv7(pub):
     try: return cached("rv7", 600, f)
     except Exception: return None
 
+def open_orders(sget, ttl=5):
+    """Все открытые заявки аккаунта (лимитки, условные): опционы ETH/BTC/SOL/…, линейные USDT/USDC, инверс, спот. Только чтение."""
+    def f():
+        out = []
+        reqs = [("option", {"baseCoin": b}) for b in ("ETH", "BTC", "SOL", "XRP", "MNT", "DOGE")] +                [("linear", {"settleCoin": "USDT"}), ("linear", {"settleCoin": "USDC"}), ("inverse", {}), ("spot", {})]
+        for cat, extra in reqs:
+            try:
+                r = sget("/v5/order/realtime", dict(extra, category=cat, limit="50"))
+                if r.get("retCode") != 0: continue
+                for o in r["result"]["list"]:
+                    out.append({"cat": cat, "sym": o["symbol"].replace("-USDT", ""), "side": o["side"], "type": o.get("orderType"),
+                                "price": ff(o.get("price")), "qty": ff(o.get("qty")), "filled": ff(o.get("cumExecQty")),
+                                "trig": ff(o.get("triggerPrice")) or None, "ro": bool(o.get("reduceOnly")), "tif": o.get("timeInForce"),
+                                "status": o.get("orderStatus"), "t": int(ff(o.get("createdTime")))})
+            except Exception:
+                pass
+        return sorted(out, key=lambda x: -x["t"])
+    return cached("open_orders", ttl, f)
+
 def tail_snapshot(sget, pub):
     C = TAIL_CFG
     tk = cached("eth_opt_tk", 8, lambda: {x["symbol"]: x for x in pub("/v5/market/tickers", {"category":"option","baseCoin":"ETH"})["result"]["list"]})
@@ -415,7 +434,7 @@ def tail_snapshot(sget, pub):
             "groups": groups, "tot_def": round(tot_def, 1), "naked_notional": round(tot_naked_notional), "theta_far": round(theta_far, 2),
             "vega_far": round(vega_far, 2), "prem_far": round(prem_far, 2), "budget": round(C["maxloss_budget"]*eq, 0),
             "hedges": [[l["sym"], l["q"], l["avg"], round(l["mark"],2), l["dte"], round(-l["mark"]*l["q"]/max(l["dte"], 0.25),2)] for l in hedges], "hedge_theta": round(hedge_theta, 2),
-            "stress": stress, "shocks": [int(s*100) for s in shocks], "cands": cands[:10], "fh": fh, "book": book, "liq": liq, "frame": frame,
+            "stress": stress, "shocks": [int(s*100) for s in shocks], "cands": cands[:10], "fh": fh, "book": book, "liq": liq, "frame": frame, "orders": open_orders(sget),
             # греки как в конструкторе Bybit: в монетах ETH (Δ — штук ETH, Γ — Δ на $1, Θ — $/день, Vega — $ на 1 п.п. IV)
             "bg": {"d_opt": round(sum(l["d"] for l in legs), 4), "d_lin": round(_lin, 4), "d_inv": round(perp - _lin, 4), "d_spot": round(eth_spot, 4),
                    "g": round(sum(l["g"] for l in legs), 5), "t": round(sum(l["t"] for l in legs), 4), "v": round(sum(l["v"] for l in legs), 4)},
