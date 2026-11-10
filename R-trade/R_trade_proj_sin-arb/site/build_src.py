@@ -55,7 +55,8 @@ def fix_links(text, here_dir, idx):
         return "[%s](%s)" % (label, rel)
     parts = CODE.split(text)
     for i in range(0, len(parts), 2):
-        parts[i] = WL.sub(rep, parts[i])
+        # «\$» внутри формул arithmatex принимает за границу формулы -> MathJax \unicode{36}
+        parts[i] = WL.sub(rep, parts[i]).replace(r"\$", r"\unicode{36}")
     return "".join(parts)
 
 
