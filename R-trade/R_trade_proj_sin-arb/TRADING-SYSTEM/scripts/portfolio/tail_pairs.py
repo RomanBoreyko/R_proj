@@ -101,13 +101,19 @@ def open_orders(sget, ttl=5):
         reqs = [("option", {"baseCoin": b}) for b in ("ETH", "BTC", "SOL", "XRP", "MNT", "DOGE")] +                [("linear", {"settleCoin": "USDT"}), ("linear", {"settleCoin": "USDC"}), ("inverse", {}), ("spot", {})]
         for cat, extra in reqs:
             try:
-                r = sget("/v5/order/realtime", dict(extra, category=cat, limit="50"))
-                if r.get("retCode") != 0: continue
-                for o in r["result"]["list"]:
-                    out.append({"cat": cat, "sym": o["symbol"].replace("-USDT", ""), "side": o["side"], "type": o.get("orderType"),
-                                "price": ff(o.get("price")), "qty": ff(o.get("qty")), "filled": ff(o.get("cumExecQty")),
-                                "trig": ff(o.get("triggerPrice")) or None, "ro": bool(o.get("reduceOnly")), "tif": o.get("timeInForce"),
-                                "status": o.get("orderStatus"), "t": int(ff(o.get("createdTime")))})
+                cur = ""
+                for _page in range(10):   # API отдаёт ≤50 за запрос — листаем курсором (иначе длинная сетка обрезается)
+                    p = dict(extra, category=cat, limit="50")
+                    if cur: p["cursor"] = cur
+                    r = sget("/v5/order/realtime", p)
+                    if r.get("retCode") != 0: break
+                    for o in r["result"]["list"]:
+                        out.append({"cat": cat, "sym": o["symbol"].replace("-USDT", ""), "side": o["side"], "type": o.get("orderType"),
+                                    "price": ff(o.get("price")), "qty": ff(o.get("qty")), "filled": ff(o.get("cumExecQty")),
+                                    "trig": ff(o.get("triggerPrice")) or None, "ro": bool(o.get("reduceOnly")), "tif": o.get("timeInForce"),
+                                    "status": o.get("orderStatus"), "t": int(ff(o.get("createdTime")))})
+                    cur = r["result"].get("nextPageCursor") or ""
+                    if not cur or len(r["result"]["list"]) < 50: break
             except Exception:
                 pass
         return sorted(out, key=lambda x: -x["t"])

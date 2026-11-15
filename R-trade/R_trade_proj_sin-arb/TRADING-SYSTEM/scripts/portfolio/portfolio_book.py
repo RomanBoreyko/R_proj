@@ -8,10 +8,10 @@ from tail_pairs import ff, _T, _N, _bs, cached, CRYPTO, inverse_positions, inv_b
 
 # группа -> базовые активы; первый — «главный» (ось payoff и датчик волы)
 GROUPS = {"ETH": ["ETH"], "MNT": ["MNT"], "SOL": ["SOL"], "BTC": ["BTC"], "QQQ": ["QQQ"],
-          "GOLD": ["XAUT", "XAU", "XAG", "GDX"]}
+          "GOLD": ["XAUT", "XAU", "XAG", "GDX"], "SOX": ["SOXL", "SOXS", "SOXX"]}
 GNAME = {"ALL": "Весь портфель", "ETH": "ETH", "MNT": "MNT", "SOL": "SOL", "BTC": "BTC",
-         "QQQ": "QQQ", "GOLD": "Золото", "OTHER": "Прочее"}
-OPT_BASES = ["ETH", "MNT", "SOL", "BTC", "QQQ", "XAUT"]      # у кого есть опционы на Bybit
+         "QQQ": "QQQ", "GOLD": "Золото", "SOX": "SOXL/SOXS", "OTHER": "Прочее"}
+OPT_BASES = ["ETH", "MNT", "SOL", "BTC", "QQQ", "XAUT", "SOXL"]      # у кого есть опционы на Bybit
 STABLE = ("USDT", "USDC")
 FLAT_USD = 150          # |Δ$| меньше — считаем нейтральным (подсветка)
 PAY_RANGE = (-0.45, 0.25, 140)
@@ -29,12 +29,17 @@ def _perp_base(sym):
         if s.endswith(suf) and len(s) > len(suf): return s[:-len(suf)]
     return inv_base(s) or s
 
+def _lin_tk(pub):
+    def f():
+        return {t["symbol"]: t for t in pub("/v5/market/tickers", {"category": "linear"})["result"]["list"]}
+    return cached("pb_lin_tk", 5, f)
+
 def _lin_px(pub):
     def f():
         out = {}
-        for t in pub("/v5/market/tickers", {"category": "linear"})["result"]["list"]:
+        for s, t in _lin_tk(pub).items():
             p = ff(t.get("markPrice")) or ff(t.get("lastPrice"))
-            if p > 0: out[t["symbol"]] = p
+            if p > 0: out[s] = p
         return out
     return cached("pb_lin", 5, f)
 
@@ -209,12 +214,17 @@ def portfolio_snapshot(sget, pub, earn_fn=None):
                      "K": ff(pr[2]), "cp": pr[3], "exp": pr[1], "T": _T(pr[1]), "iv": iv, "S": S,
                      "entry": ff(o.get("avgPrice")), "d": d, "g": g, "t": ff(o.get("theta")), "v": ff(o.get("vega")),
                      "dusd": d * S, "g1": g * S * S * 0.01, "up": ff(o.get("unrealisedPnl"))})
+    lin_tks = _lin_tk(pub)
     for p in perps:
         b = _perp_base(p["symbol"]); sd = 1 if p["side"] == "Buy" else -1; sz = ff(p["size"])
-        S = ff(p.get("markPrice")) or px(b)
+        tk_p = lin_tks.get(p["symbol"], {})
+        S = ff(p.get("markPrice")) or ff(tk_p.get("markPrice")) or px(b)
+        fr = ff(tk_p.get("fundingRate"))
+        fi = ff(tk_p.get("fundingIntervalHour") or 8) or 8
+        t_fund = -(sd * sz * S) * fr * (24.0 / fi) if S > 0 and fr != 0 else 0.0
         inst.append({"k": "perp", "sym": p["symbol"] + (" (инв.)" if p.get("inv") else ""), "base": b, "grp": _grp(b), "side": sd, "sz": sz, "S": S,
-                     "entry": ff(p.get("avgPrice")), "d": sd * sz, "g": 0.0, "t": 0.0, "v": 0.0,
-                     "dusd": sd * sz * S, "g1": 0.0, "up": ff(p.get("unrealisedPnl"))})
+                     "entry": ff(p.get("avgPrice")), "d": sd * sz, "g": 0.0, "t": t_fund, "v": 0.0,
+                     "dusd": sd * sz * S, "g1": 0.0, "up": ff(p.get("unrealisedPnl")), "fr": fr, "t_fund": t_fund})
 
     # ---------- по активу ----------
     bases = set(i["base"] for i in inst)
@@ -229,8 +239,11 @@ def portfolio_snapshot(sget, pub, earn_fn=None):
         pi = [i for i in inst if i["base"] == b and i["k"] == "perp"]
         od = sum(i["d"] for i in oi); pd = sum(i["d"] for i in pi)
         tr = od + pd + spot + ea
+        ot = sum(i["t"] for i in oi)
+        pt = sum(i["t"] for i in pi)
         A[b] = {"base": b, "grp": _grp(b), "px": S, "spot": round(spot, 6), "earn": round(ea, 6),
-                "od": round(od, 4), "og": round(sum(i["g"] for i in oi), 5), "ot": round(sum(i["t"] for i in oi), 2),
+                "od": round(od, 4), "og": round(sum(i["g"] for i in oi), 5), "ot": round(ot, 2), "pt": round(pt, 2),
+                "t": round(ot + pt, 2),
                 "ov": round(sum(i["v"] for i in oi), 2), "pd": round(pd, 4), "true": round(tr, 4),
                 "dusd": round(tr * S, 1), "g1": round(sum(i["g1"] for i in oi), 2),
                 "hedge": round(-tr, 4), "n": len(oi) + len(pi),
@@ -253,7 +266,8 @@ def portfolio_snapshot(sget, pub, earn_fn=None):
             for f in ("d", "dusd", "g", "g1", "t", "v"): k[f] += i[f]
         rat = lambda a, b: round(abs(a) / abs(b) * 100, 1) if b else 0
         tot = {"dusd": round(sum(r["dusd"] for r in rows), 1), "g1": round(sum(r["g1"] for r in rows), 2),
-               "t": round(sum(r["ot"] for r in rows), 2), "v": round(sum(r["ov"] for r in rows), 2),
+               "t": round(sum(r["t"] for r in rows), 2), "ot": round(sum(r["ot"] for r in rows), 2),
+               "pt": round(sum(r.get("pt", 0.0) for r in rows), 2), "v": round(sum(r["ov"] for r in rows), 2),
                "up": round(sum(i["up"] for i in sel), 2),
                "od_perp": round(sum(i["d"] for i in sel if main and i["base"] == main), 4),
                "true": A[main]["true"] if main else None, "g": A[main]["og"] if main else None}

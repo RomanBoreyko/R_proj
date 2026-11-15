@@ -53,6 +53,7 @@ D2 — ETH PERP-LONG + PUT-LONG, РЕБАЛАНС (Bybit)
 | Базис-деск: родословная (учеб.) | [[03-STRATEGIES/basis-desk-родословная]] |
 | Опц. кондор + зонный хедж (техника) | [[03-STRATEGIES/options-condor-zone-hedge]] |
 | Портфель — операционный план | [[03-STRATEGIES/portfolio-operating-plan]] |
+| S1 — Рой ботов на шиткоинах (план 15.11) | [[03-STRATEGIES/S1-рой-ботов-шиткоины]] |
 | Deribit — стратегии | [[02-INSTRUMENTS/deribit-strategies]] |
 | Сеточные боты (ребаланс) | [[02-INSTRUMENTS/bybit-grid-bots]] |
 | Правила риска | [[06-RISK/risk-rules]] |
