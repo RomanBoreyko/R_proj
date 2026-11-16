@@ -304,7 +304,7 @@ def series(pub, bar="10s"):
     if bar.endswith("s"):
         rows = _sec_series(BARS[bar])
     else:
-        iv, lim = {"1m": ("1", 720), "5m": ("5", 720), "1h": ("60", 500)}[bar]
+        iv, lim = {"1m": ("1", 1000), "5m": ("5", 720), "1h": ("60", 500)}[bar]
         rows = _cached("kl" + bar, 15, lambda: _kl_series(pub, iv, lim))
     return {"t": time.strftime("%H:%M:%S"), "bar": bar, "sec": BARS[bar], "a": A, "b": B, "rows": rows, "n": len(rows),
             "err": "; ".join(f"{k}: {v}" for k, v in _TERR.items()) or None}
