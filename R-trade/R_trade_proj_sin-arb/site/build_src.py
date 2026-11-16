@@ -13,7 +13,7 @@ import os, re, shutil, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "TRADING-SYSTEM")
 DST = os.environ.get("SITE_DOCS") or os.path.join(HERE, "docs")  # локально лучше вне волта (Obsidian/синхронизация)
-DIRS = ["13-LEARNING", "12-CONCEPTS", "03-STRATEGIES", "10-DASHBOARD", "11-ASSETS", "06-RISK"]
+DIRS = ["13-LEARNING", "12-CONCEPTS", "03-STRATEGIES", "10-DASHBOARD", "11-ASSETS", "06-RISK"]   # 99-АРХИВ сюда не входит
 FILES = ["scripts/portfolio/DASHBOARD.md"]
 
 WL = re.compile(r"(!?)\[\[([^\]\|#]+?)(#[^\]\|]+)?((?:\\?\|)[^\]]+)?\]\]")
@@ -129,9 +129,8 @@ def fix_details(text):
     return DETAILS.sub(rep, text)
 
 
-COURSE = "13-LEARNING/Арбитражный портфель"
-COURSE_ORDER = ["АП-00", "АП-01", "АП-02", "АП-03", "АП-04", "АП-05", "АП-06", "АП-07",
-                "АП-08", "АП-09", "АП-13", "АП-10", "АП-11", "АП-12"]
+COURSE = "13-LEARNING/Оператор спреда"   # с 16.11.2026; курс «Арбитражный портфель» — в TRADING-SYSTEM/99-АРХИВ (на сайт не идёт)
+COURSE_ORDER = ["ОС-00", "ОС-01", "ОС-02", "ОС-03", "ОС-04", "ОС-05", "ОС-06", "ОС-07", "ОС-08", "ОС-09", "ОС-10", "ОС-11", "ОС-12"]
 SECTIONS = [("Понятия", "12-CONCEPTS"), ("Стратегии", "03-STRATEGIES"),
             ("Активы", "11-ASSETS"), ("Дашборд", "10-DASHBOARD")]
 
@@ -143,12 +142,12 @@ def q(s):
 def write_nav(files):
     rels = sorted(f.replace(os.sep, "/") for f in files)
     L = ["# сгенерировано build_src.py — не править", "INHERIT: mkdocs.yml", "nav:",
-         "  - Главная: index.md", "  - Курс «Арбитражный портфель»:"]
+         "  - Главная: index.md", "  - Курс «Оператор спреда SOXL/SOXS»:"]
     course = [r for r in rels if r.startswith(COURSE + "/")]
     key = lambda r: next((i for i, p in enumerate(COURSE_ORDER) if os.path.basename(r).startswith(p)), 99)
     for r in sorted(course, key=key):
         title = os.path.basename(r)[:-3]
-        title = title.replace("АП-00 ", "").replace("АП-", "", 1) if title.startswith("АП-") else title
+        title = title.replace("ОС-00 ", "").replace("ОС-", "", 1) if title.startswith("ОС-") else title
         title = re.sub(r"^(\d\d) ", lambda m: "%d. " % int(m.group(1)) if int(m.group(1)) <= 9 or m.group(1) == "13" else "", title)
         L.append("      - %s: %s" % (q(title), q(r)))
     for name, d in SECTIONS:

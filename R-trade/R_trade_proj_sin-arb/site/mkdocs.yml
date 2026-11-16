@@ -2,7 +2,7 @@
 # Локально (если стоит mkdocs-material): python site/build_src.py && mkdocs serve -f site/mkdocs.gen.yml
 site_name: Конспекты · Оператор Капитала
 site_url: https://romanboreyko.github.io/R_proj/
-site_description: Арбитражный портфель, опционы и риск на Bybit — учебные конспекты
+site_description: Оператор спреда SOXL/SOXS на Bybit — плечевые ETF, опционы, маржа, скальп
 repo_url: https://github.com/RomanBoreyko/R_proj
 edit_uri: ""
 docs_dir: docs
