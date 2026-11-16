@@ -209,6 +209,37 @@ def _us_session(now):
     return {"state": st, "et": et.strftime("%a %H:%M ET"), "to_open_h": round((nxt - et).total_seconds() / 3600, 1),
             "to_close_h": round((cls - et).total_seconds() / 3600, 1) if st == "открыта" else None}
 
+def _last_us_close(now):
+    """Время последнего закрытия NYSE (16:00 ET, будни) ≤ now, unix-сек. Праздники не учитываются."""
+    u = datetime.datetime.fromtimestamp(now, datetime.timezone.utc)
+    for back in range(0, 8):
+        d = (u - datetime.timedelta(days=back)).date()
+        if d.weekday() >= 5: continue
+        y = d.year
+        def nth_sun(month, n):
+            x = datetime.date(y, month, 1); return x + datetime.timedelta(days=(6 - x.weekday()) % 7 + 7 * (n - 1))
+        edt = nth_sun(3, 2) < d <= nth_sun(11, 1) - datetime.timedelta(days=1)
+        c = datetime.datetime(d.year, d.month, d.day, 20 if edt else 21, 0, tzinfo=datetime.timezone.utc)
+        if c.timestamp() <= now: return int(c.timestamp())
+    return None
+
+def _close_px(pub, now):
+    """SOXL/SOXS-перпы на последнем закрытии США (закрытие 15-мин бара, кончившегося в 16:00 ET). Кэш до следующего закрытия."""
+    ct = _last_us_close(now)
+    if not ct: return None
+    v = _C.get("closepx")
+    if v and v[1].get("ts") == ct: return v[1]
+    out = {"ts": ct}
+    for sym, k in (("SOXLUSDT", "L0"), ("SOXSUSDT", "S0")):
+        try:
+            kl = pub("/v5/market/kline", {"category": "linear", "symbol": sym, "interval": "15", "start": str((ct - 900) * 1000), "end": str((ct - 1) * 1000), "limit": "2"})["result"]["list"]
+            bar = [x for x in kl if int(x[0]) // 1000 == ct - 900]
+            out[k] = ff((bar or kl)[0][4]) if (bar or kl) else None
+        except Exception:
+            out[k] = None
+    if out.get("L0") and out.get("S0"): _C["closepx"] = (time.time(), out)
+    return out
+
 def _sox_pnl(sget):
     """Учёт по перпам SOXL/SOXS за 7 дней и за сегодня (с 00:00 UTC): closed PnL Bybit, комиссии и фандинг из исполнений. Кэш 60 с."""
     def f():
@@ -245,10 +276,10 @@ def _gamma(sget, pub, now, sox_legs, sox_perps, pxL, pxS, Bsign, soxEq, fund_sox
     qS = sum(p["q"] for p in sox_perps if p["sym"] == "SOXSUSDT") + ff(rowsL.get("SOXS_spot"))
     g_optL = sum(l["g"] for l in sox_legs if l["base"] == "SOXL") * pxL * pxL
     g_optS = sum(l["g"] * (b * pxS) ** 2 + l["d"] * c2 * pxS for l in sox_legs if l["base"] == "SOXS")
-    g_pair = c2 * qS * pxS
-    gR = g_optL + g_optS + g_pair
+    g_pair = c2 * qS * pxS                     # многодневная «гамма» пары (рывок на закрытиях), в коридор не входит
+    gR = g_optL + g_optS
     sig_d = (rv.get("h30") or 0) / 100 / math.sqrt(365)
-    th_opt = sum(l["th"] for l in sox_legs); th_pair = -0.5 * g_pair * sig_d ** 2; th_book = th_opt + th_pair + fund_sox
+    th_opt = sum(l["th"] for l in sox_legs); th_pair = 0.0; th_book = th_opt + fund_sox    # пара: среднее ≈ 0 (тренд против пилы), отдельной теты нет
     be = math.sqrt(2 * abs(th_book) / gR) if gR > 0 and th_book < 0 else None
     exp_day = 0.5 * gR * sig_d ** 2 + th_book
     # цепочка опционов SOXL у денег по экспирациям (≤ 35 дн)
@@ -333,12 +364,15 @@ def _build(sget, pub, port):
     dE = ff(eth.get("true")); pxL = ff(LT.get("SOXLUSDT", {}).get("markPrice")) or ff(rows.get("SOXL", {}).get("px"))
     pxS = ff(LT.get("SOXSUSDT", {}).get("markPrice")) or ff(rows.get("SOXS", {}).get("px"))
     dL = ff(rows.get("SOXL", {}).get("true")); qS = ff(rows.get("SOXS", {}).get("true"))
-    soxEq = dL * pxL - qS * pxS * beta
+    CP = _close_px(pub, now) or {}; L0, S0 = CP.get("L0"), CP.get("S0")
+    mS = (S0 * pxL / L0) if (L0 and S0 and pxL) else pxS * beta   # $ SOXS-ноги на 1 доходности SOXL внутри дня (зеркало)
+    soxEq = dL * pxL - qS * mS
+    soxAfter = dL * pxL - qS * pxS                                  # после закрытия база переклеится
     todo = []
     if abs(dE) >= 0.1 and pxE:
         todo.append({"lvl": "warn" if abs(dE) < 0.3 else "neg", "txt": "ETHUSDT %s %.2f — дельта ETH %+.2f ($%+.0f)" % ("Buy" if dE < 0 else "Sell", abs(dE), dE, dE * pxE)})
     if abs(soxEq) >= 40 and pxL:
-        todo.append({"lvl": "warn" if abs(soxEq) < 100 else "neg", "txt": "SOXLUSDT %s %.2f — дельта SOX $%+.0f в SOXL-экв. (с SOXS × β %.2f)" % ("Buy" if soxEq < 0 else "Sell", abs(soxEq) / pxL, soxEq, beta)})
+        todo.append({"lvl": "warn" if abs(soxEq) < 100 else "neg", "txt": "SOXLUSDT %s %.2f — дельта SOX $%+.0f в SOXL-экв. (зеркало от закрытия США)" % ("Buy" if soxEq < 0 else "Sell", abs(soxEq) / pxL, soxEq)})
     for b, r in rows.items():
         if b in ("ETH", "SOXL", "SOXS"): continue
         if abs(ff(r.get("dusd"))) >= 50 and ff(r.get("px")):
@@ -413,6 +447,7 @@ def _build(sget, pub, port):
     sox_lin = lambda S: (qL * (S - pxL) + (qSp * pxS * ((S / pxL) ** B["beta"] - 1) if pxL and pxS else 0.0))
     sox_curve = _curve([l for l in sox_legs if l["base"] == "SOXL"], sox_lin, pxL, 0.4, 1.6, now) if pxL else None
     sox = {"legs": sox_legs, "perps": sox_perps, "eq_usd": round(soxEq, 1), "pxL": pxL, "pxS": pxS, "beta": beta,
+           "eq_after": round(soxAfter, 1), "L0": L0, "S0": S0, "close_ts": CP.get("ts"), "mirror": bool(L0 and S0),
            "opt": {k: round(sum(l[k] for l in sox_legs), 3) for k in ("d", "g", "v", "th", "upl", "val")},
            "fund_day": round(sum(p["fund_day"] for p in sox_perps), 2), "pseudo": pseudo,
            "mm": {c: pm["coins"].get(c, {}).get("mm") for c in ("SOXL", "SOXS")},
@@ -423,7 +458,7 @@ def _build(sget, pub, port):
            "dparts": {"L_perp": round(qL, 4), "L_opt": round(sum(l["d"] for l in sox_legs if l["base"] == "SOXL"), 4),
                       "L_spot": round(ff(rows.get("SOXL", {}).get("spot")), 4), "L_tot": round(dL, 4), "L_usd": round(dL * pxL, 1),
                       "S_perp": round(qSp, 4), "S_opt": round(sum(l["d"] for l in sox_legs if l["base"] == "SOXS"), 4),
-                      "S_spot": round(ff(rows.get("SOXS", {}).get("spot")), 4), "S_tot": round(qS, 4), "S_usd": round(-qS * pxS * beta, 1),
+                      "S_spot": round(ff(rows.get("SOXS", {}).get("spot")), 4), "S_tot": round(qS, 4), "S_usd": round(-qS * mS, 1),
                       "shares": round(soxEq / pxL, 3) if pxL else None}}
     try: sox["gamma"] = _gamma(sget, pub, now, sox_legs, sox_perps, pxL, pxS, B["beta"], soxEq, sox["fund_day"], {"SOXS_spot": ff(rows.get("SOXS", {}).get("spot"))})
     except Exception as e: sox["gamma"] = {"err": str(e)}
@@ -489,9 +524,9 @@ def _build(sget, pub, port):
     for l in sorted([l for l in sox_legs if l["base"] == "SOXL"], key=lambda l: l["ets"]): addp("SOXL " + l["exp"], l["sym"], l["d"], pxL)
     if qL: addp("SOXL перп/спот", "SOXLUSDT", qL, pxL)
     if ff(rows.get("SOXL", {}).get("spot")): addp("SOXL перп/спот", "спот SOXL", ff(rows["SOXL"]["spot"]), pxL)
-    for l in [l for l in sox_legs if l["base"] == "SOXS"]: addp("SOXS " + l["exp"], l["sym"], l["d"], pxS, -beta)
-    if qSp: addp("SOXS перп/спот", "SOXSUSDT", qSp, pxS, -beta)
-    if ff(rows.get("SOXS", {}).get("spot")): addp("SOXS перп/спот", "спот SOXS", ff(rows["SOXS"]["spot"]), pxS, -beta)
+    for l in [l for l in sox_legs if l["base"] == "SOXS"]: addp("SOXS " + l["exp"], l["sym"], l["d"], pxS, -(mS / pxS if pxS else beta))
+    if qSp: addp("SOXS перп/спот", "SOXSUSDT", qSp, pxS, -(mS / pxS if pxS else beta))
+    if ff(rows.get("SOXS", {}).get("spot")): addp("SOXS перп/спот", "спот SOXS", ff(rows["SOXS"]["spot"]), pxS, -(mS / pxS if pxS else beta))
     groups = []
     for g in dict.fromkeys(p["grp"] for p in dpos):
         G = [p for p in dpos if p["grp"] == g]
@@ -549,7 +584,8 @@ def desk_live(sget, pub):
     pxE, pxL, pxS = px["ETH"] or e["px"], px["SOXL"] or x["pxL"], px["SOXS"] or x["pxS"]
     dE = od.get("ETH", 0.0) + pq.get("ETH", 0.0) + ff(e.get("spot"))
     dL = od.get("SOXL", 0.0) + pq.get("SOXL", 0.0) + ff(dp.get("L_spot")); dS = od.get("SOXS", 0.0) + pq.get("SOXS", 0.0) + ff(dp.get("S_spot"))
-    Lusd, Susd = dL * pxL, -dS * pxS * beta; soxEq = Lusd + Susd
+    L0, S0 = x.get("L0"), x.get("S0"); mS = (S0 * pxL / L0) if (L0 and S0) else pxS * beta
+    Lusd, Susd = dL * pxL, -dS * mS; soxEq = Lusd + Susd; soxAfter = dL * pxL - dS * pxS
     fund = ff(full.get("fund_day")); thE = th.get("ETH", 0.0); thS = th.get("SOXL", 0.0) + th.get("SOXS", 0.0)
     theta_day = round(sum(th.values()) + fund, 2); room = eq - mm; im_pct = im / eq * 100 if eq else 0
     r = {"t": time.strftime("%H:%M:%S"),
@@ -557,8 +593,205 @@ def desk_live(sget, pub):
                   "room": round(room, 1), "avail": round(ff(wb.get("totalAvailableBalance")), 2)},
          "eth": {"px": pxE, "delta": round(dE, 4), "dusd": round(dE * pxE, 1), "theta": round(thE, 2)},
          "sox": {"pxL": pxL, "pxS": pxS, "eq_usd": round(soxEq, 1), "hedge": round(-soxEq / pxL, 2) if pxL else None,
-                 "opt_th": round(thS, 3), "L_usd": round(Lusd, 1), "S_usd": round(Susd, 1), "shares": round(soxEq / pxL, 3) if pxL else None},
+                 "opt_th": round(thS, 3), "eq_after": round(soxAfter, 1), "L_usd": round(Lusd, 1), "S_usd": round(Susd, 1), "shares": round(soxEq / pxL, 3) if pxL else None},
          "dsum": {"eth_usd": round(dE * pxE, 1), "sox_eq": round(soxEq, 1), "total": round(dE * pxE + soxEq, 1)},
          "theta_day": theta_day, "alerts": _alerts(im_pct, theta_day, thE, thS, fund, room, eq)}
     _C["live"] = (time.time(), r)
     return r
+
+
+# ===================== Конструктор позиции (вкладка «Конструктор» деска), 16.11.2026 =====================
+# Только чтение. Отдаёт сырьё для расчётов в браузере: ноги (позиции Bybit) с бид/аском и IV, цепочку опционов SOXL,
+# перпы SOXL/SOXS на Bybit и MEXC (публичный API), базу зеркала (закрытие США), β, RV, факторы, комиссии.
+def _mexc(sym):
+    """Публичный тикер фьючерса MEXC (SOXL_USDT / SOXS_USDT). Кэш 5 с. Без ключей."""
+    import json as _j, urllib.request as _u
+    def f():
+        r = _j.loads(_u.urlopen(_u.Request("https://contract.mexc.com/api/v1/contract/ticker?symbol=" + sym, headers={"User-Agent": "Mozilla/5.0"}), timeout=8).read())
+        d = r.get("data") or {}
+        return {"bid": ff(d.get("bid1")), "ask": ff(d.get("ask1")), "last": ff(d.get("lastPrice")), "index": ff(d.get("indexPrice")),
+                "fair": ff(d.get("fairPrice")), "funding": ff(d.get("fundingRate")), "vol24": ff(d.get("amount24"))}
+    try: return _cached("mexc:" + sym, 5, f)
+    except Exception as e: return {"err": str(e)}
+
+def _fees(sget):
+    def f():
+        out = {}
+        for cat, q in (("linear", {"symbol": "SOXLUSDT"}), ("option", {"baseCoin": "SOXL"})):
+            try:
+                x = sget("/v5/account/fee-rate", dict(q, category=cat))["result"]["list"][0]
+                out[cat] = {"maker": ff(x.get("makerFeeRate")), "taker": ff(x.get("takerFeeRate"))}
+            except Exception: out[cat] = None
+        out["option_delivery"] = 0.0002
+        return out
+    try: return _cached("fees", 3600, f)
+    except Exception: return {}
+
+def _xfactors(pub):
+    """β и корреляция дневных доходностей SOXL-перпа к SOXX, QQQ, NVDA (180 дн). Кэш 1 ч."""
+    def f():
+        def rets(sym):
+            k = {int(x[0]): ff(x[4]) for x in pub("/v5/market/kline", {"category": "linear", "symbol": sym, "interval": "D", "limit": "181"})["result"]["list"]}
+            ts = sorted(k); return {ts[i]: math.log(k[ts[i]] / k[ts[i - 1]]) for i in range(1, len(ts)) if k[ts[i - 1]] > 0}
+        L = rets("SOXLUSDT"); out = {}
+        for s in ("SOXXUSDT", "QQQUSDT", "NVDAUSDT"):
+            try:
+                X = rets(s); ks = sorted(set(L) & set(X)); n = len(ks)
+                y = [L[t] for t in ks]; x = [X[t] for t in ks]; my, mx = sum(y) / n, sum(x) / n
+                cv = sum((a - my) * (b - mx) for a, b in zip(y, x)); vx = sum((b - mx) ** 2 for b in x); vy = sum((a - my) ** 2 for a in y)
+                out[s[:-4]] = {"beta": round(cv / vx, 2), "corr": round(cv / math.sqrt(vx * vy), 2), "n": n}
+            except Exception: pass
+        return out
+    try: return _cached("xfactors", 3600, f)
+    except Exception: return {}
+
+def builder_snapshot(sget, pub):
+    v = _C.get("builder")
+    if v and time.time() - v[0] < 3: return v[1]
+    now = time.time()
+    from concurrent.futures import ThreadPoolExecutor
+    def pos(q):
+        try: return [p for p in sget("/v5/position/list", dict(q, limit="200"))["result"]["list"] if ff(p["size"])]
+        except Exception: return []
+    def tk(cat, **q):
+        try: return pub("/v5/market/tickers", dict(q, category=cat))["result"]["list"]
+        except Exception: return []
+    with ThreadPoolExecutor(8) as ex:
+        fw = ex.submit(lambda: sget("/v5/account/wallet-balance", {"accountType": "UNIFIED"})["result"]["list"][0])
+        fo = [ex.submit(pos, {"category": "option", "baseCoin": b}) for b in ("SOXL", "SOXS")]
+        fl = ex.submit(pos, {"category": "linear", "settleCoin": "USDT"})
+        fc = ex.submit(tk, "option", baseCoin="SOXL")
+        fpL, fpS = ex.submit(tk, "linear", symbol="SOXLUSDT"), ex.submit(tk, "linear", symbol="SOXSUSDT")
+        fmL, fmS = ex.submit(_mexc, "SOXL_USDT"), ex.submit(_mexc, "SOXS_USDT")
+        wb = fw.result(); opts = fo[0].result() + fo[1].result(); lin = [p for p in fl.result() if p["symbol"] in ("SOXLUSDT", "SOXSUSDT")]
+        chain_raw = fc.result(); pL = (fpL.result() or [{}])[0]; pS = (fpS.result() or [{}])[0]; mL, mS = fmL.result(), fmS.result()
+    TK = {x["symbol"]: x for x in chain_raw}
+    def unit(x):
+        return {"bid": ff(x.get("bid1Price")), "bidSize": ff(x.get("bid1Size")), "bidIv": ff(x.get("bid1Iv")), "ask": ff(x.get("ask1Price")),
+                "askSize": ff(x.get("ask1Size")), "askIv": ff(x.get("ask1Iv")), "mark": ff(x.get("markPrice")), "markIv": ff(x.get("markIv")),
+                "d": ff(x.get("delta")), "g": ff(x.get("gamma")), "v": ff(x.get("vega")), "th": ff(x.get("theta")), "oi": ff(x.get("openInterest"))}
+    legs = []
+    for p in opts:
+        s = p["symbol"]; b, e, k, cp = s.split("-")[:4]; q = ff(p["size"]) * (1 if p["side"] == "Buy" else -1)
+        legs.append(dict(unit(TK.get(s, {})), kind="opt", sym=s, base=b, exp=e, ets=_exp_ts(e), K=ff(k), cp=cp, q=q,
+                         avg=ff(p["avgPrice"]), upl=round(ff(p.get("unrealisedPnl")), 2)))
+    def perp(t):
+        return {"bid": ff(t.get("bid1Price")), "bidSize": ff(t.get("bid1Size")), "ask": ff(t.get("ask1Price")), "askSize": ff(t.get("ask1Size")),
+                "mark": ff(t.get("markPrice")), "index": ff(t.get("indexPrice")), "funding": ff(t.get("fundingRate")),
+                "fundH": ff(t.get("fundingIntervalHour")) or 8, "nextFunding": int(ff(t.get("nextFundingTime")) / 1000) if t.get("nextFundingTime") else None}
+    PL, PS = perp(pL), perp(pS)
+    for p in sorted(lin, key=lambda p: p["symbol"], reverse=True):
+        q = ff(p["size"]) * (1 if p["side"] == "Buy" else -1)
+        legs.insert(0, dict(PL if p["symbol"] == "SOXLUSDT" else PS, kind="perp", sym=p["symbol"], base=p["symbol"][:4], q=q,
+                            avg=ff(p["avgPrice"]), upl=round(ff(p.get("unrealisedPnl")), 2)))
+    chain = []
+    for s, x in TK.items():
+        b, e, k, cp = s.split("-")[:4]; ets = _exp_ts(e)
+        if ets - now <= 0 or ets - now > 70 * 86400: continue
+        Lm = ff(pL.get("markPrice"))
+        if Lm and not (0.3 * Lm <= ff(k) <= 2.0 * Lm): continue
+        chain.append(dict(unit(x), sym=s, exp=e, ets=ets, K=ff(k), cp=cp))
+    chain.sort(key=lambda c: (c["ets"], c["K"], c["cp"]))
+    CP = _close_px(pub, now) or {}
+    B = _beta(pub); rv = _rv(pub)
+    r = {"t": time.strftime("%H:%M:%S"), "now": now,
+         "acct": {"eq": round(ff(wb.get("totalEquity")), 2), "im_pct": round(ff(wb.get("accountIMRate")) * 100, 2), "mm_pct": round(ff(wb.get("accountMMRate")) * 100, 2),
+                  "im": round(ff(wb.get("totalInitialMargin")), 2), "mm": round(ff(wb.get("totalMaintenanceMargin")), 2), "avail": round(ff(wb.get("totalAvailableBalance")), 2)},
+         "legs": legs, "chain": chain, "perp": {"SOXL": PL, "SOXS": PS}, "mexc": {"SOXL": mL, "SOXS": mS},
+         "L0": CP.get("L0"), "S0": CP.get("S0"), "close_ts": CP.get("ts"),
+         "beta": B.get("beta"), "vr": B.get("vr"), "rv": {k: v for k, v in (rv or {}).items() if k in ("h7", "h30", "d30", "d120", "beta_h3")},
+         "factors": _xfactors(pub), "fees": _fees(sget), "us": _us_session(now),
+         "mm": _mm_update(chain_raw, ff(pL.get("markPrice")), now)}
+    _C["builder"] = (time.time(), r)
+    return r
+
+def builder_kline(pub, iv="D", sym="SOXLUSDT", limit=200):
+    """Свечи индексной цены (как «SOXL Index Price» в конструкторе Bybit). Кэш 30 с."""
+    iv = iv if iv in ("15", "60", "240", "D", "W") else "D"
+    def f():
+        k = pub("/v5/market/index-price-kline", {"category": "linear", "symbol": sym, "interval": iv, "limit": str(limit)})["result"]["list"]
+        return [[int(x[0]) // 1000, ff(x[1]), ff(x[2]), ff(x[3]), ff(x[4])] for x in reversed(k)]
+    try: return {"iv": iv, "rows": _cached("bk:%s:%s" % (sym, iv), 30, f)}
+    except Exception as e: return {"err": str(e)}
+
+# ── Монитор маркетмейкера опционов SOXL (16.11) ─────────────────────────────
+# Покрытие = доля опционов «у денег» (страйк 0.7…1.4 × SOXL, экспирация > 1 дня), у которых есть двусторонняя
+# котировка (бид > 0.01 и аск > 0). Норма ~0.9. Ушёл — покрытие < 0.25; вернулся — ≥ 0.5 (гистерезис).
+# Переходы пишутся в data/mm_quotes.log (TSV: ts_utc, OFF|ON, покрытие, q/n). Файл локальный: *.log в .gitignore.
+import os as _os, threading as _th
+_MM_LOG = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "data", "mm_quotes.log")
+_MM = {"state": None, "since": None, "cov": None, "q": 0, "n": 0, "ts": 0, "min_cov": None}
+_MM_LOCK = _th.Lock()
+MM_OFF, MM_ON = 0.25, 0.5
+
+def _mm_write(ts, ev, cov, q, n):
+    try:
+        _os.makedirs(_os.path.dirname(_MM_LOG), exist_ok=True)
+        with open(_MM_LOG, "a", encoding="utf-8") as f:
+            f.write("%s\t%s\t%.3f\t%d/%d\n" % (time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ts)), ev, cov, q, n))
+    except Exception: pass
+
+def _mm_update(chain_raw, L, now=None):
+    """Покрытие котировок по сырому списку тикеров опционов SOXL; ведёт состояние и журнал."""
+    now = now or time.time()
+    if not chain_raw or not L: return mm_state()
+    q = n = 0
+    for x in chain_raw:
+        try:
+            b, e, k, cp = x["symbol"].split("-")[:4]
+            if _exp_ts(e) - now <= 86400 or not (0.7 * L <= float(k) <= 1.4 * L): continue
+        except Exception: continue
+        n += 1
+        if ff(x.get("bid1Price")) > 0.01 and ff(x.get("ask1Price")) > 0: q += 1
+    if not n: return mm_state()
+    cov = q / n
+    with _MM_LOCK:
+        st = _MM["state"]
+        if st is None:                                   # старт сервера: состояние берём как есть
+            st = "on" if cov >= MM_OFF else "off"; _MM.update(state=st, since=now, min_cov=cov)
+            if st == "off": _mm_write(now, "OFF", cov, q, n)
+        elif st == "on" and cov < MM_OFF:
+            _MM.update(state="off", since=now, min_cov=cov); _mm_write(now, "OFF", cov, q, n)
+        elif st == "off" and cov >= MM_ON:
+            _MM.update(state="on", since=now); _mm_write(now, "ON", cov, q, n)
+        elif st == "off":
+            _MM["min_cov"] = min(_MM["min_cov"] or 1, cov)
+        _MM.update(cov=cov, q=q, n=n, ts=now)
+    return mm_state()
+
+def mm_tick(pub):
+    """Для фонового потока сервера (раз в 15 с): один публичный запрос тикеров, кэш 10 с общий с деском."""
+    tk = _cached("otk:SOXL", 10, lambda: pub("/v5/market/tickers", {"category": "option", "baseCoin": "SOXL"})["result"]["list"])
+    L = ff((pub("/v5/market/tickers", {"category": "linear", "symbol": "SOXLUSDT"})["result"]["list"] or [{}])[0].get("markPrice"))
+    return _mm_update(tk, L)
+
+def _mm_episodes(k=8):
+    """Последние k эпизодов «маркетмейкер ушёл» из журнала: начало, конец (None — идёт), минуты."""
+    ev = []
+    try:
+        with open(_MM_LOG, encoding="utf-8") as f:
+            for ln in f:
+                p = ln.rstrip("\n").split("\t")
+                if len(p) >= 2:
+                    ts = datetime.datetime.strptime(p[0], "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc).timestamp()
+                    ev.append((ts, p[1], float(p[2]) if len(p) > 2 else None))
+    except Exception: return []
+    eps, cur = [], None
+    for ts, e, c in ev:
+        if e == "OFF":
+            if cur is None: cur = {"start": ts, "end": None, "cov": c}
+        elif e == "ON" and cur is not None:
+            cur["end"] = ts; eps.append(cur); cur = None
+    if cur is not None:
+        # незакрытый эпизод: если сервер сейчас видит маркетмейкера — эпизод оборвался перезапуском
+        if _MM["state"] == "off": eps.append(cur)
+        else: cur["end"] = None; cur["lost"] = True; eps.append(cur)
+    now = time.time()
+    for e in eps:
+        e["min"] = round(((e["end"] or now) - e["start"]) / 60, 1) if not e.get("lost") else None
+    return eps[-k:][::-1]
+
+def mm_state():
+    with _MM_LOCK: s = dict(_MM)
+    s.update(off_thr=MM_OFF, on_thr=MM_ON, episodes=_mm_episodes())
+    return s
