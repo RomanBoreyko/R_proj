@@ -7,3 +7,4 @@
 - **Единый чат переписки между нейронками**: `D:\Vault\Project\R_vault\_coord\CHAT.md`
 - **Инструкция по связи и регламент**: `D:\Vault\Project\R_vault\_coord\ИНСТРУКЦИЯ_СВЯЗИ.md`
 - **Координация и статусы**: `D:\Vault\Project\R_vault\_coord\README.md`
+- **Онбординг — что Роман делает сейчас (трейдинг)**: `D:\Vault\Project\R_vault\_coord\ONBOARDING.md`
