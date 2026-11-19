@@ -880,6 +880,8 @@ def _bot_mart(d):
 def _bot_signals(b, topup, warn, reserve):
     """Сигналы по приоритету: [уровень, текст]; уровень neg | warn | pos."""
     s = []
+    if b.get("status") in ("COMPLETED", "CLOSED", "FINISHED", "STOPPED"):   # закрыт — итог вместо тревог (цена у закрытого бота = 0)
+        return [["pos" if (b.get("pnl") or 0) >= 0 else "warn", "бот закрыт (%s): итог %+.2f $ · %d сделок — убери его ID из bots.json" % (b.get("status"), b.get("pnl") or 0, b.get("trades") or 0)]]
     if b.get("status") not in ("RUNNING", "ACTIVATION", None):
         s.append(["neg", "бот не работает: " + str(b.get("status")) + (" · " + b["close"] if b.get("close") not in ("", "UNSPECIFIED", None) else "")])
     d = b.get("dist")
