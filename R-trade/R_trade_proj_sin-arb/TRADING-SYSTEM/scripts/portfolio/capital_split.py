@@ -69,6 +69,22 @@ def _futures(k, s):
            for x in (p.get("data") or [])]
     return assets, pos
 
+def mexc_snapshot():
+    """Только MEXC (для плитки деска): спот + фьючерсы + открытые позиции. Кэш 20 с. Ключи не уходят в ответ."""
+    cr = _creds()
+    r = {"t": time.strftime("%H:%M:%S"), "key": bool(cr)}
+    if not cr: return r
+    try:
+        spot = _cached("mx_spot", 20, lambda: _spot(*cr))
+        fa, fp = _cached("mx_fut", 20, lambda: _futures(*cr))
+        s_usd = round(sum(x["usd"] or 0 for x in spot), 2); f_usd = round(sum(x["equity"] for x in fa if x["asset"] in ("USDT", "USDC")), 2)
+        r.update({"spot": spot, "fut_assets": fa, "fut_pos": fp, "spot_usd": s_usd, "fut_usd": f_usd, "eq": round(s_usd + f_usd, 2),
+                  "fut_avail": round(sum(x["avail"] for x in fa if x["asset"] in ("USDT", "USDC")), 2),
+                  "fut_upl": round(sum(x["upl"] for x in fa), 2)})
+    except Exception as e:
+        r["err"] = str(e)[:200]
+    return r
+
 def capital_snapshot(port):
     a = port.get("acct", {}); G = port.get("groups", {})
     eth = (G.get("ETH") or {}).get("tot", {}); allt = (G.get("ALL") or {}).get("tot", {})

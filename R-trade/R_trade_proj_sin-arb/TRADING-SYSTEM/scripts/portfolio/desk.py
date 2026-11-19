@@ -218,8 +218,11 @@ def _us_session(now):
     if wd >= 5 or m >= 570: nxt += datetime.timedelta(days=1)
     while nxt.weekday() >= 5: nxt += datetime.timedelta(days=1)
     cls = et.replace(hour=16, minute=0, second=0, microsecond=0)
+    nc = cls if (wd < 5 and m < 960) else cls + datetime.timedelta(days=1)   # ближайшее закрытие = ребалансировка фондов
+    while nc.weekday() >= 5: nc += datetime.timedelta(days=1)
     return {"state": st, "et": et.strftime("%a %H:%M ET"), "to_open_h": round((nxt - et).total_seconds() / 3600, 1),
-            "to_close_h": round((cls - et).total_seconds() / 3600, 1) if st == "открыта" else None}
+            "to_close_h": round((cls - et).total_seconds() / 3600, 1) if st == "открыта" else None,
+            "next_close_ts": int((nc + datetime.timedelta(hours=off)).replace(tzinfo=datetime.timezone.utc).timestamp())}
 
 def _last_us_close(now):
     """Время последнего закрытия NYSE (16:00 ET, будни) ≤ now, unix-сек. Праздники не учитываются."""
@@ -815,7 +818,8 @@ def mm_state():
 # Резерв доливки = свободные USDT на Funding (/v5/asset/transfer/query-account-coins-balance, FUND).
 import json as _json
 BOTS_FILE = r"C:\Users\DoOs\.bybit\bots.json"
-_BOT_EP = {"grid": ("/v5/fgridbot/detail", "detail"), "martingale": ("/v5/fmartingalebot/detail", "fmart_detail")}
+_BOT_EP = {"grid": ("/v5/fgridbot/detail", "detail"), "martingale": ("/v5/fmartingalebot/detail", "fmart_detail"),
+           "combo": ("/v5/fcombobot/detail", "detail")}   # combo: путь найден 19.11, формат ответа ещё не видели (ключу нужны права на ботов)
 
 def _bots_cfg():
     try: return _json.load(open(BOTS_FILE, encoding="utf-8"))
@@ -938,7 +942,8 @@ def bots_snapshot(spost, sget):
                 sh = R / b["Qmax"]; b["liq_full_after"] = round(max(b["liq_full"] - sh, 0) if b["edge"] == b["lo"] else b["liq_full"] + sh, 2)
             b["signals"] = _bot_signals(b, topup, warn, R)
         except Exception as e:
-            b["err"] = str(e)[:200]; b["signals"] = [["neg", "нет данных: " + b["err"]]]
+            b["err"] = str(e)[:200]
+            b["signals"] = [["warn", "API-ключу не хватает прав на этого бота (Bybit 10005 Permission denied): деск его не видит, смотри в приложении Bybit"]] if "10005" in b["err"] else [["neg", "нет данных: " + b["err"]]]
         out.append(b)
     r = {"t": time.strftime("%H:%M:%S"), "bots": out, "reserve": reserve, "topup_pct": topup, "warn_pct": warn,
          "file": BOTS_FILE, "cfg_found": _os.path.exists(BOTS_FILE)}
