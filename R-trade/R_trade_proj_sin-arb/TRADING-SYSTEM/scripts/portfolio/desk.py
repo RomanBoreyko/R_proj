@@ -7,7 +7,7 @@
   ETH: ноги (Δ, вега, тета, бид/аск), «закрыть → маржа Bybit ±$», стресс цена×IV (Блэк–Шоулз),
        хвост проданных путов по датам экспираций (когда купленные истекают раньше проданных);
   SOX: ноги, Δ в SOXL-эквиваленте с β, псевдо-стренгл пары перпов (Γ$, распад/сутки, безубыток, VR), фандинг;
-  тета по дням (до 10:00 Киева = 08:00 UTC, при неизменных цене и IV);
+  тета по дням (до 10:00 Киева = 08:00 UTC, при неизменных цене и IV; экспирации SOXL/SOXS — 16:00 ET, см. _exp_ts);
   плечи: маржа, займ, чистая дельта, брутто перпов, обязательства по проданным путам.
 Маршрут: /desk → desk_snapshot(sget, pub, port). Кэш 12 с.
 """
@@ -32,8 +32,20 @@ def _bs(S, K, T, s, cp):
     d1 = (math.log(S / K) + 0.5 * s * s * T) / (s * math.sqrt(T)); d2 = d1 - s * math.sqrt(T)
     return S * _N(d1) - K * _N(d2) if cp == "C" else K * _N(-d2) - S * _N(-d1)
 
-def _exp_ts(code):
+_TRADFI_OPT = ("SOXL", "SOXS")   # опционы Bybit TradFi на ETF США
+
+def _us_edt(dd):
+    """Летнее время США (EDT) на дату: со 2-го воскресенья марта до 1-го воскресенья ноября."""
+    def nth_sun(month, n):
+        x = datetime.date(dd.year, month, 1); return x + datetime.timedelta(days=(6 - x.weekday()) % 7 + 7 * (n - 1))
+    return nth_sun(3, 2) <= dd < nth_sun(11, 1)
+
+def _exp_ts(code, base="SOXL"):
+    """Экспирация опциона, unix-сек. Крипто-опционы Bybit — 08:00 UTC; опционы на ETF США (SOXL/SOXS) — закрытие NYSE 16:00 ET
+    (21:00 UTC зимой, 20:00 летом). Проверено 17.11 по deliveryTime в /v5/market/instruments-info: 17NOV26…4DEC26 = 21:00 UTC."""
     d = int(code[:-5]); m = MON[code[-5:-2]]; y = 2000 + int(code[-2:])
+    if base in _TRADFI_OPT:
+        return datetime.datetime(y, m, d, 20 if _us_edt(datetime.date(y, m, d)) else 21, 0, tzinfo=datetime.timezone.utc).timestamp()
     return datetime.datetime(y, m, d, 8, 0, tzinfo=datetime.timezone.utc).timestamp()
 
 def _beta(pub):
@@ -337,7 +349,7 @@ def _build(sget, pub, port):
     for p in opts:
         s = p["symbol"]; parts = s.split("-"); b, e, k, cp = parts[0], parts[1], parts[2], parts[3]; t = T.get(s, {})
         q = ff(p["size"]) * (1 if p["side"] == "Buy" else -1)
-        legs.append({"base": b, "sym": s.replace("-USDT", ""), "q": q, "K": ff(k), "cp": cp, "exp": e, "ets": _exp_ts(e),
+        legs.append({"base": b, "sym": s.replace("-USDT", ""), "q": q, "K": ff(k), "cp": cp, "exp": e, "ets": _exp_ts(e, b),
                      "S": ff(t.get("underlyingPrice")) or ff(rows.get(b, {}).get("px")), "iv": ff(t.get("markIv")),
                      "mark": round(ff(p["markPrice"]), 4), "avg": round(ff(p["avgPrice"]), 4), "bid": ff(t.get("bid1Price")), "ask": ff(t.get("ask1Price")),
                      "d": round(ff(p.get("delta")), 4), "g": round(ff(p.get("gamma")), 5), "v": round(ff(p.get("vega")), 3), "th": round(ff(p.get("theta")), 3),
@@ -384,8 +396,8 @@ def _build(sget, pub, port):
     for (b, e), L in soon.items():
         dd = sum(l["d"] for l in L); hrs = (L[0]["ets"] - now) / 3600
         sym = {"ETH": "ETHUSDT"}.get(b, b + "USDT")
-        todo.append({"lvl": "warn", "txt": "%s %s экспирирует через %.0f ч (10:00 Киев): %s; их дельта %+.2f уйдёт → после экспирации %s %s ~%.2f" % (
-            b, e, hrs, ", ".join("%s ×%g" % (l["sym"].split("-", 2)[-1], l["q"]) for l in L), dd, sym, "Sell" if dd < 0 else "Buy", abs(dd))})
+        todo.append({"lvl": "warn", "txt": "%s %s экспирирует через %.0f ч (%s Киев): %s; их дельта %+.2f уйдёт → после экспирации %s %s ~%.2f" % (
+            b, e, hrs, time.strftime("%d.%m %H:%M", time.localtime(L[0]["ets"])), ", ".join("%s ×%g" % (l["sym"].split("-", 2)[-1], l["q"]) for l in L), dd, sym, "Sell" if dd < 0 else "Buy", abs(dd))})
     room = eq - mm; im_pct = im / eq * 100 if eq else 0
     pass   # предупреждения по IM — в alerts (ниже)
     # --- ETH: ноги, «закрыть → маржа», стресс, хвост
@@ -673,7 +685,7 @@ def builder_snapshot(sget, pub):
     legs = []
     for p in opts:
         s = p["symbol"]; b, e, k, cp = s.split("-")[:4]; q = ff(p["size"]) * (1 if p["side"] == "Buy" else -1)
-        legs.append(dict(unit(TK.get(s, {})), kind="opt", sym=s, base=b, exp=e, ets=_exp_ts(e), K=ff(k), cp=cp, q=q,
+        legs.append(dict(unit(TK.get(s, {})), kind="opt", sym=s, base=b, exp=e, ets=_exp_ts(e, b), K=ff(k), cp=cp, q=q,
                          avg=ff(p["avgPrice"]), upl=round(ff(p.get("unrealisedPnl")), 2)))
     def perp(t):
         return {"bid": ff(t.get("bid1Price")), "bidSize": ff(t.get("bid1Size")), "ask": ff(t.get("ask1Price")), "askSize": ff(t.get("ask1Size")),
@@ -686,7 +698,7 @@ def builder_snapshot(sget, pub):
                             avg=ff(p["avgPrice"]), upl=round(ff(p.get("unrealisedPnl")), 2)))
     chain = []
     for s, x in TK.items():
-        b, e, k, cp = s.split("-")[:4]; ets = _exp_ts(e)
+        b, e, k, cp = s.split("-")[:4]; ets = _exp_ts(e, b)
         if ets - now <= 0 or ets - now > 70 * 86400: continue
         Lm = ff(pL.get("markPrice"))
         if Lm and not (0.3 * Lm <= ff(k) <= 2.0 * Lm): continue
@@ -795,3 +807,138 @@ def mm_state():
     with _MM_LOCK: s = dict(_MM)
     s.update(off_thr=MM_OFF, on_thr=MM_ON, episodes=_mm_episodes())
     return s
+
+# ── Боты Bybit в конструкторе (18.11): фьючерсная сетка и мартингейл. ТОЛЬКО ЧТЕНИЕ ─────────────────────
+# Списка ботов в API Bybit нет — ID ботов лежат в локальном файле BOTS_FILE (рядом с ключами, вне репозитория):
+#   {"bots": [{"id": "<Bot ID>", "type": "grid" | "martingale", "name": "подпись"}], "topup_pct": 15, "warn_pct": 25}
+# Детали: POST /v5/fgridbot/detail и /v5/fmartingalebot/detail {"bot_id"} — read-only ключ их отдаёт (проверено 18.11).
+# Резерв доливки = свободные USDT на Funding (/v5/asset/transfer/query-account-coins-balance, FUND).
+import json as _json
+BOTS_FILE = r"C:\Users\DoOs\.bybit\bots.json"
+_BOT_EP = {"grid": ("/v5/fgridbot/detail", "detail"), "martingale": ("/v5/fmartingalebot/detail", "fmart_detail")}
+
+def _bots_cfg():
+    try: return _json.load(open(BOTS_FILE, encoding="utf-8"))
+    except FileNotFoundError: return {"bots": []}
+
+def _enum(s):   # FUTURE_GRID_MODE_LONG -> LONG; "Running" -> RUNNING
+    s = str(s or "").upper(); return s.rsplit("_", 1)[-1] if "_" in s else s
+
+def _bot_grid(d):
+    P = ff(d.get("mark_price")) or ff(d.get("last_price")); lo = ff(d.get("curr_min_price")) or ff(d.get("min_price"))
+    hi = ff(d.get("curr_max_price")) or ff(d.get("max_price")); N = int(ff(d.get("cell_number"))) or 1
+    mode = _enum(d.get("grid_mode")); side = _enum(d.get("futures_pos_side")); e = ff(d.get("entry_price")) or (lo + hi) / 2
+    inv = ff(d.get("total_investment")); lev = ff(d.get("leverage")) or 1; eq = ff(d.get("equity"))
+    q = ff(d.get("current_position")); q = -abs(q) if side == "SHORT" else abs(q)
+    liq = ff(d.get("liquidation_price")) or None
+    zone = "above" if P > hi else ("below" if P < lo else "in")
+    w = max(hi - lo, 1e-9)
+    if mode == "LONG": load = (hi - P) / w
+    elif mode == "SHORT": load = (P - lo) / w
+    else: load = (e - P) / max(e - lo, 1e-9) if P < e else (P - e) / max(hi - e, 1e-9)
+    load = min(max(load, 0.0), 1.0)
+    # макс. позиция на краю: консервативно = вложение×плечо / цена края (порядок оценки Bybit при создании бота)
+    if mode == "LONG": Q = inv * lev / lo; edge = lo
+    elif mode == "SHORT": Q = inv * lev / hi; edge = hi
+    elif P < e: Q = inv * lev / lo * (e - lo) / w; edge = lo
+    else: Q = inv * lev / hi * (hi - e) / w; edge = hi
+    if load > 0.15: Q = max(Q, abs(q) / load)
+    # ликвидация при полной загрузке (цена дошла до края, набрано всё): убыток текущей позиции до края
+    # + добираемые ноги по средней (P+край)/2; дальше позиция Q не растёт
+    lq = None
+    if Q > 0:
+        mv = abs(P - edge) if zone == "in" else 0.0; qa = abs(q)
+        eq_e = eq - qa * mv - max(Q - qa, 0) * mv / 2
+        lq = max(edge - eq_e / Q, 0.0) if edge == lo else edge + eq_e / Q
+    long_side = (mode == "LONG") or (mode == "NEUTRAL" and q >= 0)
+    dist = None
+    if liq and P: dist = (P - liq) / P * 100 if long_side else (liq - P) / P * 100
+    dist_full = None
+    if lq is not None and edge: dist_full = (edge - lq) / edge * 100 if edge == lo else (lq - edge) / edge * 100
+    return dict(P=P, lo=lo, hi=hi, N=N, mode=mode, entry=e, q=q, zone=zone, load=round(load, 4), Qmax=round(Q, 4),
+                liq=liq, dist=None if dist is None else round(dist, 2), liq_full=None if lq is None else round(lq, 2),
+                dist_full=None if dist_full is None else round(dist_full, 2), edge=edge, long_side=long_side,
+                inv=inv, lev=lev, eq=eq, pnl=ff(d.get("pnl")), grid_profit=ff(d.get("grid_profit")), upl=ff(d.get("unrealised_pnl")),
+                funding=ff(d.get("funding_fee")), trades=int(ff(d.get("arbitrage_num"))), trades24=int(ff(d.get("arbitrage_num_24"))),
+                pos_bal=ff(d.get("position_balance")), ord_bal=ff(d.get("total_order_balance")), avail=ff(d.get("available_balance")),
+                fee_m=ff(d.get("maker_fee_rate")), fee_t=ff(d.get("taker_fee_rate")), prof=[ff(d.get("min_profit")), ff(d.get("max_profit"))],
+                sl=d.get("stop_loss_price") or "", tp=d.get("take_profit_price") or "", close=_enum(d.get("close_reason")))
+
+def _bot_mart(d):
+    P = ff(d.get("mark_price")) or ff(d.get("current_price")); mode = _enum(d.get("fmart_mode"))
+    q = ff(d.get("pos_size")); q = -abs(q) if mode == "SHORT" else abs(q); liq = ff(d.get("estimated_liq_price")) or None
+    adds, used = int(ff(d.get("add_pos_num"))), int(ff(d.get("current_added_pos_num")))
+    long_side = mode != "SHORT"; dist = None
+    if liq and P: dist = (P - liq) / P * 100 if long_side else (liq - P) / P * 100
+    return dict(P=P, mode=mode, q=q, liq=liq, dist=None if dist is None else round(dist, 2), long_side=long_side,
+                load=round(used / adds, 4) if adds else 0.0, adds=adds, adds_used=used, avg=ff(d.get("avg_pos_price")),
+                lev=ff(d.get("leverage")), inv=ff(d.get("total_margin")), pnl=ff(d.get("pnl")), upl=ff(d.get("unrealized_pnl")),
+                funding=ff(d.get("net_funding_fee")), rounds=int(ff(d.get("completed_rounds"))), step=ff(d.get("add_pos_per")),
+                tp_round=ff(d.get("single_round_target_profit_per")), pos_bal=ff(d.get("pos_balance")), ord_bal=ff(d.get("order_balance")),
+                avail=ff(d.get("available_balance")), zone="in", close=_enum(d.get("stop_type")))
+
+def _bot_signals(b, topup, warn, reserve):
+    """Сигналы по приоритету: [уровень, текст]; уровень neg | warn | pos."""
+    s = []
+    if b.get("status") not in ("RUNNING", "ACTIVATION", None):
+        s.append(["neg", "бот не работает: " + str(b.get("status")) + (" · " + b["close"] if b.get("close") not in ("", "UNSPECIFIED", None) else "")])
+    d = b.get("dist")
+    if d is not None and d < topup:
+        s.append(["neg", "ПОРА ДОЛИВАТЬ: до ликвидации %.1f%% (порог %g%%) · резерв на Funding $%.2f" % (d, topup, reserve)])
+    elif d is not None and d < warn:
+        s.append(["warn", "риск ликвидации: до неё %.1f%% (внимание < %g%%, доливка < %g%%)" % (d, warn, topup)])
+    if b["type"] == "grid":
+        if b["zone"] == "below":
+            s.append(["neg" if b["mode"] != "SHORT" else "warn", "цена НИЖЕ диапазона: " + ("засажен на 100%, сетка не торгует" if b["mode"] != "SHORT" else "позиция 0, бот ждёт возврата")])
+        elif b["zone"] == "above":
+            s.append(["neg" if b["mode"] != "LONG" else "warn", "цена ВЫШЕ диапазона: " + ("засажен на 100%, сетка не торгует" if b["mode"] != "LONG" else "позиция 0, бот стоит без дела")])
+        elif b["load"] >= 0.8:
+            s.append(["warn", "засажен на %.0f%%: до края диапазона %.1f%%" % (b["load"] * 100, abs(b["P"] - b["edge"]) / b["P"] * 100)])
+        if b.get("dist_full") is not None and b["zone"] == "in" and b["dist_full"] < warn:
+            s.append(["warn", "если цена дойдёт до края %.2f, до ликвидации останется ~%.0f%% (≈ %.2f)" % (b["edge"], b["dist_full"], b["liq_full"])])
+    else:
+        if b["adds"] and b["adds_used"] >= b["adds"]:
+            s.append(["neg", "все доборы использованы (%d из %d) — засажен" % (b["adds_used"], b["adds"])])
+        elif b["load"] >= 0.6:
+            s.append(["warn", "использовано доборов %d из %d" % (b["adds_used"], b["adds"])])
+    if not s: s.append(["pos", "в норме: в диапазоне, ликвидация далеко"])
+    return sorted(s, key=lambda x: {"neg": 0, "warn": 1}.get(x[0], 2))   # худший сигнал первым: по нему цвет рамки
+
+def bots_snapshot(spost, sget):
+    """Живые параметры ботов из BOTS_FILE + сигналы (вне диапазона, засажен, риск ликвидации, пора доливать). Кэш 5 с."""
+    v = _C.get("bots")
+    if v and time.time() - v[0] < 5: return v[1]
+    cfg = _bots_cfg(); topup = ff(cfg.get("topup_pct")) or 15; warn = ff(cfg.get("warn_pct")) or 25
+    def fund():
+        try:
+            bl = sget("/v5/asset/transfer/query-account-coins-balance", {"accountType": "FUND", "coin": "USDT"})["result"]["balance"]
+            return ff((bl or [{}])[0].get("transferBalance"))
+        except Exception: return None
+    reserve = _cached("bots:fund", 15, fund)
+    out = []
+    for c in cfg.get("bots", []):
+        bid, typ = str(c.get("id", "")).strip(), (c.get("type") or "grid").lower()
+        b = {"id": bid, "type": typ, "name": c.get("name") or bid}
+        try:
+            ep, key = _BOT_EP[typ]
+            r = spost(ep, {"bot_id": bid}); res = r.get("result") or {}
+            if r.get("retCode") != 0 or res.get("status_code") not in (0, None) or not res.get(key):
+                raise ValueError("%s %s" % (r.get("retCode"), r.get("retMsg") or res.get("debug_msg") or "нет данных"))
+            d = res[key]
+            b.update(_bot_grid(d) if typ == "grid" else _bot_mart(d))
+            b["status"] = _enum(d.get("status") if typ == "grid" else d.get("bot_display_status"))
+            b["sym"] = d.get("symbol"); b["base"] = d.get("base_token") or (d.get("symbol") or "")[:-4]
+            b["since"] = int(ff(d.get("create_time")) / 1000) or None
+            R = reserve or 0.0
+            if b.get("liq") and b.get("q"):   # доливка всего резерва: куда уйдёт ликвидация
+                sh = R / abs(b["q"]); b["liq_after"] = round(max(b["liq"] - sh, 0) if b["long_side"] else b["liq"] + sh, 2)
+            if b.get("liq_full") is not None and b.get("Qmax"):
+                sh = R / b["Qmax"]; b["liq_full_after"] = round(max(b["liq_full"] - sh, 0) if b["edge"] == b["lo"] else b["liq_full"] + sh, 2)
+            b["signals"] = _bot_signals(b, topup, warn, R)
+        except Exception as e:
+            b["err"] = str(e)[:200]; b["signals"] = [["neg", "нет данных: " + b["err"]]]
+        out.append(b)
+    r = {"t": time.strftime("%H:%M:%S"), "bots": out, "reserve": reserve, "topup_pct": topup, "warn_pct": warn,
+         "file": BOTS_FILE, "cfg_found": _os.path.exists(BOTS_FILE)}
+    _C["bots"] = (time.time(), r)
+    return r

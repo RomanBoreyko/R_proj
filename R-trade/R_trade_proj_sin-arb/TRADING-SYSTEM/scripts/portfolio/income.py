@@ -42,7 +42,7 @@ def _px(pub, coins):
 
 def _optval(sget):
     v = {}
-    for bc in ("ETH", "BTC", "SOL", "XRP", "MNT", "XAUT", "QQQ", "DOGE"):
+    for bc in ("ETH", "BTC", "SOL", "XRP", "MNT", "XAUT", "QQQ", "DOGE", "SOXL", "SOXS"):
         try:
             for p in sget("/v5/position/list", {"category": "option", "baseCoin": bc, "limit": "200"})["result"]["list"]:
                 if ff(p["size"]) > 0: v[p["symbol"]] = ff(p["markPrice"]) * ff(p["size"]) * (1 if p["side"] == "Buy" else -1)

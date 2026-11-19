@@ -24,6 +24,12 @@ def sget(path, params):
     req = urllib.request.Request(BASE+path+"?"+qs, headers={"X-BAPI-API-KEY":KEY,"X-BAPI-TIMESTAMP":ts,"X-BAPI-SIGN":sig,"X-BAPI-RECV-WINDOW":recv})
     return json.loads(urllib.request.urlopen(req, timeout=15).read())
 
+def spost(path, body):   # подписанный POST — только для чтения деталей ботов (/v5/fgridbot/detail и т.п.)
+    ts = str(int(time.time()*1000)); recv = "20000"; js = json.dumps(body, separators=(",",":"))
+    sig = hmac.new(SECRET.encode(), (ts+KEY+recv+js).encode(), hashlib.sha256).hexdigest()
+    req = urllib.request.Request(BASE+path, data=js.encode(), method="POST", headers={"X-BAPI-API-KEY":KEY,"X-BAPI-TIMESTAMP":ts,"X-BAPI-SIGN":sig,"X-BAPI-RECV-WINDOW":recv,"Content-Type":"application/json"})
+    return json.loads(urllib.request.urlopen(req, timeout=15).read())
+
 def pub(path, params):
     with urllib.request.urlopen(BASE+path+"?"+urllib.parse.urlencode(params), timeout=15) as r:
         return json.loads(r.read())
@@ -766,9 +772,11 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 <div style="color:#8b949e;font-size:11px;margin:8px 0 10px">Только чтение. Маржа и сценарии — из Bybit <code>/v5/asset/portfolio-margin</code> (MM = худший сценарий + надбавки; IM ≈ 1.2×MM). <b>Запас</b> = эквити − MM: на столько может упасть эквити до ликвидации. «Закрыть → маржа» — как изменится худший сценарий Bybit по ETH, если закрыть ногу целиком (+ освободит, − добавит; надбавки не пересчитаны, ±несколько $). Дельта SOX — в SOXL-эквиваленте: Δ SOXL·цена − SOXS·цена·|β| (β — дневные свечи 120 дн). Псевдо-стренгл пары перпов: P&L ≈ 4.5·N·(X² − Σx²день), Γ$ — при ходе индекса на X за срок удержания, распад = 4.5·N·σ²день. Стресс ETH и тета — Блэк–Шоулз по mark IV ног; перп и спот — линейно. Хвост: что останется после каждой экспирации и выплата на экспирации при ETH −50% и −70% от текущей.</div>
 </div>
 <div id="dkbuild" style="display:none">
+<div style="margin:2px 0;font-size:12px"><span class="gbtn" id="bldcm1" onclick="bldCompactSet(1)">компактно</span><span class="gbtn" id="bldcm0" onclick="bldCompactSet(0)">все плитки</span></div>
 <div style="font-size:12px;color:#8b949e;margin:2px 0" id="bldupd"></div>
 <div id="bldmm" style="margin:4px 0"></div>
 <div class="row" id="bldtop"></div>
+<div id="bldbots"></div>
 <div id="bldctl"></div>
 <table id="bldtab" style="margin-top:4px"></table>
 <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
@@ -778,12 +786,16 @@ h3{margin:12px 0 2px;font-size:11px;color:#8b949e;font-weight:600;text-transform
 <h3>Параметры спреда</h3><div id="bldpar"></div>
 <h3>Арбитражные калькуляторы</h3><div id="bldarb"></div>
 <h3>Калькуляторы без прогноза</h3><div id="bldnoarb"></div>
+<h3>(Е) Калькулятор теты — новые ноги и путь к экспирации</h3><div id="bldth"></div>
 <h3>Квесты арбитражника</h3><div id="bldq"></div>
 <h3>Как пользоваться вкладкой (для оператора спреда)</h3>
 <div style="font-size:12px;line-height:1.6;max-width:1200px">
 <p><b>Что это.</b> Конструктор позиции как на Bybit (Tools → Options → конструктор), но со вторым инструментом спреда — SOXS — и с параметрами пары. Все цифры — из API Bybit (только чтение) и публичного API MEXC. Ордера отсюда не ставятся: кнопки меняют только симуляцию.</p>
 <p><b>Плашка маркетмейкера (самый верх).</b> Доля опционов у денег с двусторонней котировкой, норма ~90%. Красная — маркетмейкер ушёл: стакан опционов пустой, лимитки стоят без встречной стороны, а бид/аск и P&amp;L считаются по пустому стакану. Ниже — журнал уходов (сервер пишет его сам раз в 15 с).</p>
 <p><b>Квесты арбитражника (внизу).</b> Двенадцать квестов из ОС-12. По каждому — где смотреть, что делать, критерий успеха и живые цифры «сейчас». Зелёная точка — квест актуален в это время (открытие или закрытие США, выходные, маркетмейкер ушёл). «Записать снимок» кладёт текущие цифры в журнал браузера, «копировать как Markdown» — строки для «Журнала квестов» ОС-12. Галочка — квест пройден.</p>
+<p><b>Компактно / все плитки.</b> «Компактно» прячет шапку деска и оставляет три строки: <b>Риск</b> (эквити и запас до ликвидации, IM, худшая маржа SOX, P&L ног), <b>Книга</b> (Δ по зеркалу, хедж с порогом $40, Γ, Θ с фандингом, вега, ожидание в сутки, RV/IV), <b>Время</b> (цены, сессия США, ближайшая экспирация). Строка бота — 5 плиток. «Все плитки» — шапка деска и под ней строка конструктора без дублей: цены MEXC, Δ только SOXL (как Bybit), Γ/вега/Θ, P&amp;L ног; Δ и хедж «с изменениями» — только если ноги сняты, изменены или добавлены. Выбор запоминается в браузере.</p>
+<p><b>Боты (строка под плитками).</b> Фьючерсные сетки и мартингейлы Bybit из файла <code>C:/Users/DoOs/.bybit/bots.json</code> (как добавить — 10-DASHBOARD/Боты в конструкторе.md). Первая плитка — сигналы: вне диапазона, засажен, риск ликвидации, пора доливать. «Засажен» — доля сетки, набранная в позицию. «Ликвидация сейчас» — от Bybit по текущей позиции; «на краю» — оценка, если цена дойдёт до края и позиция наберётся целиком. «Доливка» — куда уйдёт ликвидация, если долить весь свободный USDT с Funding. Пороги — в bots.json (доливка 15%, внимание 25%).</p>
+<p><b>Калькулятор теты (Е).</b> Две ноги — по умолчанию коллар: купить пут у денег, продать колл на $3 выше, экспирация 4DEC. Цена пустая — текущий аск/бид; впиши цену своей лимитки. Первая таблица — премия, Δ$, гамма, Θ и вега новых ног по грекам Bybit и книга до/после (Θ с фандингом, лимит −$10 в сутки). Вторая — как растёт Θ новых ног к экспирации при разных ценах SOXL, Θ всей книги и сколько новые ноги потеряют или заработают на времени к этой дате.</p>
 <p><b>Плитки сверху.</b> Эквити (и сколько это акций SOXL), IM/MM счёта, цены SOXL и SOXS на Bybit и MEXC. <b>Δ только SOXL</b> — как считает Bybit (без SOXS). <b>Δ с SOXS по зеркалу</b> — правильная дельта пары внутри дня: лонг SOXS = шорт SOXL на S0/L0 акций (база — прошлое закрытие США); в подписи — дельта после закрытия. <b>Хедж дельты</b> — сколько SOXLUSDT купить/продать, чтобы обнулить дельту. Γ/вега/Θ — сумма по включённым ногам.</p>
 <p><b>Таблица ног.</b> Твои позиции Bybit: перпы SOXL/SOXS и опционы SOXL. Бид/аск с размером и IV, P&L, греки на позицию (для SOXS Δ в SOXL-эквиваленте).
 <br>• <b>Галочка</b> — включить/выключить ногу в расчётах (что будет, если её закрыть).
@@ -2064,6 +2076,23 @@ async function dtick(){ if(TAB!='D')return;
  let d; try{d=await (await fetch('/desk')).json()}catch(e){$('upd').textContent='деск offline';return}
  if(d.err){$('dktodo').innerHTML='<span class="neg">ошибка: '+d.err+'</span>';return}
  renderDesk(d);}
+// строка «Избранное» в шапке деска: переносит плитки по подписи (порядок — как в списке); пустые строки прячет
+const DKFAV=['Эквити','Запас','Доступно','IM','MM','Маржа SOX','Δ SOX до закрытия США','Δ купленных опционов','P&L открытых позиций','P&L счёта · 30 дн','Брутто перпов'];
+const DKTAIL={'Счёт':['Δ книги'],'SOX':['хедж SOX','Δ после закрытия']};   // плитки, которые ставятся в конец своей строки
+const DKBETA=['β SOXS/SOXL','SOXL − SOXS','Отклонение от зеркала','Хедж в штуках','Распад пары L·S','β ETH к SOXL','корр ETH·SOXL'];
+function dkFav(){const box=$('dktiles');if(!box)return;const tl={};
+ box.querySelectorAll('.tile').forEach(t=>{const l=t.querySelector('.lbl');if(l)tl[l.textContent.trim()]=t});
+ const row=document.createElement('div');row.className='row';row.style.cssText='margin:0 0 3px;gap:4px';
+ row.innerHTML='<span style="color:#e3b341;font-size:12px;width:62px;align-self:center">Избранное</span>';
+ DKFAV.forEach(n=>{if(tl[n])row.appendChild(tl[n])});if(row.children.length<2)return;
+ box.insertBefore(row,box.firstChild);
+ const brow=document.createElement('div');brow.className='row';brow.style.cssText='margin:0 0 3px;gap:4px';
+ brow.innerHTML='<span style="color:#8b949e;font-size:12px;width:62px;align-self:center">Бета</span>';
+ DKBETA.forEach(n=>{if(tl[n])brow.appendChild(tl[n])});
+ if(brow.children.length>1){const g=[...box.querySelectorAll(':scope > .row')].find(r=>{const sp=r.querySelector(':scope > span');return sp&&sp.textContent.trim()=='Гамма'});if(g)g.after(brow);else box.appendChild(brow)}
+ box.querySelectorAll(':scope > .row').forEach(r=>{const sp=r.querySelector(':scope > span'),k=sp&&sp.textContent.trim();if(k&&DKTAIL[k])DKTAIL[k].forEach(n=>{if(tl[n])r.appendChild(tl[n])});
+  if(sp&&sp.style.width=='36px')sp.style.width='62px';
+  if(r!==row&&!r.querySelector('.tile'))r.style.display='none'})}
 function renderTiles(d){
  try{dkGam(d)}catch(e){}
  $('upd').textContent='деск · '+d.t+(d.tlive?' · плитки '+d.tlive:'');
@@ -2072,17 +2101,17 @@ function renderTiles(d){
  const T=(l,v,c)=>`<div class="tile sm"><div class="lbl">${l}</div><div class="val ${c||''}">${v}</div></div>`,e=d.eth,s=d.sox,xb=d.xbeta||{},xd=xb.day||{},xh=xb.hour||{};
  const sn=Math.abs(s.eq_usd)<40,en=Math.abs(e.delta)<0.1;
  const ds=d.dsum||{},dp=s.dparts||{};
- $('dktiles').innerHTML='<div class="row" style="margin:0 0 3px;gap:4px"><span style="color:#8b949e;font-size:12px;width:36px;align-self:center">Счёт</span>'+T('Эквити','$'+f0(a.eq))+T('IM',a.im_pct+'%',ic)+T('MM',a.mm_pct+'%',ic)+T('Запас','$'+f0(a.room)+'<span style="font-size:10px;color:#8b949e"> ×'+(a.mm?(a.eq/a.mm).toFixed(2):'—')+' к MM</span>',rc)+T('Доступно','$'+f0(a.avail))+(!DKETH?'':T('Δ ETH + SOX','$'+f0(ds.total)+'<span style="font-size:10px;color:#8b949e"> ETH '+f0(ds.eth_usd)+' · SOXL '+f0(dp.L_usd)+' · SOXS '+f0(dp.S_usd)+'</span>',Math.abs(ds.total)<100?'':'warn'))
+ $('dktiles').innerHTML='<div class="row" style="margin:0 0 3px;gap:4px"><span style="color:#8b949e;font-size:12px;width:36px;align-self:center">Счёт</span>'+T('Эквити','$'+f0(a.eq))+T('IM',a.im_pct+'%',ic)+T('MM',a.mm_pct+'%',ic)+T('Запас','<span title="Запас = эквити − MM. Столько $ может потерять счёт до ликвидации. MM в Portfolio Margin пересчитывается сценарием (SOXL ±28%, IV), поэтому запас — это сумма при нынешней марже, а не уровень цены. ×к MM = эквити / MM, ликвидация при ×1">$'+f0(a.room)+'<span style="font-size:10px;color:#8b949e"> ×'+(a.mm?(a.eq/a.mm).toFixed(2):'—')+' к MM</span>'+'<div style="font-size:10px;color:#8b949e;font-weight:400;margin-top:2px">эквити − MM · убыток до ликвидации</div></span>',rc)+T('Доступно','<span title="Доступно = эквити − IM. Свободно под новые позиции и на вывод. При 0 Bybit не даст открыть ноги, увеличивающие риск, и вывести деньги, но ликвидации ещё нет: до неё остаётся IM − MM">$'+f0(a.avail)+'<div style="font-size:10px;color:#8b949e;font-weight:400;margin-top:2px">эквити − IM · под новые позиции и вывод</div></span>')+(()=>{if(DKETH||ds.total==null)return '';if(DKVIEW!='B')bldBotTick();const v=ds.total,bq=(BLDBOT&&BLDBOT.bots||[]).reduce((x,b)=>x+(!b.err&&b.base=='SOXL'?b.q:0),0),tip='Δ книги — дельта всего единого счёта в $ на 1 SOXL-эквивалент: SOXL + SOXS по зеркалу от закрытия США (внутри дня SOXS ≈ −SOXL) + опционы. SOXL +1% → книга ≈ '+(v>=0?'+':'−')+'$'+Math.abs(v/100).toFixed(2)+'. Боты — на своих изолированных счетах, в книгу не входят: показаны отдельно';return T('Δ книги','<span title="'+tip+'">$'+f0(v)+'<span style="font-size:10px;color:#8b949e"> '+(v/s.pxL>=0?'+':'')+(v/s.pxL).toFixed(2)+' SOXL'+(bq?' · с ботом $'+f0(v+bq*s.pxL):'')+'</span>'+'<div style="font-size:10px;color:#8b949e;font-weight:400;margin-top:2px">SOXL+1% → '+(v>=0?'+':'−')+'$'+Math.abs(v/100).toFixed(2)+' · хедж от $40</div></span>',Math.abs(v)<40?'pos':'warn')})()+(()=>{let pf=0,po=0;((s&&s.perps)||[]).forEach(x=>pf+=x.upl||0);((s&&s.legs)||[]).forEach(l=>po+=l.upl||0);const bt=(BLDBOT&&BLDBOT.bots||[]).filter(x=>!x.err),pb=bt.reduce((t,x)=>t+(x.pnl||0),0),ct=s&&s.gamma&&s.gamma.pnl?s.gamma.pnl.closed_today:null,tot=pf+po+pb,c=v=>v>0?'pos':(v<0?'neg':''),g=v=>(v>0?'+':'')+v.toFixed(2),N=(n,v)=>'<span style="font-size:10px;color:#8b949e;font-weight:400">'+n+' </span><span class="'+c(v)+'">'+g(v)+'</span>';return T('P&L открытых позиций','<span title="P&L открытых позиций от цены входа: перпы — нереализованный P&L перпов SOXL/SOXS (Bybit), опционы — нереализованный P&L открытых опционов по марку, бот — P&L ботов с запуска (свой счёт), всего — сумма трёх. В подписи — закрытые сделки перпов за сегодня (с 00:00 UTC), в «всего» не входят. Переводы не влияют">'+N('перпы',pf)+' &nbsp;'+N('опционы',po)+' &nbsp;'+N('бот',pb)+' &nbsp;'+N('всего',tot)+' $'+'<div style="font-size:10px;color:#8b949e;font-weight:400;margin-top:2px">от цены входа · бот с запуска'+(ct!=null?' · перпы закрыто сегодня '+g(ct):'')+'</div></span>')})()+(()=>{const W=window;if(!W.DKINCT||Date.now()-W.DKINCT>60000){W.DKINCT=Date.now();fetch('/income?days=30').then(r=>r.json()).then(j=>{if(j&&j.total!=null)W.DKINC=j}).catch(()=>{})}const I=W.DKINC,c=v=>v>0?'pos':(v<0?'neg':''),g=v=>(v>0?'+':'')+v.toFixed(2),N=(n,v)=>'<span style="font-size:10px;color:#8b949e;font-weight:400">'+n+' </span><span class="'+c(v)+'">'+g(v)+'</span>';if(!I)return T('P&L счёта · 30 дн','<span style="font-size:12px;color:#8b949e">журнал Bybit считается (~1 мин)…</span>');let pf=0;((s&&s.perps)||[]).forEach(x=>pf+=x.upl||0);let jp=0,jo=0;(I.cats||[]).forEach(x=>{if(/^Опционы/.test(x.name))jo+=x.tot;else jp+=x.tot});const bt=(BLDBOT&&BLDBOT.bots||[]).filter(x=>!x.err),pb=bt.reduce((t,x)=>t+(x.pnl||0),0),pp=jp+pf,tot=pp+jo+pb+(I.interest||0);return T('P&L счёта · 30 дн','<span title="P&L счёта за 30 дней. Источник — журнал операций Bybit (/v5/account/transaction-log, как вкладка «Доходы»): реализованный P&L перпов, премии и поставка опционов, фандинг; комиссии уже внутри. Перпы = журнал + нереализованный P&L открытых перпов. Опционы = журнал + текущая стоимость открытых опционов (марк × размер). Бот — P&L ботов с запуска (свой счёт). Переводы и пополнения не входят. Опционы, открытые раньше 30 дней, видны частично. Пересчёт раз в 10 мин">'+N('перпы+спот',pp)+' &nbsp;'+N('опционы',jo)+' &nbsp;'+N('бот',pb)+' &nbsp;'+N('всего',tot)+' $'+'<div style="font-size:10px;color:#8b949e;font-weight:400;margin-top:2px">комиссии '+g(-I.fees)+' · фандинг '+g(-I.funding)+(I.liq?' · ликвидации '+g(I.liq):'')+' (внутри) · переводы '+g(I.deposits)+' не входят · обновлено '+Math.round((I.age||0)/60)+' мин назад</div></span>',c(tot))})()+(!DKETH?'':T('Δ ETH + SOX','$'+f0(ds.total)+'<span style="font-size:10px;color:#8b949e"> ETH '+f0(ds.eth_usd)+' · SOXL '+f0(dp.L_usd)+' · SOXS '+f0(dp.S_usd)+'</span>',Math.abs(ds.total)<100?'':'warn'))
   +T('Θ /сутки','$'+f2(d.theta_day)+'<span style="font-size:10px;color:#8b949e"> до 10:00 '+f2(th0)+' · фанд '+f2(d.fund_day)+'</span>',d.theta_day<=-10?'neg':(d.theta_day<=-7?'warn':''))
   +(DKETH?'</div><div class="row" style="margin:0 0 3px;gap:4px"><span style="color:#8b949e;font-size:12px;width:36px;align-self:center">ETH</span>'
   +T('ETH','$'+f0(e.px))+T('Δ ETH',sg(e.delta),en?'pos':'warn')+T('хедж ETH',en?'нейтраль':('ETHUSDT '+(e.delta<0?'Buy ':'Sell ')+Math.abs(e.delta).toFixed(2)),en?'pos':'warn')
   +(e.cover?T('Шорт ETHUSD под путы','<span title="Инверс-шорт N контрактов ($1) даёт в $ N·(1−S/S0), на нуле ровно $N. N = Σ q·K голых проданных путов '+'(купленные, истекающие раньше, не считаются) — закрывает хвост на экспирации при любой цене. Апсайд: каждые +10% ETH = −10% от N.">'+(e.cover.inv_long>0?'ETHUSD в ЛОНГЕ $'+f0(e.cover.inv_long)+' — не шорт! ':'')+(e.cover.have>0?'добрать $'+f0(e.cover.add):'$'+f0(e.cover.need))+'<span style="font-size:10px;color:#8b949e"> с '+e.cover.from+' · сейчас $'+f0(e.cover.need_now)+' · ≈'+e.cover.eth+' ETH · +10% → $'+f0(e.cover.up10)+' · есть $'+f0(e.cover.have)+'</span></span>',e.cover.inv_long>0?'neg':(e.cover.have>=e.cover.need?'pos':'warn')):'')
   +T('вега ETH','$'+f2(e.vega),cl(e.vega))+T('Θ ETH','$'+f2(e.theta),cl(e.theta))+T('MM ETH','$'+f0(e.mm)):'')
   +'</div><div class="row" style="margin:0 0 3px;gap:4px"><span style="color:#8b949e;font-size:12px;width:36px;align-self:center">SOX</span>'
-  +T('SOXL / SOXS','$'+f2(s.pxL)+' / '+f2(s.pxS))+T('SOXL − SOXS','$'+(s.pxL-s.pxS>0?'+':'')+(s.pxL-s.pxS).toFixed(2)+'<span style="font-size:10px;color:#8b949e"> ×'+(s.pxS?(s.pxL/s.pxS).toFixed(3):'—')+'</span>')+T('Δ SOX до закрытия США','$'+f0(s.eq_usd)+'<span style="font-size:10px;color:#8b949e"> '+(s.dparts&&s.dparts.shares!=null?(s.dparts.shares>0?'+':'')+s.dparts.shares+' SOXL · зеркало':'')+'</span>',sn?'pos':'warn')+T('Δ после закрытия',(s.eq_after==null?'—':'$'+f0(s.eq_after))+'<span style="font-size:10px;color:#8b949e"> база переклеится</span>',s.eq_after!=null&&Math.abs(s.eq_after)>=40?'warn':'')+T('хедж SOX',sn?'нейтраль':('SOXLUSDT '+(s.hedge>0?'Buy ':'Sell ')+Math.abs(s.hedge).toFixed(2)),sn?'pos':'warn')
+  +T('SOXL / SOXS','$'+f2(s.pxL)+' / '+f2(s.pxS))+T('SOXL − SOXS','$'+(s.pxL-s.pxS>0?'+':'')+(s.pxL-s.pxS).toFixed(2)+'<span style="font-size:10px;color:#8b949e"> ×'+(s.pxS?(s.pxL/s.pxS).toFixed(3):'—')+'</span>')+T('Δ SOX до закрытия США','$'+f0(s.eq_usd)+'<span style="font-size:10px;color:#8b949e"> '+(s.dparts&&s.dparts.shares!=null?(s.dparts.shares>0?'+':'')+s.dparts.shares+' SOXL · зеркало':'')+'</span>',sn?'pos':'warn')+T('Δ после закрытия',(s.eq_after==null?'—':'$'+f0(s.eq_after))+'<span style="font-size:10px;color:#8b949e"> база переклеится</span>',s.eq_after!=null&&Math.abs(s.eq_after)>=40?'warn':'')+(()=>{const lg=(s.legs||[]).filter(l=>l.q>0),c=lg.filter(l=>l.cp=='C').reduce((x,l)=>x+(l.d||0),0),p=lg.filter(l=>l.cp=='P').reduce((x,l)=>x+(l.d||0),0),r2=v=>(v>0?'+':'')+v.toFixed(2);if(!lg.length)return '';return T('Δ купленных опционов',r2(c+p)+' SOXL'+'<span style="font-size:10px;color:#8b949e"> $'+f0((c+p)*s.pxL)+' · коллы '+r2(c)+' · путы '+r2(p)+' · без купленных $'+f0(s.eq_usd-(c+p)*s.pxL)+'</span>')})()+T('хедж SOX',sn?'нейтраль':('SOXLUSDT '+(s.hedge>0?'Buy ':'Sell ')+Math.abs(s.hedge).toFixed(2)),sn?'pos':'warn')
   +T('β SOXS/SOXL',s.beta+'<span style="font-size:10px;color:#8b949e"> дни 120 дн (внутри дня зеркало −1) · час 3 дн '+(s.gamma&&s.gamma.rv&&s.gamma.rv.beta_h3!=null?Math.abs(s.gamma.rv.beta_h3).toFixed(2):'—')+'</span>')
   +(!DKETH?'':T('β ETH к SOXL',(xd.eth_on_soxl??'—')+'<span style="font-size:10px;color:#8b949e"> ч '+(xh.eth_on_soxl??'—')+'</span>')+T('корр ETH·SOXL',(xd.corr??'—')+'<span style="font-size:10px;color:#8b949e"> ч '+(xh.corr??'—')+'</span>'))
-  +T('Θ опц SOX','$'+f2(s.opt.th),cl(s.opt.th))+'</div>'
+  +T('Θ опц SOX','$'+f2(s.opt.th),cl(s.opt.th))+(s.L0&&s.S0&&s.pxL&&s.pxS?(()=>{const dv=(s.pxL/s.L0+s.pxS/s.S0-2)*100,Lm=s.L0*(2-s.pxS/s.S0),pr=(s.pxL*s.pxS/(s.L0*s.S0)-1)*100,sp=t=>'<span style="font-size:10px;color:#8b949e"> '+t+'</span>';return T('Отклонение от зеркала','<span title="Отклонение от зеркала = SOXL/L0 + SOXS/S0 − 2, где L0, S0 — цены закрытия США. По мандату фондов внутри дня = 0. Ниже нуля — обе ноги дешевле зеркала (пара лонг+лонг в равных $ на закрытие зарабатывает на возврате), выше — дороже. Обычный размах ~0.07%, в выходные и дни тренда 0.24–0.28%, полувозврат ~22 мин. Урок ОС-13">'+(dv>0?'+':'')+dv.toFixed(2)+'%'+sp('зеркальный SOXL '+Lm.toFixed(2)+' · база '+s.L0+' / '+s.S0)+'</span>',Math.abs(dv)>=0.5?'warn':(Math.abs(dv)>=0.15?'':'pos'))+T('Хедж в штуках','<span title="Хедж внутри дня в штуках: на 1 SOXL — L0/S0 SOXS (равные $ на закрытие США). Весь день постоянный, меняется на закрытии. Урок ОС-13, руны 1–3">'+(s.L0/s.S0).toFixed(3)+sp('SOXS на 1 SOXL · 1 SOXS = '+(s.S0/s.L0).toFixed(3)+' SOXL')+'</span>')+T('Распад пары L·S','<span title="Произведение SOXL·SOXS к закрытию США. Внутри дня падает при ходе индекса в любую сторону: L·S = L0·S0·(1 − 9x²). Это распад пары от волатильности (тета лонг-лонга). Урок ОС-13, руна 4">'+(pr>0?'+':'')+pr.toFixed(2)+'%'+sp('к закрытию США · −9x²')+'</span>',pr<-0.5?'warn':'')})():'')+'</div>'
   +(()=>{const g=s.gamma||{};if(g.gR==null)return '';const sm=t=>'<span style="font-size:10px;color:#8b949e"> '+t+'</span>',gR=g.gR,D0=s.eq_usd,S=s.pxL,st=DKSTEP,rv=g.rv||{},us=g.us||{};
    let cor='—';if(gR>0){const up=S*(1+(st-D0)/gR),dn=S*(1+(-st-D0)/gR);cor='↑ '+up.toFixed(2)+' / ↓ '+dn.toFixed(2)+sm('Sell '+(st/up).toFixed(2)+' / Buy '+(st/dn).toFixed(2));}
    return '<div class="row" style="margin:0 0 3px;gap:4px"><span style="color:#8b949e;font-size:12px;width:36px;align-self:center">Гамма</span>'
@@ -2090,7 +2119,7 @@ function renderTiles(d){
     +T('Гамма ±5% / ±10%','$'+f2(g.g5)+' / '+f2(g.g10))
     +T('Θ книги SOX','$'+f2(g.th_book)+sm('опц '+f2(g.th_opt)+' · фанд '+f2(g.th_fund)),cl(g.th_book))
     +T('Безубыток / день',(g.be_pct??'—')+'%'+sm('ход SOXL · RV '+g.rv_day_pct+'%/день'),g.be_pct==null?'':(g.rv_day_pct>=g.be_pct?'pos':'warn'))
-    +T('RV / IV',(rv.h30??'—')+'% / '+(g.iv_ref??'—')+'%'+sm('RV 7д '+rv.h7+' · день 30д '+rv.d30+' · 120д '+rv.d120),(rv.h30&&g.iv_ref)?(rv.h30>g.iv_ref?'pos':'warn'):'')
+    +(()=>{const ok=rv.h30!=null&&g.iv_ref!=null,hi=ok&&rv.h30>g.iv_ref,bad=ok&&((hi&&gR<0)||(!hi&&gR>0));const tip='RV — как SOXL реально ходил за 30 дней (годовых). IV — сколько хода заложено в цены опционов SOXL у денег. RV выше IV: рынок ходит сильнее, чем стоят опционы — выгодно владеть опционами (гамма), продавать невыгодно. RV ниже IV: опционы переоценены — выгодно продавать (тета). Жёлтая — гамма книги стоит против этого';return T('RV / IV','<span title="'+tip+'">'+(rv.h30??'—')+'% / '+(g.iv_ref??'—')+'%'+sm('RV 7д '+rv.h7+' · день 30д '+rv.d30+' · 120д '+rv.d120)+(ok?'<div style="font-size:10px;color:#8b949e;font-weight:400;margin-top:2px">'+(hi?'RV выше: купленные опционы окупаются, проданные теряют':'RV ниже: проданные зарабатывают, купленные тают')+(bad?' · <span class="warn">книга против: Γ '+(gR<0?'отрицательная (продано больше)':'положительная (куплено больше)')+'</span>':' · книга по ветру')+'</div>':'')+'</span>',ok?(bad?'warn':'pos'):'')})()
     +T('Ожидание / сутки','$'+f2(g.exp_day)+sm('при RV 30д: гамма +'+f2(g.exp_gamma_day)+' и тета'),cl(g.exp_day))
     +T('Коридор ±$'+st,cor)
     +T('США: '+(us.state||'—'),us.state=='открыта'?'закрытие через '+us.to_close_h+' ч':'открытие через '+us.to_open_h+' ч'+sm(us.et||''),us.state=='открыта'?'pos':'')
@@ -2106,9 +2135,10 @@ function renderTiles(d){
     +(!DKETH?'':T('Проданные путы ETH','$'+f0(Lv.short_puts)+sm('×'+Lv.short_puts_x+' эквити · голых '+Lv.naked_now+' ETH'),Lv.short_puts_x>10?'warn':''))
     +(!DKETH?'':T('ETH −30% / −50%','$'+f0(s30)+' / '+f0(s50)+sm('IV +15, на сегодня'),s50!=null&&-s50>a.eq?'neg':(s30!=null&&-s30>a.room?'warn':'')))
     +(mE&&DKETH?T('Маржа ETH','$'+f0(mE.mm)+sm('худший '+f0(mE.worst)+' при '+(mE.move*100).toFixed(0)+'%/IV '+(mE.iv*100).toFixed(0)+'% · без хода цены '+f0(flat(mE)))):'')
-    +(mX?T('Маржа SOX','$'+f0(mX.mm)+sm('худший '+f0(mX.worst)+' при SOXL '+(mX.move*100).toFixed(0)+'%'+(mL&&mL.iv!=null?'/IV '+(mL.iv*100).toFixed(0)+'%':'')+' · без хода цены '+f0(flat(mL)))):'')
+    +(mX?T('Маржа SOX','<span title="MM — поддерживающая маржа Bybit под SOX: SOXL и SOXS считаются по отдельности и не зачитываются. Худший — убыток пары в худшем сценарии Bybit с учётом зеркала (лонг SOXS гасит часть убытка SOXL). Без хода цены — сценарий, где меняется только IV">'+'<span style="font-size:10px;color:#8b949e;font-weight:400">'+'MM </span>$'+f0(mX.mm)+' &nbsp;'+'<span style="font-size:10px;color:#8b949e;font-weight:400">'+'худший </span><span class="'+(mX.worst<0?'neg':'pos')+'">'+f0(mX.worst)+'</span>'+sm('при SOXL '+(mX.move*100).toFixed(0)+'%'+(mL&&mL.iv!=null?'/IV '+(mL.iv*100).toFixed(0)+'%':'')+' · без хода цены '+f0(flat(mL)))+'</span>'):'')
     +(!(Lv.usdt<0||Lv.usdc<0)?'':T('Займ',((Lv.usdt<0||Lv.usdc<0)?'$'+f0(Math.min(0,Lv.usdt)+Math.min(0,Lv.usdc)):'нет')+sm('USDT '+f0(Lv.usdt)+' · USDC '+f0(Lv.usdc)),(Lv.usdt<0||Lv.usdc<0)?'warn':'pos'))
     +'</div>';})();
+ try{dkFav()}catch(e){}
  $('dkalerts').innerHTML=(d.alerts||[]).map(x=>`<div style="padding:4px 10px;margin:0 0 4px;border-radius:6px;font-weight:600;background:${x.lvl=='neg'?'rgba(248,81,73,.18)':'rgba(210,153,34,.18)'};border:1px solid ${x.lvl=='neg'?'#f85149':'#d29922'}" class="${x.lvl}">⚠ ${x.txt}</div>`).join('');
 }
 // плитки раз в 2 с: /desklive (живые позиции, wallet, цены) вливается в последний полный снимок /desk
@@ -2149,9 +2179,9 @@ let BLD=null,BLDQ={},BLDOFF={},BLDADD=[],BLDDAY=0,BLDLO=0.4,BLDHI=1.8,BLDKIV='D'
 function dkView(v){DKVIEW=v;try{localStorage.setItem('dkview',v)}catch(e){}
  const m=$('dkmain'),b=$('dkbuild');if(m)m.style.display=v=='D'?'':'none';if(b)b.style.display=v=='B'?'':'none';
  ['D','B'].forEach(x=>{const e=$('dksw'+x);if(e)e.className='gbtn'+(x==v?' on':'')});
- if(v=='B'){bldTick();bldKline();}}
+ bldCompactApply();if(v=='B'){bldTick();bldKline();}}
 async function bldTick(){if(TAB!='D'||DKVIEW!='B'||BLDBUSY)return;BLDBUSY=1;
- try{const d=await (await fetch('/builder')).json();if(d.err){$('bldtop').innerHTML='<span class="neg">ошибка: '+d.err+'</span>';return}BLD=d;bldRender();}
+ try{const d=await (await fetch('/builder')).json();if(d.err){$('bldtop').innerHTML='<span class="neg">ошибка: '+d.err+'</span>';return}BLD=d;bldRender();bldBotTick();}
  catch(e){} finally{BLDBUSY=0}}
 async function bldKline(){if(DKVIEW!='B')return;try{BLDK=await (await fetch('/bkline?iv='+BLDKIV)).json();bldCandles();}catch(e){}}
 const bf0=v=>v==null||isNaN(v)?'—':(+v).toFixed(0),bf2=v=>v==null||isNaN(v)?'—':(+v).toFixed(2),bf4=v=>v==null||isNaN(v)?'—':(+v).toFixed(4),
@@ -2176,25 +2206,30 @@ function bLots(l){if(l.sim)return [{q:l.qq,px:l.avg}];const lots=[{q:l.q,px:l.av
  if(Math.abs(dq)>1e-9)lots.push({q:dq,px:(dq>0?(l.ask||l.mark):(l.bid||l.mark))});return lots}
 function bVal(l,S,t){if(l.kind=='opt')return bBS(S,l.K,(l.ets-t)/YR,l.markIv||0.0001,l.cp);if(l.base=='SOXS')return bSoxs(S,t);return S}
 function bPnl(legs,S,t){let v=0;legs.forEach(l=>{if(!l.on)return;const x=bVal(l,S,t);bLots(l).forEach(o=>v+=o.q*(x-o.px))});return v}
-function bGreeks(legs){const L=bLnow(),S=bSnow(),r={dL:0,dMir:0,dAft:0,g:0,v:0,th:0,pnl:0};
+function bGreeks(legs){const L=bLnow(),S=bSnow(),r={dL:0,dMir:0,dAft:0,g:0,v:0,th:0,pnl:0,dLC:0,lc:[],dLP:0};
  legs.forEach(l=>{if(!l.on)return;const q=l.qq;
-  if(l.kind=='opt'){r.dL+=q*l.d;r.dMir+=q*l.d;r.dAft+=q*l.d;r.g+=q*l.g;r.v+=q*l.v;r.th+=q*l.th}
+  if(l.kind=='opt'){r.dL+=q*l.d;r.dMir+=q*l.d;r.dAft+=q*l.d;r.g+=q*l.g;r.v+=q*l.v;r.th+=q*l.th;
+   if(q>0){if(l.cp=='C')r.dLC+=q*l.d;else r.dLP+=q*l.d;r.lc.push({n:(l.exp||'').replace(/26$/,'')+' '+l.K+l.cp+'×'+q,d:q*l.d})}}   // купленные опционы (стрэнглы/стрэддлы) — отдельной плиткой
   else if(l.base=='SOXL'){r.dL+=q;r.dMir+=q;r.dAft+=q}
   else{const m=(BLD.L0&&BLD.S0)?BLD.S0/BLD.L0:S/L*Math.abs(BLD.beta||0.94);r.dMir-=q*m;r.dAft-=q*S/L}
   r.pnl+=l.sim?(l.mark-l.avg)*q:(l.upl+(l.qq-l.q)*((l.mark||0)-((l.qq-l.q)>0?(l.ask||l.mark):(l.bid||l.mark))))});
  r.gR=r.g*L*L;return r}
+function bLCTile(T,sm,G){const L=bLnow(),t=G.dLC+G.dLP;if(!G.lc.length)return T('Δ купленных опционов','нет'+sm('купленных опционов нет'));
+ return T('Δ купленных опционов',bsg(t)+' SOXL'+sm('$'+bf0(t*L)+' · коллы '+bsg(G.dLC)+' · путы '+bsg(G.dLP)+' · без купленных '+bsg(G.dMir-t)+' · '+G.lc.map(x=>x.n+' '+bsg(x.d)).join(' · ')),'',
+  'Дельта всех купленных опционов (коллы + путы = стрэнглы и стрэддлы), включённые ноги конструктора. Около нуля — купленная часть нейтральна и работает на гамму. «Без купленных» — Δ книги по зеркалу без них')}
 function bAtmIv(exp){if(!BLD)return null;const L=bLnow();const c=BLD.chain.filter(c=>(!exp||c.exp==exp)&&c.markIv>0);if(!c.length)return null;
  const K=c.reduce((m,x)=>Math.abs(x.K-L)<Math.abs(m-L)?x.K:m,c[0].K);const v=c.filter(x=>x.K==K).map(x=>x.markIv);return v.reduce((a,b)=>a+b,0)/v.length}
 function bExps(){if(!BLD)return[];const m={};BLD.chain.forEach(c=>m[c.exp]=c.ets);return Object.keys(m).sort((a,b)=>m[a]-m[b]).map(e=>({exp:e,ets:m[e]}))}
 // ---------- отрисовка ----------
 function bldRender(){if(!BLD)return;const legs=bldLegs(),G=bGreeks(legs),L=bLnow(),Sx=bSnow(),a=BLD.acct;
  const T=(l,v,c)=>`<div class="tile sm"><div class="lbl">${l}</div><div class="val ${c||''}">${v}</div></div>`,sm=t=>'<span style="font-size:10px;color:#8b949e"> '+t+'</span>';
- $('bldtop').innerHTML=T('Эквити','$'+bf2(a.eq)+sm('≈ '+bf2(a.eq/L)+' SOXL'))+T('IM / MM',a.im_pct+'% / '+a.mm_pct+'%',a.im_pct>=50?'neg':(a.im_pct>=40?'warn':'pos'))
-  +T('SOXL',bf2(L)+sm('MEXC '+bf2(BLD.mexc.SOXL.last)))+T('SOXS',bf2(Sx)+sm('MEXC '+bf2(BLD.mexc.SOXS.last)))
-  +T('Δ только SOXL (как Bybit)',bsg(G.dL)+sm('$'+bf0(G.dL*L)))+T('Δ с SOXS по зеркалу',bsg(G.dMir)+sm('$'+bf0(G.dMir*L)+' · после закрытия '+bsg(G.dAft)),Math.abs(G.dMir*L)<40?'pos':'warn')
-  +T('Хедж дельты',Math.abs(G.dMir*L)<1?'—':('SOXLUSDT '+(G.dMir>0?'Sell ':'Buy ')+Math.abs(G.dMir).toFixed(2)))
-  +T('Γ / Вега / Θ',bf4(G.g)+' / '+bf2(G.v)+' / '+bf2(G.th)+sm('Δ$ на 1%: '+bf2(G.gR/100)),cl(G.th))+T('P&L ног',bsg(G.pnl)+' $',bcl(G.pnl));
- bldMM();bldTable(legs,G);bldAddForm();bldPnl(legs);bldParams(legs,G);bldArbInit();bldArbCalc(G);bldNoArbInit();bldNoArbCalc(G);bldQuests();
+ if(BLDCOMPACT)bldTopCompact(G);else{const chg=legs.some(l=>l.sim?l.on:(!l.on||l.qq!=l.q)),hc=Math.abs(G.dMir*L)<40?'pos':'warn',nd=!DKD,sx=nd?'':' с изменениями';   // полный вид: шапка деска видна, здесь только то, чего в ней нет
+  $('bldtop').innerHTML=(nd?T('Эквити','$'+bf2(a.eq)+sm('шапка деска грузится'))+T('IM / MM',a.im_pct+'% / '+a.mm_pct+'%',a.im_pct>=50?'neg':(a.im_pct>=40?'warn':'pos')):'')+T('MEXC SOXL / SOXS',bf2(BLD.mexc.SOXL.last)+' / '+bf2(BLD.mexc.SOXS.last)+sm('Bybit '+bf2(L)+' / '+bf2(Sx)))
+  +T('Δ только SOXL (как Bybit)',bsg(G.dL)+sm('$'+bf0(G.dL*L)))+bLCTile(T,sm,G)
+  +(chg||nd?T('Δ'+sx+' (зеркало)',bsg(G.dMir)+sm('$'+bf0(G.dMir*L)+' · после закрытия '+bsg(G.dAft)),hc)
+   +T('Хедж'+sx,Math.abs(G.dMir*L)<40?'нейтраль'+sm('|Δ| < $40'):('SOXLUSDT '+(G.dMir>0?'Sell ':'Buy ')+Math.abs(G.dMir).toFixed(2)),hc):'')
+  +T('Γ / Вега / Θ',bf4(G.g)+' / '+bf2(G.v)+' / '+bf2(G.th)+sm('Δ$ на 1%: '+bf2(G.gR/100)),cl(G.th))+(()=>{const pu=f=>legs.filter(l=>l.on&&f(l)).reduce((x,l)=>x+(l.sim?(l.mark-l.avg)*l.qq:l.upl),0),pp=pu(l=>l.kind!='opt'),po=pu(l=>l.kind=='opt'),N=(n,v)=>'<span style="font-size:10px;color:#8b949e;font-weight:400">'+n+' </span><span class="'+bcl(v)+'">'+bsg(v)+'</span>';return T('P&L ног','<span title="Нереализованный P&L всех включённых ног таблицы (перпы + опционы) от средней цены входа — то же, что Unrealized P&L у позиций Bybit. Не входят: закрытые сделки, фандинг, комиссии, бот. Это не P&L за сегодня, а с момента открытия каждой ноги. Для симуляции: изменённый объём считается по бид/аск, добавленная нога — от цены добавления">'+N('перпы',pp)+' &nbsp;'+N('опционы',po)+' &nbsp;'+N('всего',G.pnl)+' $'+'<div style="font-size:10px;color:#8b949e;font-weight:400;margin-top:2px">нереализованный, от цены входа</div></span>')})()}
+ bldMM();bldTable(legs,G);bldAddForm();bldPnl(legs);bldParams(legs,G);bldArbInit();bldArbCalc(G);bldNoArbInit();bldNoArbCalc(G);bldThInit();bldThCalc(G);bldQuests();bldBots();
  $('bldupd').textContent='обновлено '+BLD.t+' · ноги и цены Bybit/MEXC раз в 5 с';}
 function bldMM(){const m=BLD.mm;if(!m||m.cov==null){$('bldmm').innerHTML='';return}
  const kv=t=>new Date(t*1000).toLocaleTimeString('ru-RU',{timeZone:'Europe/Kyiv',hour:'2-digit',minute:'2-digit'}),
@@ -2284,6 +2319,147 @@ function bldQCopy(){const lg=bQStore('bldqlog')||[],md=lg.map(r=>`| ${bQts(r.ts)
  const ok=()=>{$('bldqmsg').textContent='скопировано строк: '+lg.length+' — вставь в «Журнал квестов» ОС-12'};
  if(navigator.clipboard)navigator.clipboard.writeText(md).then(ok,()=>{$('bldqmsg').textContent='буфер недоступен'});else $('bldqmsg').textContent='буфер недоступен'}
 function bldQClear(){if(!confirm('Очистить журнал снимков квестов в этом браузере?'))return;bQStore('bldqlog',[]);bldQLog();$('bldqmsg').textContent='очищено'}
+// ---- (Е) калькулятор теты: на сколько изменится тета книги от новых ног и как она растёт к экспирации (17.11) ----
+function bThBS(S,K,T,v){if(T<=0||v<=0||S<=0)return 0;const sd=v*Math.sqrt(T),d1=(Math.log(S/K)+0.5*v*v*T)/sd;return -S*v*Math.exp(-d1*d1/2)/2.5066283/(2*Math.sqrt(T))/365.25}
+function bldThInit(){if($('bth1q'))return;const ex=bExps(),L=bLnow();
+ const def=(ex.find(e=>e.exp=='4DEC26')||ex.find(e=>e.ets-BLD.now>14*86400)||ex[ex.length-1]||{}).exp;
+ const eo=ex.map(e=>`<option ${e.exp==def?'selected':''}>${e.exp}</option>`).join('');
+ const leg=(i,sd,cp,K,q)=>`<div style="margin:2px 0">нога ${i}: <select id="bth${i}s" onchange="bldThCalc()"><option value="1" ${sd>0?'selected':''}>купить</option><option value="-1" ${sd<0?'selected':''}>продать</option></select>
+  <select id="bth${i}c" onchange="bldThCalc()"><option ${cp=='P'?'selected':''}>P</option><option ${cp=='C'?'selected':''}>C</option></select>
+  экспирация <select id="bth${i}e" onchange="bldThCalc()">${eo}</select> страйк <input id="bth${i}k" value="${K}" style="width:50px" onchange="bldThCalc()">
+  кол-во <input id="bth${i}q" value="${q}" style="width:40px" onchange="bldThCalc()"> цена <input id="bth${i}p" value="" placeholder="аск/бид" style="width:60px" onchange="bldThCalc()"></div>`;
+ $('bldth').innerHTML='<div style="font-size:12px">'+leg(1,1,'P',Math.round(L),9)+leg(2,-1,'C',Math.round(L)+3,9)
+  +'<span style="color:#8b949e">Кол-во 0 — нога выключена. Пустая цена — текущий аск (покупка) или бид (продажа); впиши цену своей лимитки. Страйк — ближайший в цепочке.</span></div><div id="bthout"></div>'}
+function bldThCalc(G){if(!BLD||!$('bth1q'))return;G=G||bGreeks(bldLegs());const b=BLD,L=bLnow(),eq=b.acct.eq,now=b.now,DAY=86400;
+ const nl=[];for(const i of [1,2]){const q=Math.abs(+$('bth'+i+'q').value),sd=+$('bth'+i+'s').value,cp=$('bth'+i+'c').value,e=$('bth'+i+'e').value,K=+$('bth'+i+'k').value;
+  if(!q)continue;const ch=b.chain.filter(c=>c.exp==e&&c.cp==cp);if(!ch.length)continue;
+  const c=ch.reduce((m,x)=>Math.abs(x.K-K)<Math.abs(m.K-K)?x:m,ch[0]),pin=$('bth'+i+'p').value;
+  nl.push({c,n:sd*q,px:pin!==''?+pin:(sd>0?(c.ask||c.mark):(c.bid||c.mark))})}
+ if(!nl.length){$('bthout').innerHTML='<span class="warn">нет ног: проверь кол-во и экспирацию</span>';return}
+ const bl=bldLegs().filter(l=>l.on);let fund=0;
+ bl.forEach(l=>{if(l.kind!='opt')fund-=l.qq*(l.mark||0)*(l.funding||0)*24/(l.fundH||8)});
+ const bopt=bl.filter(l=>l.kind=='opt'&&l.ets>now);
+ let sTh=0,sD=0,sG=0,sV=0,cash=0,edge=0;
+ const rows=nl.map(o=>{const c=o.c,n=o.n,th=n*c.th,dU=n*c.d*L;sTh+=th;sD+=dU;sG+=n*c.g*L*L/100;sV+=n*c.v;cash-=n*o.px;edge+=n*(c.mark-o.px);
+  return `<tr><td>${n>0?'купить':'продать'} ${Math.abs(n)} × ${c.exp} ${c.K} ${c.cp}</td><td>${bf2(o.px)} (марк ${bf2(c.mark)}, IV ${bpct(c.markIv)})</td><td>${bsg(-n*o.px)} $</td><td>${bsg(dU)}</td><td>${bsg(n*c.g*L*L/100)}</td><td class="${bcl(th)}">${bsg(th)}</td><td>${bsg(n*c.v)}</td></tr>`});
+ const th0=G.th+fund,th1=th0+sTh,d0=G.dMir*L,lim=-10,av=b.acct.avail;
+ let h=`<table><tr><th>Нога</th><th>Цена</th><th>Премия</th><th>Δ$</th><th>Δ$ на 1% (гамма)</th><th>Θ $/сут</th><th>Вега $ на 1 п.п.</th></tr>${rows.join('')}
+  <tr><td><b>Итого новые ноги</b></td><td>к марку ${bsg(edge)} $</td><td class="${av!=null&&-cash>av?'neg':''}">${bsg(cash)} $${av!=null?' (свободно $'+bf0(av)+')':''}</td><td>${bsg(sD)}</td><td>${bsg(sG)}</td><td class="${bcl(sTh)}"><b>${bsg(sTh)}</b></td><td>${bsg(sV)}</td></tr></table>
+  <table style="margin-top:4px"><tr><th></th><th>Книга сейчас</th><th>Книга после</th></tr>
+  <tr><td>Θ $/сут (опционы + фандинг ${bsg(fund)})</td><td class="${th0<lim?'neg':''}">${bsg(th0)} (${(th0/eq*100).toFixed(1)}% эквити)</td><td class="${th1<lim?'neg':''}"><b>${bsg(th1)}</b> (${(th1/eq*100).toFixed(1)}% эквити)</td></tr>
+  <tr><td>Δ$ по зеркалу</td><td>${bsg(d0)}</td><td>${bsg(d0+sD)}</td></tr>
+  <tr><td>Δ$ на 1% (гамма)</td><td>${bsg(G.gR/100)}</td><td>${bsg(G.gR/100+sG)}</td></tr></table>`;
+ // как тета меняется к экспирации: Блэк–Шоулз, IV каждой ноги как сейчас
+ const eMin=Math.min(...nl.map(o=>o.c.ets)),dMax=(eMin-now)/DAY,ms=[0.8,0.9,1,1.1,1.2];
+ let hs=[0,1,3,7,14,21,30].filter(x=>x<dMax-0.05);[dMax-3,dMax-1].forEach(x=>{if(x>0.05&&!hs.some(y=>Math.abs(y-x)<0.5))hs.push(x)});hs.sort((a,b2)=>a-b2);
+ const thN=(S,t)=>nl.reduce((a,o)=>a+o.n*bThBS(S,o.c.K,(o.c.ets-t)/YR,o.c.markIv),0),
+  thB=(S,t)=>bopt.reduce((a,l)=>a+l.qq*bThBS(S,l.K,(l.ets-t)/YR,l.markIv),0),
+  val=(S,t)=>nl.reduce((a,o)=>a+o.n*bBS(S,o.c.K,Math.max((o.c.ets-t)/YR,0),o.c.markIv,o.c.cp),0),v0=val(L,now);
+ const tr=hs.map(d=>{const t=now+d*DAY,bk=thB(L,t)+thN(L,t)+fund,acc=val(L,t)-v0,dt=new Date(t*1000).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'});
+  return `<tr><td>${d<0.05?'сегодня':'+'+d.toFixed(d%1?1:0)+' дн'} · ${dt}${Math.abs(d-(dMax-1))<0.05?' (за 1 день до эксп.)':(Math.abs(d-(dMax-3))<0.05?' (за 3 дня)':'')}</td>`
+   +ms.map(m=>{const x=thN(L*m,t);return `<td class="${bcl(x)}">${bsg(x)}</td>`}).join('')
+   +`<td class="${bk<lim?'neg':''}">${bsg(bk)}</td><td class="${bcl(acc)}">${bsg(acc)}</td></tr>`}).join('');
+ h+=`<h4>Как меняется тета до экспирации (${nl.map(o=>o.c.exp).filter((x,i,a)=>a.indexOf(x)==i).join(', ')}, ${dMax.toFixed(1)} дн)</h4>
+  <table><tr><th>Дата</th>${ms.map(m=>`<th>Θ новых ног, SOXL ${m==1?'как сейчас':(m>1?'+':'')+((m-1)*100).toFixed(0)+'%'}<br><span style="font-weight:normal;color:#8b949e">${bf2(L*m)}</span></th>`).join('')}<th>Θ книги, SOXL как сейчас</th><th>Тета новых ног накопленная с сегодня</th></tr>${tr}</table>
+  <div style="font-size:11px;color:#8b949e">Θ — $ за календарный день. Будущие значения — модель Блэка–Шоулза, IV каждой ноги замороженная на сегодняшнем марке, без улыбки и без хода IV после событий; сегодняшние греки — Bybit. Θ книги включает купленные/проданные опционы книги (истёкшие выпадают) и фандинг перпов по текущей ставке; красная — хуже лимита −$10. «Накопленная» — сколько новые ноги потеряют (−) или заработают (+) на времени при цене как сейчас. Продажа колла с той же экспирацией гасит тету купленного пута, пока цена у страйков; уходит цена — перевешивает ближняя к деньгам нога.</div>`;
+ $('bthout').innerHTML=h}
+// ---- Боты Bybit в шапке конструктора (18.11): /bots → desk.bots_snapshot; ID ботов — в C:/Users/DoOs/.bybit/bots.json ----
+let BLDBOT=null;
+async function bldBotTick(){try{BLDBOT=await (await fetch('/bots')).json();bldBots()}catch(e){}}
+function bldBots(){const el=$('bldbots');if(!el)return;const d=BLDBOT;if(!d){el.innerHTML='';return}
+ if(d.err){el.innerHTML='<span class="neg">боты: '+d.err+'</span>';return}
+ if(!d.bots||!d.bots.length){el.innerHTML='<div style="font-size:12px;color:#8b949e;margin:3px 0">Ботов нет: впиши Bot ID в '+d.file+' — инструкция в 10-DASHBOARD/Боты в конструкторе.md</div>';return}
+ const T=(l,v,c,t)=>`<div class="tile sm"${t?' title="'+t+'"':''}><div class="lbl">${l}</div><div class="val ${c||''}">${v}</div></div>`,
+  sm=t=>'<span style="font-size:10px;color:#8b949e"> '+t+'</span>',f1=v=>v==null||isNaN(v)?'—':(+v).toFixed(1);
+ let h='',dB=0;
+ d.bots.forEach(b=>{const lv=(b.signals[0]||['pos'])[0],bc=lv=='neg'?'#f85149':(lv=='warn'?'#d29922':'#3fb950');
+  let r=`<div class="tile sm" style="min-width:230px;max-width:420px;border-color:${bc}"><div class="lbl">бот · ${b.name} · ${b.type=='grid'?'сетка':'мартингейл'} ${b.mode||''}${b.lev?' x'+b.lev:''}</div>`
+   +`<div style="font-size:12px;font-weight:600;margin-top:2px">${b.signals.map(s=>`<div class="${s[0]}">${s[1]}</div>`).join('')}</div></div>`;
+  if(!b.err){
+   if(b.base=='SOXL')dB+=b.q;else if(b.base=='SOXS'&&BLD){const L=bLnow(),S=bSnow(),m=(BLD.L0&&BLD.S0)?BLD.S0/BLD.L0:S/L*Math.abs(BLD.beta||0.94);dB-=b.q*m}
+   if(BLDCOMPACT){
+    r+=b.type=='grid'?T('Диапазон',bf2(b.P)+sm(bf2(b.lo)+'–'+bf2(b.hi)+' · '+(b.zone=='in'?'внутри':(b.zone=='above'?'ВЫШЕ':'НИЖЕ'))+' · засажен '+(b.load*100).toFixed(0)+'%'),b.zone!='in'?'neg':(b.load>=0.8?'warn':'pos'),
+      'Засажен — доля сетки, уже набранная в позицию')
+     :T('Доборы',b.adds_used+' / '+b.adds+sm('цена '+bf2(b.P)+' · средняя '+bf2(b.avg)),b.adds&&b.adds_used>=b.adds?'neg':(b.load>=0.6?'warn':''));
+    r+=T('Позиция / P&L',bsg(b.q)+' '+(b.base||'')+sm('$'+bf0(b.q*b.P)+' · P&L '+bsg(b.pnl)+(b.type=='grid'?' · сетка '+bsg(b.grid_profit)+' · сделок '+b.trades:' · раундов '+b.rounds)),bcl(b.pnl));
+    r+=b.liq_full!=null?T('Ликвидация на краю','≈ '+bf2(b.liq_full)+sm('доливка $'+bf2(d.reserve)+' → '+bf2(b.liq_full_after)+' · сейчас '+bf2(b.liq)),b.dist!=null&&b.dist<d.topup_pct?'neg':(b.dist_full<d.warn_pct||(b.dist!=null&&b.dist<d.warn_pct)?'warn':''),
+      'Если цена дойдёт до края '+bf2(b.edge)+' и сетка наберётся целиком — худшая ликвидация без доливки (оценка). «Сейчас» — Bybit по текущей позиции, она растёт вместе с позицией')
+     :T('Ликвидация',bf2(b.liq)+sm(b.dist!=null?'до неё '+f1(b.dist)+'%':''),b.dist!=null&&b.dist<d.topup_pct?'neg':(b.dist!=null&&b.dist<d.warn_pct?'warn':'pos'));
+    r+=T('Маржа бота','$'+bf2(b.eq||b.inv)+sm('свободно '+bf2(b.avail)+' · резерв Funding $'+bf2(d.reserve)));
+   }else{
+   if(b.type=='grid'){
+    r+=T('Цена / диапазон',bf2(b.P)+sm(bf2(b.lo)+'–'+bf2(b.hi)+' · '+(b.zone=='in'?'внутри':(b.zone=='above'?'ВЫШЕ':'НИЖЕ'))),b.zone=='in'?'pos':'neg');
+    r+=T('Засажен',(b.load*100).toFixed(0)+'%'+sm('до края '+bf2(b.edge)+': '+f1(Math.abs(b.P-b.edge)/b.P*100)+'%'),b.load>=0.95?'neg':(b.load>=0.8?'warn':''),
+     'Доля сетки, которая уже набрана в позицию: лонг-сетка — (верх − цена)/(верх − низ); шорт — зеркально; нейтральная — от цены входа до ближнего края');
+   }else{
+    r+=T('Цена / средняя',bf2(b.P)+sm('средняя '+bf2(b.avg)));
+    r+=T('Доборы',b.adds_used+' / '+b.adds+sm('шаг '+bf2(b.step)+'% · раундов '+b.rounds),b.adds&&b.adds_used>=b.adds?'neg':(b.load>=0.6?'warn':''));
+   }
+   r+=T('Позиция',bsg(b.q)+' '+(b.base||'')+sm('$'+bf0(b.q*b.P)+(b.Qmax?' · на краю ≈ '+bf2(b.Qmax):'')));
+   r+=T('Ликвидация сейчас',bf2(b.liq)+sm(b.dist!=null?'до неё '+f1(b.dist)+'%':''),b.dist!=null&&b.dist<d.topup_pct?'neg':(b.dist!=null&&b.dist<d.warn_pct?'warn':'pos'),
+    'Bybit, по текущей позиции. Порог доливки '+d.topup_pct+'%, внимание '+d.warn_pct+'% (bots.json)');
+   if(b.liq_full!=null)r+=T('Ликвидация на краю','≈ '+bf2(b.liq_full)+sm('от края '+bf2(b.edge)+': '+f1(b.dist_full)+'%'),b.dist_full<d.warn_pct?'warn':'',
+    'Оценка: цена дошла до края диапазона, позиция набрана целиком (вложение×плечо/цена края). Дальше позиция не растёт — это худшая ликвидация бота без доливки');
+   r+=T('Доливка $'+bf2(d.reserve),(b.liq_after!=null?'→ '+bf2(b.liq_after):'—')+sm(b.liq_full_after!=null?'на краю → '+bf2(b.liq_full_after):''),'',
+    'Куда уйдёт ликвидация, если долить весь свободный USDT с Funding (Invest More / Add margin в карточке бота)');
+   r+=T('P&L',bsg(b.pnl)+' $'+sm(b.type=='grid'?'сетка '+bsg(b.grid_profit)+' · сделок '+b.trades+' (24ч '+b.trades24+')':'нереализ. '+bsg(b.upl)+' · раундов '+b.rounds),bcl(b.pnl));
+   r+=T('Маржа бота','$'+bf2(b.eq||b.inv)+sm('позиция '+bf2(b.pos_bal)+' · ордера '+bf2(b.ord_bal)+' · своб. '+bf2(b.avail)+(b.funding?' · фандинг '+bsg(b.funding):'')));
+}
+  }
+  h+=`<div class="row" style="margin:3px 0">${r}</div>`});
+ if(BLD){const G=bGreeks(bldLegs()),L=bLnow();
+  h+=`<div style="font-size:11px;color:#8b949e;margin:0 0 4px">Δ книги с ботами по зеркалу: <b>${bsg(G.dMir+dB)}</b> SOXL ($${bf0((G.dMir+dB)*L)}) · боты ${bsg(dB)} SOXL · боты в таблицу ног и P&L-кривую не входят · обновлено ${d.t}</div>`}
+ el.innerHTML=h}
+// ---- Компактная шапка конструктора (18.11): три строки «Риск / Книга / Время» вместо шапки деска; кнопка «все плитки» возвращает прежнее ----
+let BLDCOMPACT=1;try{BLDCOMPACT=localStorage.getItem('bldcompact')==='0'?0:1}catch(e){}
+function bldCompactSet(v){BLDCOMPACT=v?1:0;try{localStorage.setItem('bldcompact',BLDCOMPACT?'1':'0')}catch(e){};bldCompactApply();if(BLD)bldRender()}
+function bldCompactApply(){const t=$('dktiles');if(t)t.style.display=(DKVIEW=='B'&&BLDCOMPACT)?'none':'';
+ ['1','0'].forEach(x=>{const e=$('bldcm'+x);if(e)e.className='gbtn'+((x=='1')==!!BLDCOMPACT?' on':'')})}
+function bldTopCompact(G){const L=bLnow(),Sx=bSnow(),a=BLD.acct,d=DKD,s=d&&d.sox,g=(s&&s.gamma)||{},rv=g.rv||{},us=BLD.us||{};
+ const T=(l,v,c,t)=>`<div class="tile sm"${t?' title="'+t+'"':''}><div class="lbl">${l}</div><div class="val ${c||''}">${v}</div></div>`,
+  sm=t=>'<span style="font-size:10px;color:#8b949e"> '+t+'</span>',
+  R=(n,h)=>'<div class="row" style="margin:0 0 3px;gap:4px;flex-basis:100%"><span style="color:#8b949e;font-size:12px;width:44px;align-self:center">'+n+'</span>'+h+'</div>';
+ if(!DKD&&!(window.BLDDKW>Date.now())){window.BLDDKW=Date.now()+10000;dtick().finally(()=>{if(DKD&&BLD)bldRender()})}   // данные деска (маржа, RV, ожидание) — не чаще раза в 10 с
+ const room=d&&d.acct&&d.acct.room!=null?d.acct.room:(a.eq-a.mm),rc=room<a.eq*0.25?'neg':(room<a.eq*0.5?'warn':'pos'),ic=a.im_pct>=50?'neg':(a.im_pct>=40?'warn':'pos');
+ const M={};((d&&d.margin)||[]).forEach(m=>M[m.coin]=m);const mX=M['SOXL+SOXS']||M['SOXL'],mL=M['SOXL']||{};
+ const dU=G.dMir*L,hn=Math.abs(dU)<40,thB=g.th_book!=null?g.th_book:G.th;
+ const now=Date.now()/1000,ex={};BLD.legs.forEach(l=>{if(l.kind=='opt'&&l.ets>now)(ex[l.ets]=ex[l.ets]||[]).push(l)});
+ const e0=Object.keys(ex).sort((x,y)=>x-y)[0];let exv='—',exc='';
+ if(e0){const ls=ex[e0],h=(e0-now)/3600,itm=ls.filter(l=>l.cp=='C'?L>l.K:L<l.K).length;exc=h<24?'warn':'';
+  exv=ls[0].exp+sm('через '+(h<48?h.toFixed(1)+' ч':(h/24).toFixed(1)+' дн')+' · ног '+ls.length+' · '+(itm?'в деньгах '+itm:'все вне денег'))}
+ $('bldtop').innerHTML=
+  R('Риск',T('Эквити','$'+bf2(a.eq),'','Единый торговый счёт; бот на своём счёте и сюда не входит')
+   +T('IM','<span class="'+ic+'">'+a.im_pct+'%</span>'+sm('MM '+a.mm_pct+'% · лимит 40/50%'),'','Единый торговый счёт, без бота')
+   +T('Запас','$'+bf0(room)+sm('×'+(a.mm?(a.eq/a.mm).toFixed(2):'—')+' к MM'),rc,'Запас = эквити − MM: на сколько $ может упасть эквити до ликвидации счёта. MM в Portfolio Margin пересчитывается сценарием (SOXL ±28%, IV), поэтому это сумма при нынешней марже, а не уровень цены')
+   +T('Доступно','$'+bf0(a.avail)+sm('Funding $'+(BLDBOT&&BLDBOT.reserve!=null?bf2(BLDBOT.reserve):'—')),'','Доступно = эквити − IM: свободно под новые позиции, на вывод и перевод в бота. При 0 новые ноги с риском не откроются, но до ликвидации ещё IM − MM; Funding — резерв доливки ботов')
+   +(mX?T('Маржа SOX худший','$'+bf0(mX.worst)+sm('при SOXL '+(mX.move*100).toFixed(0)+'%'+(mL.iv!=null?'/IV '+(mL.iv*100).toFixed(0)+'%':'')+' · MM $'+bf0(mX.mm)),'','Худший сценарий Bybit Portfolio Margin по SOX'):'')
+   +(()=>{let pf=0,po=0;BLD.legs.forEach(l=>{if(l.kind=='opt')po+=l.upl||0;else pf+=l.upl||0});
+     const bt=(BLDBOT&&BLDBOT.bots||[]).filter(x=>!x.err),pb=bt.reduce((t,x)=>t+(x.pnl||0),0),gp=bt.reduce((t,x)=>t+(x.grid_profit||0),0),
+      sp=(d&&s&&s.gamma&&s.gamma.pnl)||{},ct=sp.closed_today,tot=pf+po+pb;
+     return T('P&L фьючи',bsg(pf)+' $'+sm('открытые'+(ct!=null?' · закрыто сегодня '+bsg(ct):'')),bcl(pf),'Нереализованный P&L открытых перпов SOXL/SOXS от цены входа (Bybit). «Закрыто сегодня» — closed PnL перпов с 00:00 UTC')
+      +T('P&L опционы',bsg(po)+' $'+sm('открытые ноги'),bcl(po),'Нереализованный P&L открытых опционов от цены входа по марку Bybit')
+      +T('P&L бот',bt.length?bsg(pb)+' $'+sm('сетка '+bsg(gp)):'—',bcl(pb),'P&L ботов с запуска (Bybit): прибыль сетки + нереализованный. Деньги, переведённые в бота, сюда не входят — это не убыток')
+      +T('P&L всего',bsg(tot)+' $'+sm('фьючи + опционы + бот'),bcl(tot),'Сумма трёх плиток слева: открытые позиции книги от цены входа плюс P&L ботов. Переводы между счетами не влияют')})())
+  +R('Книга',T('Δ по зеркалу',bsg(G.dMir)+' SOXL'+sm('$'+bf0(dU)+' · как Bybit '+bsg(G.dL)),hn?'pos':'warn','SOXL плюс SOXS по зеркалу (внутри дня SOXS ≈ −SOXL от закрытия США). Боты — под строкой ботов')
+   +T('Δ после закрытия',bsg(G.dAft)+' SOXL'+sm('$'+bf0(G.dAft*L)+' · база зеркала переклеится'),Math.abs(G.dAft*L)<40?'':'warn','После закрытия США SOXS считается к SOXL по текущим ценам (S/L), а не от прошлого закрытия: дельта пары изменится на эту разницу')
+   +bLCTile(T,sm,G)
+   +T('Хедж',hn?'нейтраль'+sm('|Δ| < $40'):'SOXLUSDT '+(G.dMir>0?'Sell ':'Buy ')+Math.abs(G.dMir).toFixed(2),hn?'pos':'warn','Порог $40 — как в шапке деска')
+   +T('Γ','$'+bf2(G.gR/100)+sm('Δ$ на 1% SOXL'),G.gR>=0?'pos':'neg','На сколько $ меняется дельта при ходе SOXL на 1%. Отрицательная — проданные опционы: ход против тебя ускоряется')
+   +T('Θ / сутки','$'+bf2(thB)+sm('опционы '+bf2(G.th)+(g.th_fund!=null?' · фандинг '+bf2(g.th_fund):'')),thB<=-10?'neg':cl(thB),'Лимит −$10 в сутки')
+   +T('Вега','$'+bf2(G.v)+sm('на 1 п.п. IV'),cl(G.v),'Сколько $ даёт рост IV на 1 процентный пункт')
+   +(g.exp_day!=null?T('Ожидание / сутки','$'+bf2(g.exp_day)+sm('если SOXL ходит как 30 дн: тета '+bsg(thB)+' · гамма '+bsg(g.exp_gamma_day)),cl(g.exp_day),'Сколько книга заработает за сутки, если SOXL будет ходить так же, как последние 30 дней. Плюс — тета приносит больше, чем отнимают ходы рынка (или купленные опционы окупаются ходами). Минус — ходы съедают тету. Смотри, когда добавляешь или закрываешь опционную ногу: знак должен остаться плюсом'):'')
+   +(rv.h30!=null?(()=>{const hi=g.iv_ref!=null&&rv.h30>g.iv_ref,bad=(hi&&G.gR<0)||(!hi&&G.gR>0);
+     return T('RV / IV',rv.h30+'% / '+(g.iv_ref!=null?g.iv_ref:'—')+'%'+sm(hi?'RV выше: купленные опционы окупаются, проданные теряют':'RV ниже: проданные зарабатывают, купленные тают'),bad?'warn':'pos',
+      'RV — как SOXL реально ходил (30 дн), IV — сколько хода заложено в цены опционов у денег. RV выше IV: рынок ходит сильнее, чем стоят опционы — выгодно владеть опционами (гамма), невыгодно их продавать. RV ниже IV: опционы переоценены — выгодно продавать (тета). Жёлтая — книга стоит против этого: гамма книги '+(G.gR<0?'отрицательная (продано больше)':'положительная (куплено больше)'))})():''))
+  +R('Цены',T('SOXL / SOXS',bf2(L)+' / '+bf2(Sx))
+   +T('SOXL − SOXS','$'+bsg(L-Sx)+sm('×'+(Sx?(L/Sx).toFixed(3):'—')),'','Разница цен и отношение SOXL/SOXS')
+   +(BLD.L0&&BLD.S0?(()=>{const dv=(L/BLD.L0+Sx/BLD.S0-2)*100,Lm=BLD.L0*(2-Sx/BLD.S0),cz=new Date((BLD.close_ts||0)*1000).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+     return T('Отклонение от зеркала',(dv>0?'+':'')+dv.toFixed(2)+'%'+sm('SOXL '+bf2(L)+' − перевёрнутый SOXS '+bf2(Lm)+' = '+bsg(L-Lm)+' $'),Math.abs(dv)>=0.5?'warn':'',
+      'Спред = SOXL/L0 + SOXS/S0 − 2 от закрытия США '+cz+' (L0 '+BLD.L0+', S0 '+BLD.S0+'). 0 — идеальное зеркало. Перевёрнутый SOXS в ценах SOXL = L0·(2 − SOXS/S0). Пара на равные $ зарабатывает ровно это отклонение. Через закрытие США база переклеивается')})():'')
+  )+R('Время',''
+   +T('США: '+(us.state||'—'),us.state=='открыта'?'закрытие через '+us.to_close_h+' ч':'открытие через '+us.to_open_h+' ч',us.state=='открыта'?'pos':'')
+   +T('Ближайшая экспирация',exv,exc,'Опционы SOXL истекают в 23:00 по Киеву (16:00 ET)'));
+}
 function bldTable(legs,G){const L=bLnow(),inp=(id,v)=>`<input value="${v}" style="width:62px" onchange="BLDQ['${id}']=+this.value;bldRender()">`;
  const rows=legs.map(l=>{const isO=l.kind=='opt',side=l.qq>=0?'<span class="pos">Buy</span>':'<span class="neg">Sell</span>';
   let d,g,v,th;if(isO){d=l.qq*l.d;g=l.qq*l.g;v=l.qq*l.v;th=l.qq*l.th}else if(l.base=='SOXL'){d=l.qq;g=v=th=null}
@@ -3020,6 +3196,10 @@ class Handler(BaseHTTPRequestHandler):
             self._write(body, "application/json")
         elif self.path.startswith("/builder"):
             try: body = json.dumps(desk.builder_snapshot(sget, pub)).encode()
+            except Exception as e: body = json.dumps({"err":str(e)}).encode()
+            self._write(body, "application/json")
+        elif self.path.startswith("/bots"):
+            try: body = json.dumps(desk.bots_snapshot(spost, sget)).encode()
             except Exception as e: body = json.dumps({"err":str(e)}).encode()
             self._write(body, "application/json")
         elif self.path.startswith("/bkline"):

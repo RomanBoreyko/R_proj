@@ -71,7 +71,7 @@ updated: 2026-11-16
 | Инструмент | Тикер | Заметки |
 |---|---|---|
 | Перп SOXL / SOXS | `SOXLUSDT` / `SOXSUSDT` | 24/7. Вне сессии якорь держится, на открытии бывает гэп |
-| Опционы SOXL | `SOXL-ДДМММГГ-K-C/P-USDT` | расчётные, экспирация 08:00 UTC; IV 180–260%; спред 9–25% |
+| Опционы SOXL | `SOXL-ДДМММГГ-K-C/P-USDT` | расчётные, экспирация — закрытие NYSE 16:00 ET (21:00 UTC зимой, 20:00 летом; 23:00 по Киеву), проверено по deliveryTime API 17.11; IV 180–260%; спред 9–25% |
 | Факторы для хеджа и сравнения | `SOXXUSDT`, `SMHUSDT`, `QQQUSDT`, `NVDAUSDT`, `TSMUSDT`, `MUUSDT`, `AVGOUSDT`, `INTCUSDT` | перпы на них тоже есть |
 
 Спота SOXL/SOXS на Bybit нет. В TradingView: `BYBIT:SOXLUSDT.P`, `BYBIT:SOXSUSDT.P`.
