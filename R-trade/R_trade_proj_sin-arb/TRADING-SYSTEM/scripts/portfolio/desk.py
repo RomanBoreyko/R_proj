@@ -326,6 +326,19 @@ def _gamma(sget, pub, now, sox_legs, sox_perps, pxL, pxS, Bsign, soxEq, fund_sox
             "iv_ref": iv_ref, "resid_day": round(resid_day, 2) if resid_day is not None else None, "us": _us_session(now),
             "chain": chain, "pnl": pnl, "D0": round(soxEq, 1), "S": pxL, "qS": round(qS, 4)}
 
+_FH = {}
+def _fund24(pub, sym, cat="linear"):
+    """Сумма ставок фандинга, списанных за последние 24 ч (доля, не %). Публичный API, кэш 10 мин."""
+    now = time.time(); c = _FH.get(sym)
+    if c and now - c[0] < 600: return c[1]
+    try:
+        h = pub("/v5/market/funding/history", {"category": cat, "symbol": sym, "limit": "200"})["result"]["list"]
+        cut = (now - 86400) * 1000
+        r = sum(ff(x["fundingRate"]) for x in h if ff(x["fundingRateTimestamp"]) >= cut)
+    except Exception:
+        r = None
+    _FH[sym] = (now, r); return r
+
 def _build(sget, pub, port):
     now = time.time()
     acct = port.get("acct", {}); rows = {r["base"]: r for r in port.get("groups", {}).get("ALL", {}).get("rows", [])}
@@ -366,6 +379,9 @@ def _build(sget, pub, port):
         perps.append({"sym": s, "q": q, "avg": round(ff(p["avgPrice"]), 2), "mark": mk, "usd": round(notional, 2),
                       "upl": round(ff(p.get("unrealisedPnl")) * (mk if is_inv else 1), 2), "real": round(ff(p.get("cumRealisedPnl")) * (mk if is_inv else 1), 2),
                       "fund": round(fr * 100, 4), "fund_day": round(-notional * fr * 24 / fi, 2), "inv": is_inv})
+        f24 = _fund24(pub, s, "inverse" if is_inv else "linear")     # сумма списанных ставок за 24 ч
+        perps[-1]["fund24"] = round(f24 * 100, 3) if f24 is not None else None
+        perps[-1]["fund24_day"] = round(-notional * f24, 2) if f24 is not None else None
     # --- маржа по монетам
     margin = []
     for c, v in sorted(pm["coins"].items(), key=lambda kv: -kv[1]["mm"]):
@@ -494,6 +510,10 @@ def _build(sget, pub, port):
         theta.append(rr)
     theta_tot = {str(dd): round(sum(val(now + dd * 86400, g) - val(now, g) for g in ("ETH", "SOX", "прочее")), 1) for dd in (30, 60, 90)}
     fund_all = round(sum(p["fund_day"] for p in perps), 2)
+    # фандинг за прошедшие 24 ч по факту (ставки списаний × нынешний размер позиции) — ровнее, чем текущая ставка × 24
+    fund24_all = round(sum(p["fund24_day"] for p in perps if p.get("fund24_day") is not None), 2)
+    fund24_by = {p["sym"].replace("USDT", ""): p["fund24_day"] for p in sorted(perps, key=lambda p: p.get("fund24_day") or 0)
+                 if p.get("fund24_day") is not None and abs(p["fund24_day"]) >= 0.5}
     # --- плечи
     stable = port.get("stable") or {}
     net = []
@@ -556,7 +576,7 @@ def _build(sget, pub, port):
                     "theta": round(sum(l["th"] for l in eth_legs), 2), "vega": round(sum(l["v"] for l in eth_legs), 2),
                     "mm": pe.get("mm"), "move": pe.get("move"), "iv": pe.get("iv"), "stress": stress, "tail": tail, "short_notional": short_notional, "cover": cover,
                     "curve": eth_curve},
-            "sox": sox, "xbeta": xb, "theta": theta, "theta_tot": theta_tot, "fund_day": fund_all, "lev": lev}
+            "sox": sox, "xbeta": xb, "theta": theta, "theta_tot": theta_tot, "fund_day": fund_all, "fund24_day": fund24_all, "fund24_by": fund24_by, "perps_all": perps, "lev": lev}
 
 def desk_snapshot(sget, pub, port):
     v = _C.get("desk")
@@ -585,7 +605,8 @@ def desk_live(sget, pub):
         fi = ex.submit(pos, {"category": "inverse"})
         fp = {b: ex.submit(tk, b) for b in ("ETH", "SOXL", "SOXS")}
         wb = fw.result(); opts = fo.result(); lin = fl[0].result() + fl[1].result(); inv = fi.result(); px = {b: f.result() for b, f in fp.items()}
-    eq = ff(wb.get("totalEquity")); im = ff(wb.get("totalInitialMargin")); mm = ff(wb.get("totalMaintenanceMargin"))
+    # маржинальный баланс (как у Bybit в IM/MM %): без монет, которые PM не зачитывает в залог; totalEquity их включает
+    eq = ff(wb.get("totalMarginBalance")) or ff(wb.get("totalEquity")); im = ff(wb.get("totalInitialMargin")); mm = ff(wb.get("totalMaintenanceMargin"))
     od = {}; th = {}
     for p in opts:
         b = p["symbol"].split("-")[0]; od[b] = od.get(b, 0.0) + ff(p.get("delta")); th[b] = th.get(b, 0.0) + ff(p.get("theta"))
